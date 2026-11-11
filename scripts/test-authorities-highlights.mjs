@@ -16,6 +16,7 @@ const { sha256 } = require('../backend/dist/lib/hash');
 const { prepareAuthorityAnnotations, buildAuthorities } = require('../backend/dist/lib/authoritiesBuild');
 const { reduceAuthoritiesDraft } = require('../backend/dist/lib/authoritiesDomain');
 const keepOutputs = process.argv.includes('--keep-outputs') || !!process.env.AUTHORITIES_HIGHLIGHT_OUTPUT;
+const quotationsOnly = process.argv.includes('--quotations-only');
 const output = path.resolve(process.env.AUTHORITIES_HIGHLIGHT_OUTPUT || path.join(root, '.tmp/authorities-highlight-results'));
 if (!process.env.AUTHORITIES_HIGHLIGHT_OUTPUT) await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
@@ -66,7 +67,14 @@ const quotationCases = {
   missingTwo: quotationFindings('missing-2', 'It added that "an operator bears the whole of the risk" without exception.', '44',
     'Nothing in these reasons addresses the allocation of commercial risk between parties.'),
 };
-api.get('/discrepancies', (_req, res) => res.json([...quotationCases.difference,
+const longQuote = 'The landlord must deliver written notice at least seven business days before the hearing. ' +
+  'The tenant must have a reasonable opportunity to respond to the evidence and to make submissions on the application. '.repeat(16);
+const longFinding = quotationFindings('long-wording', `The court held that "${longQuote.replace('business', 'calendar')}".`, '52', longQuote);
+const caseFinding = { kind: 'different_case', id: 'different-case', occurrenceId: 'different-case', authorityId: 'text',
+  footnoteId: 4, citation: 'North v Harbour, 2024 SCC 1', text: 'See North v Harbour, 2024 SCC 1.',
+  cited: { citation: '2024 SCC 1', name: 'Pine v Mason' }, named: { citation: '2024 SCC 2', name: 'North v Harbour' },
+  actions: ['use_named_case', 'use_cited_name', 'keep_cited_case', 'ignore'] };
+api.get('/discrepancies', (_req, res) => res.json([...quotationCases.difference, ...longFinding, caseFinding,
   ...quotationCases.missingOne, ...quotationCases.missingTwo]));
 api.post('/save', (req, res, next) => {
   try {
@@ -101,6 +109,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2 });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${address.port}/tests/authorities-highlights/`, { waitUntil: 'domcontentloaded' });
+  if (!quotationsOnly) {
   await page.getByRole('button', { name: 'Edit in PDF' }).click();
   const cards = page.getByRole('complementary', { name: 'Highlights' }).locator('li');
   await expect(cards).toHaveCount(3);
@@ -157,29 +166,86 @@ try {
   await closeEditor('text', 'text-en', 0);
   await page.getByRole('button', { name: 'Edit in PDF' }).click(); await expect(cards).toHaveCount(0);
   await closeEditor('text', 'text-en', 0);
+  }
   // Meaningless differences never reach the dialog at all.
   assert.deepEqual(quotationCases.ownerComma, [], 'A quote the cited passage contains is not a finding');
   assert.deepEqual(quotationCases.diacritics, [], 'Diacritics, case and dashes are not differences');
   assert.equal(quotationCases.difference.length, 1);
-  // Resolving one difference retains the other unlocated quotations for review.
+  assert.equal(longFinding.length, 1);
   await page.getByRole('button', { name: 'Review test quotations' }).click();
-  const panel = page.getByRole('region', { name: 'Check quotations' });
+  const panel = page.getByRole('region', { name: 'Check quotations and citations', exact: true });
+  const details = panel.getByRole('region', { name: 'Finding details' });
+  const geometry = async (action = 'Apply') => ({ panel: await panel.boundingBox(),
+    heading: await panel.getByRole('heading', { name: 'Check quotations and citations', exact: true }).boundingBox(),
+    action: await panel.getByRole('button', { name: action, exact: true }).boundingBox(),
+    scroll: await page.evaluate(() => window.scrollY) });
+  const stable = (before, after) => {
+    for (const key of ['panel', 'heading', 'action']) for (const dimension of ['x', 'y', 'width', 'height'])
+      assert.ok(Math.abs(before[key][dimension] - after[key][dimension]) < 1, `${key} ${dimension} stays put`);
+    assert.equal(after.scroll, before.scroll, 'Reviewing a finding does not scroll the page');
+  };
   await expect(panel.getByText(/The Board explained that/)).toBeVisible();
+  await expect(details).toBeFocused();
+  const original = await geometry();
+  assert.equal(original.panel.width, 900, 'A wide window keeps a readable comparison width');
+  assert.ok(original.panel.y + original.panel.height <= 1000, 'The panel fits in the window');
   await page.screenshot({ path: path.join(output, 'quotation-desktop.png') });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: path.join(output, 'quotation-mobile.png') });
+  await panel.getByRole('button', { name: 'Next finding' }).click();
+  stable(original, await geometry());
+  assert.ok(await details.evaluate(node => node.scrollHeight > node.clientHeight), 'Long passages scroll inside the comparison');
+  await details.evaluate(node => { node.scrollTop = node.scrollHeight; });
+  await expect(panel.getByRole('button', { name: 'Apply', exact: true })).toBeInViewport();
+  await page.screenshot({ path: path.join(output, 'quotation-long.png') });
+  await page.evaluate(() => window.annotationTestReviewError('The correction could not be saved. Try applying the decision again.'));
+  await expect(panel.getByRole('alert')).toBeInViewport();
+  stable(original, await geometry());
+  await page.evaluate(() => window.annotationTestReviewError(''));
+  await panel.getByRole('button', { name: 'Next finding' }).click();
+  await expect(panel.getByRole('radio')).toHaveCount(4);
+  assert.equal(await details.evaluate(node => node.scrollTop), 0, 'A new finding opens at the top of its details');
+  stable(original, await geometry());
+  await panel.getByRole('button', { name: 'Previous finding' }).click();
+  await panel.getByRole('button', { name: 'Previous finding' }).click();
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 720, height: 500 }]) {
+    await page.setViewportSize(viewport);
+    const before = await geometry();
+    assert.ok(before.panel.x >= 0 && before.panel.x + before.panel.width <= viewport.width, 'The panel fits narrow windows');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'No sideways page scrolling');
+    await panel.getByRole('button', { name: 'Next finding' }).click();
+    stable(before, await geometry());
+    await panel.getByRole('button', { name: 'Previous finding' }).click();
+    if (viewport.width === 390) await page.screenshot({ path: path.join(output, 'quotation-mobile.png') });
+  }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('radio', { name: /Use the source’s wording/ }).check();
+  const beforeApply = await geometry();
   await page.getByRole('button', { name: 'Apply', exact: true }).click();
-  // A quotation the cited passage lacks raises no finding: once the difference is applied, nothing is left.
+  await expect(panel.getByText('Rechecking', { exact: true })).toBeVisible();
+  await expect(panel.getByText(/The Board explained that/)).toBeVisible();
+  stable(beforeApply, await geometry());
+  await expect(panel.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
+  stable(beforeApply, await geometry('Next'));
+  await panel.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
+  await expect(panel.getByRole('radio').first()).toBeEnabled();
+  stable(beforeApply, await geometry());
+  // Every remaining finding can still be decided after an undo and a recheck.
+  for (let remaining = 3; remaining > 0; remaining -= 1) {
+    await panel.getByRole('radio', { name: 'Keep as written', exact: true }).check();
+    await panel.getByRole('button', { name: 'Apply', exact: true }).click();
+    await expect(panel.getByRole('button', { name: 'Next', exact: true })).toBeEnabled();
+    stable(beforeApply, await geometry('Next'));
+    if (remaining > 1) await panel.getByRole('button', { name: 'Next', exact: true }).click();
+  }
   assert.deepEqual([...quotationCases.missingOne, ...quotationCases.missingTwo], []);
   await expect(panel).toContainText('Nothing left to review');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(panel).toHaveCount(0);
   assert.deepEqual(errors, []);
   await writeFile(path.join(output, 'result.json'), JSON.stringify({ passed: true, assertions: [
-    'left full-paragraph geometry', 'HiDPI raster', 'click-delete-undo-redo',
-    'text selection', 'scan drawing', 'persisted deletion', 'editable PDF export', 'quotation correction'
+    ...(quotationsOnly ? [] : ['left full-paragraph geometry', 'HiDPI raster', 'click-delete-undo-redo',
+      'text selection', 'scan drawing', 'persisted deletion', 'editable PDF export']),
+    'quotation correction and undo', 'stable review size and controls', 'internal passage scrolling', 'visible errors', 'narrow window reflow'
   ] }, null, 2));
   console.log(`Authorities highlight browser checks passed: ${output}`);
 } catch (error) {

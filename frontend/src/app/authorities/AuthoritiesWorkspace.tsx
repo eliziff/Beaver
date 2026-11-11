@@ -9,7 +9,7 @@ import { authorityName, authorityLabel, authorityCitationLine, authorityCitation
   missingSource, relinkable } from "./authorityPresentation";
 import { BookOpen, ChevronRight, FilePlus2, FolderSearch,
   CircleAlert, FileStack, FileText, History, ListChecks, ListOrdered, Loader2, Plus, Scale, Settings2, SlidersHorizontal, Upload } from "lucide-react";
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState,
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState,
   type ComponentType, type ReactNode } from "react";
 import { toValue, useMachine } from "@/app/lib/useMachine";
 import { Modal } from "@/app/components/modals/Modal";
@@ -209,9 +209,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     authorityId: string; selected: PdfChoice;
   }>();
   const [findingId, setFindingId] = useState("");
+  const findingTrigger = useRef<HTMLElement | null>(null), citationsPanel = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (findingId || !findingTrigger.current) return;
+    const trigger = findingTrigger.current; findingTrigger.current = null;
+    (trigger.isConnected && !trigger.matches(":disabled") ? trigger : citationsPanel.current)?.focus({ preventScroll: true });
+  }, [findingId]);
   const [sourceChange, setSourceChange] = useState<AuthoritiesBuildSettings["sourceMode"]>();
-  // An opened finding is reviewed below the citations, so opening it brings it into view.
-  const revealFinding = useCallback((node: HTMLDivElement | null) => node?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }), []);
+  const revealFinding = useCallback((node: HTMLDivElement | null) => node?.scrollIntoView?.({ block: "nearest" }), []);
   const [viewedStep, setViewedStep] = useState<{ key: string; value: Step }>();
   const [editingAuthority, setEditingAuthority] = useState<AuthorityIdentity>();
   const [sourcePreview, setSourcePreview] = useState<SourcePreview>();
@@ -1175,9 +1180,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     const units = shown?.state.units ?? [], labels = noteLabels(units);
     return new Map(units.flatMap((unit) => unit.footnoteId === null ? [] : [[String(unit.footnoteId), labels.get(unit.id)]]));
   }, [shown]);
-  // A finding opens on its citation, selected in the list and shown in the brief.
+  // Keep the citation selected in the brief when opening its finding.
   const [revealed, setRevealed] = useState(0);
   const openFinding = (id: string) => {
+    if (!findingId) findingTrigger.current = document.activeElement as HTMLElement;
     setFindingId(id); setRevealed((count) => count + 1);
     const occurrence = [...openFindings, ...findings].find((finding) => finding.id === id)?.occurrenceId;
     if (occurrence && occurrences.some((item) => item.id === occurrence)) setSelectedId(occurrence);
@@ -1236,7 +1242,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
 
   const reviewable = !!draft && tab !== "drafts" && draft.state.import.kind === "document";
   const reviewing = reviewable && stage === "citations";
-  // Once drawn, the review stays drawn, unseen, on the other steps, so going back to Citations shows
+  const citationsVisible = reviewing && !findingId;
+  // Once drawn, the review stays drawn, unseen, on other steps or while a finding is open, so returning shows
   // it as it was left, in its first frame.
   const [reviewed, setReviewed] = useState("");
   if (reviewing && reviewed !== draft.id) setReviewed(draft.id);
@@ -1341,14 +1348,14 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
                   </div>}
                   {/* The review stays drawn, held still, while Next finds the sources; Sources replaces it. It comes
                       last, so on another step that step's own panel is the first below the steps. */}
-                  {reviewable && reviewed === draft.id && <div inert={!reviewing} aria-hidden={!reviewing || undefined}
+                  {reviewable && reviewed === draft.id && <div inert={!citationsVisible} aria-hidden={!citationsVisible || undefined}
                     // Unseen, it keeps its own size, place and scroll under a box of no height, and the browser
                     // skips its styles and layout, so a dialog opening over another step never restyles it. The box
                     // of no height hides it: a skipped box reports no place, which the browser counts as a shift.
-                    className={reviewing ? undefined : "h-0 overflow-clip"}><section aria-label="Citations"
-                    className={cn("@container overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm", !reviewing && "[content-visibility:hidden]")}>
+                    className={citationsVisible ? undefined : "h-0 overflow-clip"}><section ref={citationsPanel} tabIndex={-1} aria-label="Citations"
+                    className={cn("@container overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm", !citationsVisible && "[content-visibility:hidden]")}>
                     <CitationReview product={shown!} host={host} sourceVersion={sourceAccessVersion} occurrences={occurrences}
-                      selected={selected} authorities={authorities} discrepancies={findings} check={currentReview || reviewError ? "done" : reviewKey || !app && sourcesFound.id !== draft.id ? "running" : sourcesFound.failed ? "failed" : "unavailable"} hidden={!reviewing}
+                      selected={selected} authorities={authorities} discrepancies={findings} check={currentReview || reviewError ? "done" : reviewKey || !app && sourcesFound.id !== draft.id ? "running" : sourcesFound.failed ? "failed" : "unavailable"} hidden={!citationsVisible}
                       busy={busy} onSelect={setSelectedId} onAction={act} onHistory={travel}
                       reveal={revealed} review={app?.review !== false} onFocusChange={onFocusChange} onReview={openFinding} />
                   </section></div>}

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
-import { QuotationReview } from '../../src/app/authorities/QuotationFinding';
-import type { AuthoritiesDiscrepancy } from '../../src/app/authorities/types';
+import { QuotationReview, type Finding } from '../../src/app/authorities/QuotationFinding';
 import { AuthoritiesHighlights } from '../../src/app/authorities/AuthoritiesHighlightEditor';
 import { PdfCanvas } from '../../src/app/components/shared/views/PdfCanvas';
 import type { AuthoritiesHost } from '../../src/app/authorities/host';
@@ -51,9 +50,10 @@ function App() {
   const [product,setProduct]=useState(initial),[error,setError]=useState('');
   const [reviewOpen,setReviewOpen]=useState(false),[rechecking,setRechecking]=useState(false);
   const [currentId,setCurrentId]=useState('');
+  const [resolved,setResolved]=useState<{finding:Finding;at:number}>();
   const [preview,setPreview]=useState<{role:string;quote:string}>();
   // Real backend findings, so the review can only show what the deterministic check produces.
-  const [findings,setFindings]=useState<AuthoritiesDiscrepancy[]>([]);
+  const [findings,setFindings]=useState<Finding[]>([]);
   useEffect(()=>{void fetch('/api/test-annotations/discrepancies').then(r=>r.json()).then(setFindings);},[]);
   const host={readSource:async(_product:AuthoritiesProduct,role:string)=>new Blob([files[role].slice().buffer],{type:'application/pdf'}),
     prepareAnnotations:async(value:AuthoritiesProduct,authorityId:string,bindingRole:string)=>
@@ -61,7 +61,7 @@ function App() {
     act:async(_id:string,revision:number,action:unknown)=>
       (await post('save',{product,revision,action})).json(),
   } as unknown as AuthoritiesHost;
-  Object.assign(window,{annotationTestProduct:product});
+  Object.assign(window,{annotationTestProduct:product,annotationTestReviewError:setError});
   async function build() {
     try {
       const response=await post('build',{product,files:Object.fromEntries(Object.entries(files).map(([role,bytes])=>[role,base64(bytes)]))});
@@ -69,21 +69,31 @@ function App() {
       a.href=url;a.download='annotation-test.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     } catch(cause) {setError(String(cause));}
   }
-  return <div className="mx-auto max-w-4xl p-6">
+  return <div className="mx-auto max-w-6xl p-4 sm:p-6">
+    <div hidden={reviewOpen}>
     <AuthoritiesHighlights product={product} tabs={new Map([['text','Tab 1'],['scan','Tab 2']])} host={host} busy={false}
       ocr={{tracked:{},begin:async()=>{},stop:async()=>{}}} onSaved={setProduct}
       onAction={action=>void post('save',{product,revision:product.revision,action})
         .then(response=>response.json()).then(setProduct)
         .catch(cause=>setError(String(cause)))}/>
-    <button className="m-4 border p-2" disabled={!findings.length} onClick={()=>setReviewOpen(true)}>Review test quotations</button>
-    {reviewOpen && <QuotationReview currentId={currentId || findings[0]?.id || ''} items={rechecking ? undefined : findings} busy={rechecking}
+    <button className="m-4 border p-2" disabled={!findings.length} onClick={()=>{
+      setCurrentId(findings[0].id);setReviewOpen(true);
+    }}>Review test quotations</button>
+    </div>
+    {reviewOpen && <QuotationReview currentId={currentId || findings[0]?.id || ''} items={rechecking ? undefined : findings} busy={rechecking} error={error}
+      checked={findings.map(({id})=>id).join(',')}
       onSelect={setCurrentId} onDone={()=>setReviewOpen(false)}
       onOpenSource={finding=>{
         const source=product.state.authorities[finding.authorityId].source;
         if(source.kind==='attached')setPreview({role:source.sources[0].bindingRole,quote:(finding.found??finding.cited).text});
       }}
       onResolve={(finding,_action,done)=>{
+        setResolved({finding,at:findings.findIndex(value=>value.id===finding.id)});
         setRechecking(true);setTimeout(()=>{setFindings(values=>values.filter(value=>value.id!==finding.id));setRechecking(false);done();},700);
+      }}
+      onUndo={(finding,done)=>{
+        const at=resolved?.finding.id===finding.id ? resolved.at : 0;
+        setRechecking(true);setTimeout(()=>{setFindings(values=>[...values.slice(0,at),finding,...values.slice(at)]);setRechecking(false);done();},700);
       }}/>}
     {preview && <div className="mt-4 h-[520px] rounded-lg border border-gray-300">
       <PdfCanvas bytes={files[preview.role]} quotes={[{quote:preview.quote}]} quoteFocusKey={preview.quote} ariaLabel="Source PDF" />

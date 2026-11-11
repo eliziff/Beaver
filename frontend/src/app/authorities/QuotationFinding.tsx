@@ -93,9 +93,9 @@ function view(finding: Finding, note: (footnoteId: number | string) => string, s
       source: <>{finding.cited.citation} is <i>{finding.cited.name}</i>.{finding.named
         ? <><br /><i>{finding.named.name}</i> is <Added>{finding.named.citation}</Added>.</> : null}</>,
       options: (action: Action) => action === "use_named_case" && finding.named
-        ? { label: `Cite ${finding.named.citation}`, detail: `Your Word copy cites ${finding.named.citation}, ${finding.named.name}, instead of ${finding.cited.citation}. The book includes that decision.` }
+        ? { label: `Cite ${finding.named.citation}`, detail: `Your Word copy cites ${finding.named.citation}, ${finding.named.name}, instead of ${finding.cited.citation}.` }
         : action === "use_cited_name" ? { label: `Name it ${finding.cited.name}`,
-          detail: `Your Word copy keeps ${finding.cited.citation} and names it ${finding.cited.name}. The book includes it under that name.` }
+          detail: `Your Word copy keeps ${finding.cited.citation} and names it ${finding.cited.name}.` }
         : action === "keep_cited_case" ? { label: `Keep ${finding.cited.citation}, under its own name`,
           detail: `Your brief is not changed. The book includes ${finding.cited.citation} as ${finding.cited.name}.` }
           : { label: "Keep as written", detail: `Your brief is not changed. The book includes ${finding.cited.citation} under the name your brief gives it.` },
@@ -174,7 +174,10 @@ export function QuotationReview({ items, checked, note = String, sourceName = ()
   // A finding just decided, kept on the card with what was done while the check no longer lists it; or just
   // undone (no action), kept with its choices until the recheck lists it again.
   const [decided, setDecided] = useState<{ finding: Finding; action?: Action; at: number; checked?: string }>();
-  const list = items ?? [];
+  // Keep the comparison on screen while a decision is being rechecked.
+  const [lastItems, setLastItems] = useState(items);
+  if (items && items !== lastItems) setLastItems(items);
+  const list = items ?? lastItems ?? [];
   const finding = decided?.finding.id === currentId ? decided.finding : list.find(({ id }) => id === currentId) ?? list[0];
   // It keeps its place among the others, so its number doesn't change.
   const order = decided && !list.some(({ id }) => id === decided.finding.id)
@@ -187,9 +190,9 @@ export function QuotationReview({ items, checked, note = String, sourceName = ()
   const summary = list.length ? `${plural(list.length, "to review", "to review")}: ${[counts.wording && plural(counts.wording, "quotation"),
     counts.citation && plural(counts.citation, "citation")].filter(Boolean).join(", ")}`
     : "Nothing left to review";
-  const section = useRef<HTMLElement>(null);
-  // The card comes into view when a finding opens, and stays put while it is decided.
-  useLayoutEffect(() => { section.current?.scrollIntoView?.({ block: "nearest" }); }, [currentId]);
+  const body = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { body.current?.focus({ preventScroll: true }); }, []);
+  useLayoutEffect(() => { if (body.current) body.current.scrollTop = 0; }, [finding?.id]);
   // A finding the list no longer has (decided elsewhere, or gone with a recheck) gives way to the one shown, so
   // what is decided next is the finding on the card.
   useEffect(() => { if (items && finding && finding.id !== currentId) onSelect(finding.id); }, [items, finding, currentId, onSelect]);
@@ -198,55 +201,57 @@ export function QuotationReview({ items, checked, note = String, sourceName = ()
     [items, checked, decided]);
   const go = (to: number) => { const next = order[to]; if (next) { setChoice(undefined); onSelect(next.id); } };
   const next = () => { setDecided(undefined); const rest = list.filter(({ id }) => id !== finding?.id); if (rest[0]) onSelect(rest[Math.min(index, rest.length - 1)].id); else onDone(); };
-  return <section ref={section} aria-label="Check quotations and citations" className="mt-3 scroll-mt-4 rounded-xl border border-gray-300 bg-white shadow-sm">
-    <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+  return <section aria-label="Check quotations and citations"
+    className="mx-auto flex h-[min(42rem,calc(100dvh-9.5rem))] min-h-80 w-full max-w-[900px] scroll-mt-4 flex-col overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm">
+    <div className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200 px-4 py-3">
       <div className="min-w-0"><h2 className="font-semibold text-gray-950">Check quotations and citations</h2>
         <p className="truncate text-sm text-gray-600">{items ? summary : <StepProgress label="Rechecking" className="font-normal text-gray-600" />}</p></div>
       <div className="flex shrink-0 items-center gap-2">
-        {order.length > 1 && <div className="flex items-center gap-1.5 text-xs text-gray-600">
+        <div className="flex items-center gap-1.5 text-xs text-gray-600">
           <Button variant="outline" size="icon-sm" className="border-gray-300" aria-label="Previous finding" disabled={busy || index === 0}
             onClick={() => go(index - 1)}><ChevronLeft /></Button>
-          <span className="min-w-12 text-center tabular-nums">{index + 1} of {order.length}</span>
-          <Button variant="outline" size="icon-sm" className="border-gray-300" aria-label="Next finding" disabled={busy || index === order.length - 1}
+          <span className="min-w-12 text-center tabular-nums">{finding ? index + 1 : 0} of {order.length}</span>
+          <Button variant="outline" size="icon-sm" className="border-gray-300" aria-label="Next finding" disabled={busy || index >= order.length - 1}
             onClick={() => go(index + 1)}><ChevronRight /></Button>
-        </div>}
+        </div>
         <Button className="h-9" disabled={busy} onClick={onDone}>Done<ChevronRight /></Button>
       </div>
     </div>
-    {(items || decided) && <div className="px-4 pb-4 pt-3.5">
+    {error && <p role="alert" className="shrink-0 px-4 pt-3 text-sm text-red-800">{error}</p>}
+    <div ref={body} role="region" aria-label="Finding details" tabIndex={0}
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-3.5 outline-none [scrollbar-gutter:stable] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-600">
       {!finding || !shown ? <p role="status" className="py-1 text-sm text-gray-600">
-        {error ? "The check could not run." : "Nothing left to review."}</p> : <>
+        {error ? "The check could not run." : items ? "Nothing left to review." : "Checking quotations and citations…"}</p> : <>
         <p className="mb-2.5 text-[0.8125rem] text-gray-600"><b className="font-semibold text-gray-950">{shown.what}</b>
           {shown.where && <> · {shown.where}</>}</p>
         <div className="grid overflow-hidden rounded-lg border border-gray-300 sm:grid-cols-2 sm:divide-x sm:divide-gray-200">
           <Column label={done ? "Your brief, now" : "Your brief"}>{done ? shown.yoursNow(done) : shown.yours}</Column>
           <Column label={shown.sourceLabel}>{shown.source}</Column>
         </div>
-        {done ? <><div className="mt-3.5 flex items-center gap-3 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5">
+        {done ? <div className="mt-3.5 flex items-start gap-3 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5">
           <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-gray-950 text-white"><Check className="size-3.5" /></span>
           <p role="status" className="min-w-0 flex-1 text-sm text-gray-800">{shown.changed(done)}</p>
-          {onUndo && <Button variant="outline" className="h-9 border-gray-300" disabled={busy}
-            onClick={() => onUndo(finding, () => setDecided({ finding, at: index, checked }))}>Undo</Button>}
-          <Button className="h-9" disabled={busy} onClick={next}>Next<ChevronRight /></Button>
-        </div>
-        {error && <p role="alert" className="mt-2 text-sm text-red-800">{error}</p>}</> : <>
-          {onResolve && finding.actions.length > 0 && <fieldset disabled={busy} className="@container/rows mt-3.5 grid gap-2">
-            <legend className="sr-only">Decision</legend>
-            {(finding.actions as Action[]).map(value => { const option = shown.options(value);
-              return <OptionCard key={value} row name={`finding-${finding.id}`} checked={action === value}
-                onChange={() => setChoice({ id: finding.id, action: value })} label={option.label} detail={option.detail} />; })}
-          </fieldset>}
-          <div className="mt-3.5 flex flex-wrap items-center justify-end gap-3">
-            {error && <span role="alert" className="mr-auto text-sm text-red-800">{error}</span>}
-            {onOpenSource && !isCase(finding) && <Button variant="outline" className="h-9 border-gray-300" disabled={busy}
-              onClick={() => onOpenSource(finding)}>Open source</Button>}
-            {onResolve && finding.actions.length > 0 && <Button className="h-9" disabled={busy || !action}
-              onClick={() => action && onResolve(finding, action as AuthoritiesDiscrepancyAction, () => {
-                setChoice(undefined); setDecided({ finding, action, at: index });
-              })}>Apply</Button>}
-          </div>
-        </>}
+        </div> : onResolve && finding.actions.length > 0 && <fieldset disabled={busy} className="@container/rows mt-3.5 grid gap-2">
+          <legend className="sr-only">Decision</legend>
+          {(finding.actions as Action[]).map(value => { const option = shown.options(value);
+            return <OptionCard key={value} row name={`finding-${finding.id}`} checked={action === value}
+              onChange={() => setChoice({ id: finding.id, action: value })} label={option.label} detail={option.detail} />; })}
+        </fieldset>}
       </>}
-    </div>}
+    </div>
+    <div className="flex min-h-16 shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-4 py-3">
+      {finding && shown && (done ? <>
+        {onUndo && <Button variant="outline" className="h-9 min-w-28 border-gray-300" disabled={busy}
+          onClick={() => onUndo(finding, () => setDecided({ finding, at: index, checked }))}>Undo</Button>}
+        <Button className="h-9 min-w-24" disabled={busy} onClick={next}>Next<ChevronRight /></Button>
+      </> : <>
+        {onOpenSource && !isCase(finding) && <Button variant="outline" className="h-9 min-w-28 border-gray-300" disabled={busy}
+          onClick={() => onOpenSource(finding)}>Open source</Button>}
+        {onResolve && finding.actions.length > 0 && <Button className="h-9 min-w-24" disabled={busy || !action}
+          onClick={() => action && onResolve(finding, action as AuthoritiesDiscrepancyAction, () => {
+            setChoice(undefined); setDecided({ finding, action, at: index });
+          })}>Apply</Button>}
+      </>)}
+    </div>
   </section>;
 }
