@@ -428,6 +428,14 @@ export type AuthoritiesSourcePassage = {
   text: string;
 };
 
+/** An authored quotation and the source's words side by side (the engine's quotation_diff): each in pieces, those the
+ *  other lacks changed, and each change's words before and after. */
+export type QuotationDiff = {
+  authored: Array<{ text: string; changed: boolean }>;
+  source: Array<{ text: string; changed: boolean }>;
+  changes: Array<{ before: string; after: string }>;
+};
+
 /** `Evidence` is the retrieved passage behind `cited`; only the server reads its shape. */
 export type AuthoritiesDiscrepancy<Evidence = unknown> = {
   id: string;
@@ -442,7 +450,8 @@ export type AuthoritiesDiscrepancy<Evidence = unknown> = {
   cited: AuthoritiesSourcePassage;
   citedPassage?: Evidence;
 } & (
-  | { kind: "quote_mismatch"; found: AuthoritiesSourcePassage | null }
+  | { kind: "quote_mismatch"; found: AuthoritiesSourcePassage | null; /** The quotation against the source's words. */
+    diff: QuotationDiff }
   | { kind: "wrong_pinpoint"; found: AuthoritiesSourcePassage; /** The pinpoint each change writes: the quotation's alone, or the cited range extended to it. */ pinpoint?: string; extended?: string }
 );
 

@@ -24,9 +24,8 @@ vi.mock("./structureNative", () => ({ structureNative: () => ({
   documentRevision: (document: { revision?: string }) => document.revision ?? "a".repeat(64),
   documentText: (document: { text: string }) => document.text,
   documentAnchors: (document: { blocks: unknown[] }) => document.blocks,
-  smallestContainingDocumentBlock: (document: { blocks: Array<{ start: number; end: number }> },
-    start: number, end: number) => document.blocks.find((block) =>
-      block.start <= start && block.end >= end) ?? null,
+  documentLocator: () => null,
+
   legalSourceViewer: () => ({ slices: [] }),
   providerCitationsInText: () => [],
 }) }));

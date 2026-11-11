@@ -502,12 +502,10 @@ export type LegalEvidenceSpan = { text: string; start: number; end: number;
 
 export function legalSourceEvidence(passage: LegalSourcePassage,
   span?: LegalEvidenceSpan): LegalEvidenceReceipt | undefined {
-  const block = passage.blockArtifact?.node, at = passage.blockArtifact?.span, fragment = passage.blockArtifact?.fragment;
-  span ??= block && at ? { text: passage.text, start: at.start, end: at.end,
-    blockId: `${block.kind}:${block.label ?? ""}:${at.start}:${at.end}`,
-    ...(block.label != null && ["paragraph", "page", "section", "footnote"].includes(block.kind)
-      ? { locator: { kind: block.kind as LegalEvidenceReceipt["locator"]["kind"],
-        label: block.label, ...fragment && { fragment } } } : {}) } : undefined;
+  const block = passage.blockArtifact?.node, at = passage.blockArtifact?.span;
+  span ??= block && at ? ((locator) => ({ text: passage.text, start: at.start, end: at.end,
+    blockId: `${block.kind}:${block.label ?? ""}:${at.start}:${at.end}`, ...locator && { locator } }))(
+    structureNative().documentLocator(passage.documentArtifact, at.start, at.end, block.id)) : undefined;
   if (passage.source.provider === "a2aj") {
     const native = object(passage.native);
     if (typeof native?.citation === "string" && typeof native.dataset === "string" &&
@@ -924,24 +922,16 @@ export async function legalEvidenceProseIntegrityErrors(text: string,
     const paragraphs = (citation.pinpoints ?? []).filter(({ kind }) => kind === "paragraph");
     if (!paragraphs.length) continue;
     named.set(key, labels);
-    paragraphs.forEach((point) => {
-      const first = point.first ?? point.span.text, last = point.last ?? first;
-      const start = Number(first), end = Number(last);
-      // A cited range names every paragraph in it; a receipt read as a range covers each one (2026-09-10).
-      if (Number.isSafeInteger(start) && end >= start && end - start < 60)
-        for (let value = start; value <= end; value++) labels.add(String(value));
-      else labels.add(point.last ? `${first}–${last}` : first);
-    });
+    // A cited range names every paragraph in it; a receipt read as a range covers each one (2026-09-10).
+    const written = paragraphs.map((point) => point.last
+      ? `${point.first ?? point.span.text}–${point.last}` : point.first ?? point.span.text);
+    native.expandLabels(written, "paragraph", 59).forEach((numbers, at) =>
+      (numbers ?? [written[at]]).forEach((label) => labels.add(label)));
   }
   const pinpoints = [...named].flatMap(([key, labels]) => {
     const actual = cited.filter((receipt) => native.citationLookupKeys([receipt.citation])[0] === key)
-      .flatMap(({ locator }) => {
-        if (locator.kind !== "paragraph") return [""];
-        const label = locator.label, span = /^(\d+)\s*[-–—]\s*(\d+)$/u.exec(label);
-        if (!span) return [label];
-        const [from, to] = [Number(span[1]), Number(span[2])];
-        return to >= from && to - from < 60 ? Array.from({ length: to - from + 1 }, (_, i) => String(from + i)) : [label];
-      });
+      .flatMap(({ locator }) => locator.kind !== "paragraph" ? [""]
+        : native.expandLabels([locator.label], "paragraph", 59)[0] ?? [locator.label]);
     return [...labels].every((label) => actual.includes(label)) && actual.every((label) => labels.has(label))
       ? [] : [`${key} paragraphs ${[...labels].join(", ")} require their exact passage evidence_ids; Read those paragraphs and correct the claim's evidence_ids or split the claim`];
   });

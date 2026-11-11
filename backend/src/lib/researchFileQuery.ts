@@ -13,7 +13,6 @@ import { commitResearchFile, readResearchFile,
   type PublicResearchFileAction,
   type ResearchFile, type ResearchFileAction, type ResearchFileState,
   type ResearchQueryReceipt, type ResearchSourceReference } from "./researchFile";
-import { provenBlockLocator } from "./documentLocators";
 import { structureNative } from "./structureNative";
 import { escapeRegExp } from "./text";
 import { hasSearchOperators, searchMatcher } from "./searchQuery";
@@ -114,10 +113,9 @@ export async function verifyResearchPassage(file: ResearchFile, action: PublicRe
     || start < 0 || end > text.length || end <= start || index > 0 && start < ranges[index - 1].end))
     throw new ApplicationError(400, "Invalid selection ranges", { code: "invalid_span" });
   const evidence = ranges.map((span) => {
-    const block = native.smallestContainingDocumentBlock(document, span.start, span.end) ?? null;
     const receipt = passage.evidence({ ...span, text: text.slice(span.start, span.end),
       ...((locator) => locator ? { blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
-        locator } : {})(provenBlockLocator(document, block, span)) });
+        locator } : {})(native.documentLocator(document, span.start, span.end)) });
     if (!receipt) throw new ApplicationError(404, "This source could not be opened for reading");
     return receipt;
   });
@@ -389,12 +387,11 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
             if (!match) {
               if (pageFull || foundEvidence.size === limit) { resultLimited = true; continue; }
               const length = span.end - span.start;
-              const value = text.slice(span.start, span.end), block = adapter.smallestContainingDocumentBlock(
-                passage.documentArtifact, span.start, span.end) ?? null, receipt = passage.evidence(
+              const value = text.slice(span.start, span.end), receipt = passage.evidence(
                   { ...span, text: value,
                 ...((locator) => locator ? {
                   blockId: `${locator.kind}:${locator.label}:${span.start}:${span.end}`,
-                  locator } : {})(provenBlockLocator(passage.documentArtifact, block, span)) });
+                  locator } : {})(adapter.documentLocator(passage.documentArtifact, span.start, span.end)) });
               if (!receipt || !afterCursor(source.id, receipt)) continue;
               if (length > MAX_CAPTURE_CHARS) { sizeLimited = true; continue; }
               if (foundChars + length > MAX_CAPTURE_CHARS)
@@ -413,7 +410,7 @@ export async function runResearchFileQuery(documents: DocumentStore, scope: Appl
               const receipt = passage.evidence({ text: span, start: block.start, end: block.end,
                 ...(block.kind === "document" ? {} : {
                   blockId: `${block.kind}:${block.label}:${block.start}:${block.end}`,
-                  locator: provenBlockLocator(passage.documentArtifact, block.reading, block) }) });
+                  locator: adapter.documentLocator(passage.documentArtifact, block.start, block.end, block.reading?.node.id) ?? undefined }) });
               if (receipt && afterCursor(source.id, receipt)) {
                 if (span.length > MAX_CAPTURE_CHARS) { sizeLimited = true; continue; }
                 if (foundChars + span.length > MAX_CAPTURE_CHARS)

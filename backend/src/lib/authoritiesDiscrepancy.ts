@@ -7,7 +7,6 @@ import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
 import { mapBounded } from "./mapBounded";
 import { structureNative } from "./structureNative";
-import { normalizeWhitespace } from "./text";
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 
 export type { AuthoritiesSourcePassage };
@@ -35,24 +34,6 @@ const sameLocator = (left: AuthoritiesSourcePassage, right: AuthoritiesSourcePas
   const label = ({ locator }: AuthoritiesSourcePassage) => locator.label.replace(/\s+/gu, "").replace(/[\u2013\u2014]/gu, "-");
   return left.locator.kind === right.locator.kind && label(left) === label(right);
 };
-
-/** Only substantive wording is a difference: case, diacritics, quote/dash variants and
- * compatibility width are noise, and the authored quote's edge punctuation is the author's. */
-const foldForComparison = (value: string) => normalizeWhitespace(value)
-  .normalize("NFKD").replace(/\p{M}+/gu, "")
-  .replace(/["“”«»„]/gu, '"').replace(/['‘’‚`´]/gu, "'").replace(/[‐‑‒–—―−]/gu, "-").toLowerCase();
-const trimEdgePunctuation = (value: string) =>
-  value.replace(/^[^\p{L}\p{N}]+/u, "").replace(/[^\p{L}\p{N}]+$/u, "");
-
-function exactCount(text: string, quote: string) {
-  text = foldForComparison(text); quote = trimEdgePunctuation(foldForComparison(quote));
-  if (!quote) return 0;
-  let count = 0;
-  for (let at = text.indexOf(quote); at >= 0; at = text.indexOf(quote, at + quote.length)) {
-    if (++count === 2) break;
-  }
-  return count;
-}
 
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
@@ -130,7 +111,7 @@ export function findAuthoritiesDiscrepancies(
         !source?.cited.text.trim() || !proposition) continue;
     for (const authoredQuote of markedQuotations(proposition)) {
       // Contained in the cited passage means verbatim; there is nothing to report.
-      if (exactCount(source.cited.text, authoredQuote)) continue;
+      if (native.quoteOccurrences(source.cited.text, authoredQuote)) continue;
       const evidenceId = "authorities-source";
       if (!native.groundedProseErrors(`\u201c${authoredQuote}\u201d`, [evidenceId], [{
         evidenceId, text: source.cited.text, labels: [],
@@ -138,7 +119,7 @@ export function findAuthoritiesDiscrepancies(
       let matchCount = 0, found: AuthoritiesSourcePassage | null = null;
       for (const candidate of source.alternatives ?? []) {
         if (candidate.locator.kind !== source.cited.locator.kind) continue;
-        const count = exactCount(candidate.text, authoredQuote);
+        const count = native.quoteOccurrences(candidate.text, authoredQuote);
         if (!count) continue;
         matchCount += count;
         // The whole paragraph, so the card shows the quotation where the source holds it.
@@ -164,6 +145,7 @@ export function findAuthoritiesDiscrepancies(
         const target = quoteTarget(draft.units, unit.footnoteId, authoredQuote);
         const kind = "quote_mismatch" as const;
         findings.push({ ...base, kind, found: { ...source.cited, text: repair },
+          diff: native.quotationDiff(authoredQuote, repair),
           id: findingId(occurrence, source, kind, authoredQuote),
           actions: target ? ["ignore", "quote_exact", "quote_editorial"] : ["ignore"] });
       }

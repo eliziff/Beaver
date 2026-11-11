@@ -320,6 +320,15 @@ type StructureAddon = {
   /** Each unit's items in reading order, as (unit, item): a note follows the body up to its call. */
   documentReadingOrder(units: Array<{ kind: string; footnote_id: number | null;
     footnote_refs: Array<[number, number]>; item_offsets: number[] }>): Array<[number, number]>;
+  /** Each note's proposition in a brief's body text (its body units in order, each followed by a line break): the
+   *  passage since the call before its one call, or with `context` "sentence", the sentence its call ends or stands
+   *  in; each with the parts of the units (by their place in `units`) it holds. Also where each body unit starts in
+   *  that text and every call of a note in it by where it stands. Offsets in UTF-16 units. */
+  footnotePropositions(units: ReadonlyArray<{ id: string; kind: string; ordinal: number; text: string;
+    footnoteRefs: ReadonlyArray<readonly [number, number]> }>, context?: "passage" | "sentence"): {
+    propositions: Array<{ footnoteId: number; text: string; start: number; end: number;
+      parts: Array<{ unit: number; start: number; end: number }> }>;
+    bodyStarts: Array<number | null>; anchors: Array<[number, number]> };
   citationLookupKeys(texts: string[]): string[];
   /** What the lookup keys are made by: the key version and the alias table ("4:1a2b3c4d5e6f"). */
   citationKeyVersion(): string;
@@ -372,6 +381,11 @@ type StructureAddon = {
   journalTitleChoice(hits: Array<{ title: string; name: string; articleId: number }>): number | null;
   /** The source passage an authored quotation's words closely align with, where it occurs once. */
   verbatimRepair(authored: string, source: string): string | null;
+  /** How often, up to twice, a quotation stands in a text word for word, only substantive wording compared and its
+   *  own edge punctuation left out. */
+  quoteOccurrences(text: string, quote: string): number;
+  /** An authored quotation and the source's words side by side, in pieces, those the other lacks changed. */
+  quotationDiff(authored: string, source: string): import("mike/shared/authorities-contract.d.ts").QuotationDiff;
   /** The one document the local A2AJ store at `store` holds under a citation's key, with its provisions' document and
    *  its full text's; null where the store, or the document, is missing. */
   a2ajDocument(store: string, lookup: A2AJStoreLookup): Promise<A2AJStoreDocument | null>;
@@ -442,8 +456,9 @@ type StructureAddon = {
     } | null;
   smallestContainingDocumentBlock(document: NativeDocument, start: number,
     end: number): NativePassage | null;
-  /** The page holding `start..end`, else the first that shares any of it. */
-  documentPageAt(document: NativeDocument, start: number, end: number): NativeNodeReading | null;
+  /** What `start..end` is cited by: the node `nodeId` names (else the smallest block holding the span) where it is a
+   *  labelled page, or a paragraph, provision or note printing its label; else the labelled page holding the span. */
+  documentLocator(document: NativeDocument, start: number, end: number, nodeId?: string): NativeLocator | null;
   documentHasOrigin(document: NativeDocument, origin: NativeNode["source"]): boolean;
   /** The nodes the query serves, in its order, as readers take them; with `kind`, those it serves as that kind (a
    *  paragraph's prose among them); with `end`, those starting before it. Levels are one-based. */
@@ -471,6 +486,9 @@ type StructureAddon = {
   /** A reader's labels of one kind as few as they can be written: runs of numbers ("12–14"), provisions' spans
    *  ("5(2)(a)–(c)"); null where a label is not of the kind's shape. */
   collapseLabels(labels: readonly string[], kind: string): string[] | null;
+  /** Each numbered label of a kind as the numbers it names, a run written out ("12–14": 12, 13, 14): null for one
+   *  naming no number or run, or a run reversed or spanning more than `limit` past its first number. */
+  expandLabels(labels: readonly string[], kind: "paragraph" | "page" | "line", limit: number): Array<string[] | null>;
   /** How current a statute's print says it is, from its first pages ("Current to September 21, 2026"). */
   statuteCurrency(pages: string[]): string | null;
   /** A filing's cover from its opening page's text: the parties its BETWEEN block names in their roles, and whose
@@ -514,6 +532,10 @@ type NativeDocumentTextWindow = {
     span: [number, number];
     truncatedStart: boolean;
     truncatedEnd: boolean;
+    /** The smallest block holding the row's span, what the span is cited by, and the table cells the row shows. */
+    block: NativePassage | null;
+    locator: NativeLocator | null;
+    cells?: Array<{ start: number; end: number; tableName: string; address: string }>;
   }>;
   nextOffset: number | null;
   nextStartChar: number | null;
@@ -588,6 +610,9 @@ export type NativeNode = {
  *  its label where it stands. */
 export type NativeNodeReading = { node: NativeNode; ranges: NativeSpan[]; span: NativeSpan; fragment?: string;
   prints_label: boolean };
+
+/** What a passage is cited by: a page, paragraph, provision or note by the label it prints, and its link fragment. */
+export type NativeLocator = { kind: "page" | "paragraph" | "section" | "footnote"; label: string; fragment?: string };
 
 /** A node the query found, as a reader takes it, with its text. */
 export type NativePassage = NativeNodeReading & { text: string };

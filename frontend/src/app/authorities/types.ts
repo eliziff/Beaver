@@ -4,7 +4,7 @@ export type {
   AuthoritiesBookRole, AuthoritiesBuildSettings, AuthoritiesCover, AuthorityIdentity,
   AuthorityTextSpan, AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDiscrepancyRequest, AuthoritiesDraft,
   AuthoritiesDiscrepancy, AuthoritiesBuildReceipt, AuthoritiesOutputRole, AuthoritiesOutputFile,
-  AuthoritiesProfile,
+  AuthoritiesProfile, QuotationDiff,
 } from "../../../../shared/authorities-contract.d.ts";
 
 export type { AuthoritySourceLanguage, AttachedAuthoritySource, AuthoritiesBoundPdf,

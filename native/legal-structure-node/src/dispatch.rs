@@ -306,6 +306,11 @@ fn dispatch(
             &call.get::<Vec<String>>("labels")?,
             &call.get::<String>("kind")?,
         ))),
+        "expandLabels" => done(value(legal_structure::expand_labels(
+            &call.get::<Vec<String>>("labels")?,
+            &call.get::<String>("kind")?,
+            call.get("limit")?,
+        ))),
         "statuteCurrency" => done(value(legal_structure_features::statute_currency(
             &call.get::<Vec<String>>("pages")?,
         ))),
@@ -326,6 +331,11 @@ fn dispatch(
             )
             .map_err(|error| error.to_string()),
         ),
+        "footnotePropositions" => done(value(legal_structure_features::footnote_propositions(
+            &call.get::<Vec<legal_structure_features::PropositionUnit>>("units")?,
+            call.get::<Option<legal_structure_features::QuoteContext>>("context")?
+                .unwrap_or(legal_structure_features::QuoteContext::Passage),
+        ))),
         "documentReadingOrder" => done(value(legal_structure_features::document_reading_order(
             &call.get::<Vec<legal_structure_features::ReadingOrderUnit>>("units")?,
         ))),
@@ -426,6 +436,14 @@ fn dispatch(
             &call.get::<String>("source")?,
         ))),
         "editorialQuote" => done(value(legal_structure_features::editorial_quote(
+            &call.get::<String>("authored")?,
+            &call.get::<String>("source")?,
+        ))),
+        "quoteOccurrences" => done(value(legal_structure_features::quote_occurrences(
+            &call.get::<String>("text")?,
+            &call.get::<String>("quote")?,
+        ))),
+        "quotationDiff" => done(value(legal_structure_features::quotation_diff(
             &call.get::<String>("authored")?,
             &call.get::<String>("source")?,
         ))),
@@ -620,11 +638,14 @@ fn dispatch(
                 call.get("end")?,
             ))
         })),
-        "documentPageAt" => done(with_document(doc()?, |d| {
-            value(
-                d.query
-                    .page_at(d.structure(), call.get("start")?, call.get("end")?),
-            )
+        // What a span is cited by: the node `nodeId` names, else the smallest block holding it, else its page.
+        "documentLocator" => done(with_document(doc()?, |d| {
+            value(d.query.locator(
+                d.structure(),
+                call.get("start")?,
+                call.get("end")?,
+                call.get::<Option<String>>("nodeId")?.as_deref(),
+            ))
         })),
         "lookupStructureBlock" => done(with_document(doc()?, |d| {
             engine::lookup_structure_block(d, call.get("locator")?, call.get("contextBlocks")?)

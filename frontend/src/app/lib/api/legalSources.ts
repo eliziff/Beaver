@@ -36,23 +36,22 @@ export interface LegalSourceViewerPayload {
     start: number;
     end: number;
     text: string;
-    depth: number;
     anchors: LegalSourceViewerAnchor[];
     primary: LegalSourceViewerAnchor | null;
     /** The slice is a heading the structure reads. */
     heading?: boolean;
   }[];
-  /** A judgment's front-matter parts and headings, as the structure reads them (offsets the slices'). */
+  /** A judgment's front-matter parts and headings, as the engine's document outline reads them (offsets the
+   *  slices'). */
   outline?: {
-    kind: "heading" | "paragraph" | "item" | "text";
+    kind: "heading" | "section" | "paragraph" | "prose" | "list_item" | "quote" | "span" | "text";
     level: number;
-    role?: "title" | "party" | "caption" | "labelled" | "counsel";
+    role?: "title" | "furniture" | "party" | "caption" | "labelled" | "counsel";
     start: number;
     end: number;
   }[];
   truncated: boolean;
 }
-/** A node of the source's structure as the engine writes it: a slice's anchor. */
 /** A node of the source as the reader takes it: the node, and its link fragment as the structure writes it ("par12"),
  *  its place in the reader. */
 interface LegalSourceViewerAnchor {

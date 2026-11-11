@@ -6,7 +6,7 @@ import { canonicalJsonSha256 } from "./hash";
 import { structureNative } from "./structureNative";
 import { reject } from "./applicationError";
 import { splitQuoteCitationUnits, type QuoteCitationUnit } from "./quoteCitationSplit";
-import { footnotePropositions, type QuoteContext } from "./authoritiesQuotations";
+import type { QuoteContext } from "./authoritiesQuotations";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
 import type { NativeDocument, NativeQuoteComparison, NativeQuoteLocation } from "./structureNative";
 import { buildLegalSourcePinpoint, legalSourceLocatorAnchor, planLegalSourcePinpoints } from "./legalSourceLinks";
@@ -28,16 +28,8 @@ export function decodeQuoteLinks(value: unknown): QuoteLink[] {
  *  stands in. With `textOnly`, the quotations are the text's alone, none a note holds. */
 export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
   splitUnits: QuoteCitationUnit[], context: QuoteContext = "passage", textOnly = false) {
-  const passages = footnotePropositions(draft.units, context);
-  const bodyOffsets = new Map<string, number>();
-  const anchors: Array<[number, number]> = [];
-  let position = 0;
-  for (const unit of draft.units.filter(({ kind }) => kind === "body").sort((a, b) => a.ordinal - b.ordinal)) {
-    bodyOffsets.set(unit.id, position);
-    anchors.push(...unit.footnoteRefs.map(([id, offset]) => [id, position + offset] as [number, number]));
-    position += unit.text.length + 1;
-  }
-  anchors.sort((a, b) => a[1] - b[1]);
+  const { propositions, bodyStarts, anchors } = structureNative().footnotePropositions(draft.units, context);
+  const passages = new Map(propositions.map((proposition) => [proposition.footnoteId, proposition]));
   const rows = draft.units.filter(({ kind }) => !textOnly || kind === "body").flatMap((unit) => structureNative().markedQuoteSpans(unit.text)
     // A cited work's quoted title ("Name, “Title” (2024) 16:1 J 61") is part of its citation, not a quotation.
     .filter((quote) => !unit.occurrenceIds.some((key) => {
@@ -46,7 +38,7 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
     }))
     .flatMap((quote) => {
       const id = canonicalJsonSha256([unit.id, quote.start, quote.end, quote.text]);
-      const bodyOffset = bodyOffsets.get(unit.id);
+      const bodyOffset = bodyStarts[draft.units.indexOf(unit)] ?? undefined;
       const globalEnd = (bodyOffset ?? 0) + quote.end;
       // A quotation belongs to the note that ends the passage it is in: the next note after it.
       const anchor = bodyOffset === undefined ? undefined : anchors.find(([, at]) => at >= globalEnd);

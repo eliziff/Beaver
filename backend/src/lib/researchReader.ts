@@ -5,7 +5,6 @@ import { z } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
 import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
-import { provenBlockLocator } from "./documentLocators";
 import { structureNative, type NativeDocument, type NativeNode, type NativeGraphScopeOmission } from "./structureNative";
 import { legalSourceOperations } from "./legalSourceApplication";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
@@ -325,33 +324,29 @@ export function readLibraryResearchWindow(input: LibraryWindowInput): ResearchRe
     : window.status === "split_character" ? `(start_char ${input.start_char} splits a Unicode character on line ${offset})`
     : `(start_char ${input.start_char} is past the end of line ${offset}; line chars: ${window.lineLength ?? 0})`),
     coverage: { complete: false, next: [{ resource, offset, start_char: input.start_char ?? 0 }] } };
-  const sourceText = native.documentText(input.document),
-    cells = native.documentTableCells(input.document), lines: LibraryReadLine[] = [];
+  const lines: LibraryReadLine[] = [];
   let chars = 0, next = window.nextOffset === null ? null
     : { resource, offset: window.nextOffset, start_char: window.nextStartChar ?? 0 };
   for (const original of window.rows) {
-    const row = boundedRow(original), lineStart = sourceText.lastIndexOf("\n", row.span[0] - 1) + 1;
+    const row = boundedRow(original), lineStart = original.span[0] - original.startChar;
     if (lines.length && chars + JSON.stringify(row.text).length > 32_000) {
       next = { resource, offset: row.lineNumber, start_char: row.span[0] - lineStart };
       break;
     }
-    const found = native.smallestContainingDocumentBlock(input.document, row.span[0], row.span[1]) ?? null,
-      block = found?.node,
-      selected = cells.flatMap((cell) => cell.ranges.flatMap((range) => {
-        const start = Math.max(range.start, row.span[0]), end = Math.min(range.end, row.span[1]);
+    const block = original.block?.node,
+      selected = (original.cells ?? []).flatMap(({ start, end: cellEnd, tableName, address }) => {
+        const end = Math.min(cellEnd, row.span[1]);
         return start < end ? [{ start, end, locator: { kind: "cell" as const,
-          label: `${cell.tableName}!${cell.address}`, sheet: cell.tableName, cells: cell.address } }] : [];
-      }));
+          label: `${tableName}!${address}`, sheet: tableName, cells: address } }] : [];
+      });
     for (const span of selected.length ? selected
-      : [{ start: row.span[0], end: row.span[1], ...(() => {
-        const locator = provenBlockLocator(input.document, found, { start: row.span[0], end: row.span[1] });
-        return { locator: locator ?? { kind: "document" as const, label: block?.kind === "paragraph" && block.label != null
-          ? `text paragraph ${block.label}` : `text line ${row.lineNumber}` } };
-      })() }])
+      : [{ start: row.span[0], end: row.span[1], locator: original.locator ?? { kind: "document" as const,
+        label: block?.kind === "paragraph" && block.label != null
+          ? `text paragraph ${block.label}` : `text line ${row.lineNumber}` } }])
       if (span.end > span.start) {
         lines.push({ span: [span.start, span.end], locator: span.locator,
           rendered: `${span.locator?.kind === "cell" ? span.locator.label : row.lineNumber}\t` +
-            sourceText.slice(span.start, span.end) });
+            row.text.slice(span.start - row.span[0], span.end - row.span[0]) });
       }
     chars += JSON.stringify(row.text).length;
     if (row.text.length < original.text.length) {
@@ -468,7 +463,7 @@ function cleanSearchEvidenceSpan(
       text: structureNative().documentText(source).slice(range.start, range.end),
       ...range,
       blockId: found.node.id,
-      locator: provenBlockLocator(source, found, range),
+      locator: structureNative().documentLocator(source, range.start, range.end, found.node.id) ?? undefined,
     };
   }
 
@@ -667,25 +662,24 @@ async function readLegalSource(
         source: EvidenceSource }> = [];
       for (const originalRow of window.rows) {
         const row = boundedRow(originalRow), split = row.text.length < originalRow.text.length;
-        const found = native.smallestContainingDocumentBlock(artifact, row.span[0], row.span[1]), block = found?.node,
-          kind = block?.kind as LegalEvidenceReceipt["locator"]["kind"],
-          label = block?.label,
-          located = block && label != null && ["paragraph", "page", "section", "footnote"].includes(kind),
-          whole = located && found.text === row.text ? found : null,
+        const found = originalRow.block, block = found?.node, label = block?.label,
+          // The block is cited by its own label where the one locator rule cites the row by it.
+          own = block && originalRow.locator?.kind === block.kind && originalRow.locator.label === label
+            ? originalRow.locator : null,
+          whole = own && found!.text === row.text ? found : null,
           start = row.span[0], end = row.span[1],
-          evidence = whole && label != null ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
-            blockArtifact: whole, locator: { requested: { kind: kind as "paragraph" | "page" | "section" | "footnote",
-              value: label }, label } })
+          evidence = whole && own ? legalSourceEvidence({ ...passage, role: "selected", text: whole.text,
+            blockArtifact: whole, locator: { requested: { kind: own.kind, value: own.label }, label: own.label } })
             : legalSourceEvidence(passage, { text: row.text, start, end,
             ...(block ? { blockId: `${block.kind}:${label ?? ""}:${start}:${end}`,
-              ...(located && label != null ? { locator: { kind, label } } : {}) } : {}) }),
+              ...(originalRow.locator ? { locator: originalRow.locator } : {}) } : {}) }),
           receipt = evidence && numberedWithinRow(evidence, artifact);
         if (!receipt) throw new Error("The source cannot provide exact passage evidence");
         const size = JSON.stringify(modelLegalPassage(receipt)).length;
         if (!remaining || chars + size > 32_000) {
           if (!chars) throw new Error("The source passage metadata exceeds the Read limit");
           next.push({ file_path: resource, offset: row.lineNumber,
-            start_char: row.span[0] - (passage.text.lastIndexOf("\n", row.span[0] - 1) + 1) });
+            start_char: row.span[0] - (originalRow.span[0] - originalRow.startChar) });
           return selected;
         }
         chars += size; remaining--;
@@ -694,7 +688,7 @@ async function readLegalSource(
         if (split) {
           // A row cut short resumes after the last whole line its receipt shows.
           next.push({ file_path: resource, offset: row.lineNumber,
-            start_char: Math.max(row.span[1], receipt.span?.end ?? 0) - (passage.text.lastIndexOf("\n", row.span[0] - 1) + 1) });
+            start_char: Math.max(row.span[1], receipt.span?.end ?? 0) - (originalRow.span[0] - originalRow.startChar) });
           return selected;
         }
       }
@@ -1045,7 +1039,7 @@ function readLibrarySectionWindow(input: LibraryWindowInput): ResearchRead {
       if (window.status !== "ready") return refuse(`Section '${node.label ?? ""}' has an invalid text range (${window.status}).`);
       for (const original of window.rows) {
         const row = boundedRow(original), cursor = resume(index, row.lineNumber, row.startChar),
-          locator = provenBlockLocator(document, reading, { start: row.span[0], end: row.span[1] }),
+          locator = native.documentLocator(document, row.span[0], row.span[1], reading.node.id) ?? undefined,
           receipt = createLibraryEvidence({ documentId: input.documentId, versionId: input.versionId,
             filename: input.filename, sourceSha256, start: row.span[0], end: row.span[1],
             spanText: sourceText.slice(row.span[0], row.span[1]), locator }),

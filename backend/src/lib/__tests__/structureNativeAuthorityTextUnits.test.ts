@@ -3,7 +3,6 @@ import { expect, it } from "vitest";
 import { structureNative } from "../structureNative";
 import { renderAuthoritySourcePdf } from "../authoritiesBuild";
 import { sha256 } from "../hash";
-import { provenBlockLocator } from "../documentLocators";
 
 /** A PDF read as the engine reads a stored source. */
 const opened = async (bytes: Buffer) => (await structureNative().openSource(bytes, { documentId: "test",
@@ -105,7 +104,7 @@ it.skipIf(!process.env.LEGAL_STRUCTURE_BCE_PDF)("serves BCE's original footer no
     expect(note.node.kind).toBe("footnote");
     expect(note.node.page_indexes).toEqual([62]);
     expect(note.text).toContain(index ? "small localised cable networks" : "sources of all headline data");
-    expect(provenBlockLocator(document, note, note.span)).toMatchObject({ kind: "footnote", label: String(89 + index) });
+    expect(native.documentLocator(document, note.span.start, note.span.end, note.node.id)).toMatchObject({ kind: "footnote", label: String(89 + index) });
   }
 });
 

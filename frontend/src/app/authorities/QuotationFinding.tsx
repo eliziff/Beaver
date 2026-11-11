@@ -4,25 +4,8 @@ import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { StepProgress } from "./StepSection";
 import { OptionCard } from "./OptionCards";
-import { sequenceOpcodes } from "../../../../shared/sequence-diff.mjs";
-import type { AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction } from "./types";
+import type { AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, QuotationDiff } from "./types";
 
-/** Case, diacritics and quote/dash variants are not wording differences. */
-const fold = (text: string) => text.normalize("NFKD").replace(/\p{M}+/gu, "")
-  .replace(/["“”«»„]/gu, '"').replace(/['‘’‚`´]/gu, "'").replace(/[‐‑‒–—―−]/gu, "-").toLowerCase();
-
-/** Presentation only; correction eligibility is enforced by the server. */
-function quotationDiff(authored: string, source: string) {
-  const tokens = (text: string) => text.match(/\s+|[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s]/gu) ?? [];
-  const before = tokens(authored), after = tokens(source);
-  const opcodes = sequenceOpcodes(before.map(fold), after.map(fold));
-  return {
-    authored: opcodes.flatMap(([kind, a0, a1]) => a0 === a1 ? [] : [{ text: before.slice(a0, a1).join(""), changed: kind !== "equal" }]),
-    source: opcodes.flatMap(([kind, , , b0, b1]) => b0 === b1 ? [] : [{ text: after.slice(b0, b1).join(""), changed: kind !== "equal" }]),
-    changes: opcodes.filter(([kind]) => kind !== "equal").map(([, a0, a1, b0, b1]) =>
-      ({ before: before.slice(a0, a1).join("").trim(), after: after.slice(b0, b1).join("").trim() })),
-  };
-}
 function readableLocator(kind: string, label: string) {
   const clean = label.replace(/^(?:paragraphs?|paras?|par|pages?|sections?|secs?|pp?|ss?)\.?\s*/iu, "");
   return `${kind === "paragraph" ? "para" : kind === "section" ? "s" : "p"} ${clean}`;
@@ -50,7 +33,7 @@ const Struck = ({ children }: { children: ReactNode }) =>
   <del className="rounded-sm bg-red-50 px-px text-red-800 decoration-red-700">{children}</del>;
 const Added = ({ children }: { children: ReactNode }) =>
   <ins className="font-semibold text-gray-950 underline decoration-gray-950 decoration-2 underline-offset-[3px]">{children}</ins>;
-const Diff = ({ pieces, source = false }: { pieces: ReturnType<typeof quotationDiff>["authored"]; source?: boolean }) =>
+const Diff = ({ pieces, source = false }: { pieces: QuotationDiff["authored"]; source?: boolean }) =>
   <>{pieces.map(({ text, changed }, index) => !changed ? <span key={index}>{text}</span>
     : source ? <Added key={index}>{text}</Added> : <Struck key={index}>{text}</Struck>)}</>;
 const Column = ({ label, children }: { label: string; children: ReactNode }) =>
@@ -133,7 +116,7 @@ function view(finding: Finding, note: (footnoteId: number | string) => string, s
     };
   }
   const source = finding.found, context = quotationContext(finding.proposition, finding.authoredQuote);
-  const diff = source && quotationDiff(finding.authoredQuote, source.text);
+  const diff = finding.kind === "quote_mismatch" ? finding.diff : null;
   const pinpoint = readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text);
   const quote = (inner: ReactNode) => <><span className="text-gray-400">{context.before}</span>{inner}
     <span className="text-gray-400">{context.after}</span></>;
