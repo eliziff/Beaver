@@ -621,23 +621,23 @@ impl Side {
             // as the gold types quoted paragraphs one at a time.
             let quoted = node.is_some_and(|node| !matches!(node.kind, NodeKind::Heading | NodeKind::Footnote | NodeKind::Endnote)
                 && node.role != Some(PrimaryRole::Heading)
-                && quote_ranges.iter().any(|quote| {
-                    let overlap = quote.end.min(node.range.end).saturating_sub(quote.start.max(node.range.start));
-                    overlap * 2 > node.range.end.saturating_sub(node.range.start)
-                }));
+                // (A quotation's ranges are its lines: what they cover together.)
+                && 2 * quote_ranges.iter().map(|quote| quote.end.min(node.range.end).saturating_sub(quote.start.max(node.range.start)))
+                    .sum::<usize>() > node.range.end.saturating_sub(node.range.start));
             // A passage the parser read wholly as a contents list is contents, whatever its kind.
             let contents = node.is_some_and(|node| node.grammar.as_deref() == Some("contents") && role == PrimaryRole::Text);
             let role_name = serde_json::to_value(role).unwrap().as_str().unwrap().to_owned();
-            block.kind = if quoted { "quote".to_owned() } else if contents { "contents".to_owned() } else { role_name.clone() };
+            // (A quotation is a region, its words running text by their role, as the gold types them.)
+            block.kind = if contents { "contents".to_owned() } else { role_name.clone() };
             // The region a node's block is scored as, as the gold names regions: a note, a list's item, a quotation (a
             // quotation node, or a block one mostly covers), a provision (a section the parser reads as text), a contents
             // list, else its role.
             block.region = node.map(|node| match node.kind {
                 NodeKind::Footnote | NodeKind::Endnote => "note".to_owned(),
-                NodeKind::ListItem => "list_item".to_owned(),
                 NodeKind::Quote => "quote".to_owned(),
-                NodeKind::Section if node.role == Some(PrimaryRole::Text) => "provision".to_owned(),
                 _ if quoted => "quote".to_owned(),
+                NodeKind::ListItem => "list_item".to_owned(),
+                NodeKind::Section if node.role == Some(PrimaryRole::Text) => "provision".to_owned(),
                 _ if contents => "contents".to_owned(),
                 _ => role_name.clone(),
             });
