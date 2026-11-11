@@ -262,7 +262,10 @@ function passageEvidence({ sourceText, sourceSha256, spanText = sourceText, lang
   ...receipt }: PassageEvidence) {
   if (!spanText || (!sourceText && !sourceSha256))
     throw new Error("Passage evidence requires source identity and span text");
-  return withEvidenceId({ ...receipt,
+  // A receipt names its place by the label the document prints ("12", "24(2)"), never a key ("par12", "sec24(2)").
+  const { locator } = receipt, label = ["paragraph", "section", "page", "footnote"].includes(locator.kind)
+    ? structureNative().bareLabels([locator.label], locator.kind)[0] || locator.label : locator.label;
+  return withEvidenceId({ ...receipt, locator: { ...locator, label },
     source_sha256: sourceSha256 ?? sha256(sourceText!), scope: "passage",
     exact_span_sha256: sha256(spanText), span_sha256: sha256(normalizeWhitespace(spanText)),
     span_text: spanText, language });

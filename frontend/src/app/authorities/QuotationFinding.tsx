@@ -6,10 +6,13 @@ import { StepProgress } from "./StepSection";
 import { OptionCard } from "./OptionCards";
 import type { AuthoritiesDiscrepancy, AuthoritiesDiscrepancyAction, QuotationDiff } from "./types";
 
+/** A place as a reader says it: "para 12", "s 5(2)", "p 4", its label the engine's. */
 function readableLocator(kind: string, label: string) {
-  const clean = label.replace(/^(?:paragraphs?|paras?|par|pages?|sections?|secs?|pp?|ss?)\.?\s*/iu, "");
-  return `${kind === "paragraph" ? "para" : kind === "section" ? "s" : "p"} ${clean}`;
+  return `${kind === "paragraph" ? "para" : kind === "section" ? "s" : "p"} ${label}`;
 }
+/** The authored pinpoint's place as the engine read it (its first locator and the last of a range). */
+const pinpointLabel = ({ text, first, last }: AuthoritiesDiscrepancy["authoredPinpoint"]) =>
+  first ? last && last !== first ? `${first}–${last}` : first : text;
 /** The author's own words either side of the quote, so the quotation is recognisable at a glance. */
 function quotationContext(proposition: string, quote: string, span = 90) {
   const at = proposition.indexOf(quote);
@@ -90,7 +93,7 @@ function view(finding: Finding, note: (footnoteId: number | string) => string, s
   }
   if (finding.kind === "wrong_pinpoint") {
     // The quotation's words are right; what changes is the footnote's pinpoint, so the card shows the footnote.
-    const pinpoint = readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text);
+    const pinpoint = readableLocator(finding.authoredPinpoint.kind, pinpointLabel(finding.authoredPinpoint));
     const next = (action: Action) => {
       const text = action === "pinpoint" ? finding.pinpoint : action === "pinpoint_extend" ? finding.extended : undefined;
       return text ? text.replace(/^at\s+/u, "") : null;
@@ -117,7 +120,7 @@ function view(finding: Finding, note: (footnoteId: number | string) => string, s
   }
   const source = finding.found, context = quotationContext(finding.proposition, finding.authoredQuote);
   const diff = finding.kind === "quote_mismatch" ? finding.diff : null;
-  const pinpoint = readableLocator(finding.authoredPinpoint.kind, finding.authoredPinpoint.text);
+  const pinpoint = readableLocator(finding.authoredPinpoint.kind, pinpointLabel(finding.authoredPinpoint));
   const quote = (inner: ReactNode) => <><span className="text-gray-400">{context.before}</span>{inner}
     <span className="text-gray-400">{context.after}</span></>;
   return {

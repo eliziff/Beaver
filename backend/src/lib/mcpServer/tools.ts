@@ -7,7 +7,7 @@ import { SEARCH_SOURCES_TOOL, searchSources } from "../chat/tools/sourceSearchTo
 import { RESOURCE_TOOLS } from "../chat/resourceTools";
 import { objectSchema, toolText } from "../chat/toolRegistry";
 import { createLegalEvidenceTurnState, LEGAL_EVIDENCE_SUBMIT_TOOL, legalEvidenceCitationPlan, legalEvidenceEntry,
-  normalizedEvidenceId, parseEvidenceHandle, registerLegalEvidence,
+  legalSourceEvidence, normalizedEvidenceId, parseEvidenceHandle, registerLegalEvidence,
   renderLegalEvidenceAnswer, restorePriorLegalEvidence, storedLegalEvidenceReceipt, submitLegalEvidenceAnswer,
   type RegisteredEvidence } from "../chat/legalEvidence";
 import { mikeLocalDataHome } from "../legalDataPath";
@@ -150,11 +150,6 @@ function withLinks(outcome: NonNullable<Awaited<ReturnType<typeof read>>>, origi
   }
 }
 
-/** The passages a read returned, with their text. */
-const passagesOf = (outcome: Awaited<ReturnType<typeof read>>) => (outcome?.evidence ?? []).flatMap((receipt) =>
-  receipt.span_text ? [{ evidence_id: receipt.evidence_id, text: receipt.span_text,
-    kind: receipt.locator.kind, locator: receipt.locator.label }] : []);
-
 async function authoritiesSummary(api: BeaverApi, id: string) {
   const product = await api(`/authorities/${encodeURIComponent(id)}`) as {
     id: string; title: string; revision: number; outputs: Record<string, { filename: string }>;
@@ -237,28 +232,30 @@ const definitions: Array<Tool & { run: Handler }> = [{
     const quote = text(args.quote).replace(/^["“”']+|["“”']+$/gu, "");
     const located = await sourceResource(args, signal);
     if (located.error) return json({ ok: false, error: located.error }, true);
-    const words = quote.split(/\s+/u);
-    // Without a pinpoint, the quotation's opening and closing words find the passages to compare.
-    const locate = text(args.locator) ? { locator_kind: args.locator_kind, locator: args.locator,
-      ...(args.end_locator ? { end_locator: args.end_locator } : {}) }
-      : { patterns: [...new Set([words.slice(0, 6).join(" "), words.slice(-6).join(" ")])], max_results: 6 };
-    const outcome = await read({ file_path: located.resource, ...locate }, signal);
-    const passages = passagesOf(outcome);
-    if (!passages.length) return json({ ok: true, status: "unlocated",
-      detail: "No passage of the source contains the quotation's opening or closing words; read the source to find it." });
-    const source = passages.map(({ text }) => text).join("\n\n");
-    const errors = structureNative().groundedProseErrors(`“${quote}”`, ["q"], [{ evidenceId: "q", text: source, labels: [] }]);
-    const comparison = structureNative().quoteComparison(quote, source);
-    // The passages the quotation (or its closest source text) falls in.
-    const found = comparison.candidate ? source.indexOf(comparison.candidate) : -1;
-    let offset = 0;
-    const spans = passages.map((passage) => { const start = offset; offset += passage.text.length + 2;
-      return { passage, start, end: start + passage.text.length }; });
-    const matched = found < 0 ? passages : spans.filter(({ start, end }) =>
-      start < found + comparison.candidate!.length && end > found).map(({ passage }) => passage);
+    // The quotation is located in the source's document as every quote check locates it (quoteLocateDocument): at the
+    // pinpoint where one is given, else anywhere; its receipt is the block that holds it.
+    const reference = knownSources.get(located.resource!) ?? researchSourceFromResource(located.resource!);
+    const read = reference && await legalSourceOperations.readPassage({ source: reference, signal });
+    const passage = read?.status === "found"
+      ? read.values.find(({ role }) => role === "document") ?? read.values[0] : undefined;
+    if (!passage) return json({ ok: false, error: "That resource is not a readable legal source." }, true);
+    const native = structureNative(), document = passage.documentArtifact;
+    const pinpoints = text(args.locator) ? [{ kind: text(args.locator_kind) || "paragraph", first: text(args.locator),
+      ...(text(args.end_locator) ? { last: text(args.end_locator) } : {}) }] : [];
+    const [{ match, comparison, errors = [] }] = await native.quoteLocateDocument(document,
+      reference!.provider !== "attached" ? "text" : reference!.kind === "legislation" ? "legislation" : "pdf",
+      [{ quote, pinpoints, id: "q" }]);
+    if (match.location === "unmatched") return json({ ok: true, status: "unlocated",
+      detail: "The quotation's words are not in the source; read the source to find it." });
+    const found = match.labels[0], kind = found && found.kind !== "pdfPage" ? found.kind : undefined;
+    const block = kind ? native.readDocumentRange(document, kind, found!.label, found!.label, 0)?.selected[0] : undefined;
+    const receipt = block && legalSourceEvidence(passage, { text: block.text, start: block.span.start, end: block.span.end,
+      blockId: `${block.node.kind}:${block.node.label ?? ""}:${block.span.start}:${block.span.end}`,
+      ...((locator) => locator ? { locator } : {})(native.documentLocator(document, block.span.start, block.span.end, block.node.id)) });
+    if (receipt) remember({ evidence: [receipt] } as Parameters<typeof remember>[0]);
     return json({ ok: true, status: errors.length ? "mismatch" : "verified",
-      ...(errors.length ? { source_text: comparison.candidate, changes: comparison.changes } : {}),
-      passages: matched.map(({ evidence_id, kind, locator }) => linked({ evidence_id, kind, locator }, origin)) });
+      ...(errors.length ? { source_text: comparison?.candidate ?? match.text, changes: comparison?.changes ?? [] } : {}),
+      passages: receipt ? [linked({ evidence_id: receipt.evidence_id, kind: receipt.locator.kind, locator: receipt.locator.label }, origin)] : [] });
   },
 }, {
   // Beaver's own grounded-answer contract: it checks every claim against its passages, plans the

@@ -1,4 +1,4 @@
-import { inspectPdf } from "@/app/lib/inspectPdf";
+import { inspectCourtRecordPdf } from "@/app/lib/api/courtRecords";
 import { sourceFormat } from "./formats";
 import type { PreparedFile, PreparationProgress } from "./host";
 import { sourceDocumentFields } from "./sourceFields";
@@ -34,17 +34,18 @@ export async function prepareDeviceFile(
     };
   }
   try {
-    const inspection = await inspectPdf(file);
+    // The engine reads the PDF; the browser does not parse it.
+    const inspection = await inspectCourtRecordPdf(file), texts = inspection.pages.map(({ text }) => text);
     return {
       file,
-      pageCount: inspection.pageCount,
-      searchable: inspection.searchable,
+      pageCount: inspection.page_count,
+      searchable: texts.some((text) => text.trim()),
       encrypted: inspection.encrypted,
-      textlessPageCount: inspection.textlessPageCount,
-      textlessPages: inspection.textlessPages,
-      sourceBookmarks: inspection.sourceBookmarks,
-      pageLabels: inspection.pageLabels,
-      sourceFields: sourceDocumentFields(inspection.pageTexts),
+      textlessPageCount: inspection.textless_pages.length,
+      textlessPages: inspection.textless_pages,
+      sourceBookmarks: inspection.bookmarks,
+      pageLabels: inspection.page_labels,
+      sourceFields: sourceDocumentFields(texts),
       origin: { kind: "device" },
     };
   } catch (error) {

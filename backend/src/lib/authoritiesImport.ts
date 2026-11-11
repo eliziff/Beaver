@@ -190,25 +190,10 @@ async function scanReview(
   const occurrences: Record<string, AuthorityOccurrence> = {};
   const authorities: Record<string, AuthorityIdentity> = {};
   const authorityOrder: string[] = [];
-  let offset = 0;
-  let ranges = units.map((unit) => {
-    const start = offset;
-    offset += unit.text.length + 2;
-    return { unit, start, end: start + unit.text.length };
-  });
-  const text = units.map(({ text }) => text).join("\n\n");
   const native = structureNative();
-  const unknownNote = 0xffff_ffff;
-  const orderedUnits = native.documentReadingOrder(units.map(({ kind, footnote_id, footnote_refs }) =>
-    ({ kind, footnote_id, footnote_refs, item_offsets: [0] }))).map(([unit]) => ranges[unit]);
-  // Where each note's marker stands in the text it annotates.
-  const anchors = new Map(ranges.flatMap(({ unit, start }) =>
-    unit.footnote_refs.map(([id, offset]) => [id, start + offset] as const)));
-  const notes = orderedUnits.filter(({ unit }) => unit.footnote_id !== null)
-    .map(({ unit, start, end }) => ({ number: unit.note_number ?? unknownNote, start, end,
-    sequence: unit.note_number == null ? unknownNote : unit.restart_sequence ?? 0,
-    ...(anchors.has(unit.footnote_id!) ? { anchor: anchors.get(unit.footnote_id!) } : {}) }));
-  // A Canadian brief is read with McGill's and COAL's forms; without the Bluebook or a US jurisdiction the engine
+  // The brief's text, where each unit starts in it, and its notes as the citation engine reads them.
+  const { text, starts, notes } = native.briefText(units);
+  let ranges = units.map((unit, index) => ({ unit, start: starts[index], end: starts[index] + unit.text.length }));  // A Canadian brief is read with McGill's and COAL's forms; without the Bluebook or a US jurisdiction the engine
   // reads no extended United States forms (a registration or account number reads as one of its codes).
   const extracted = native.citationEngineCall("extract", { text, offsetUnit: "utf16",
     options: { resolve: false, notes, styles: ["mcgill", "coal"], earlyReferences: true, splitTier: supraLinking },
@@ -226,59 +211,38 @@ async function scanReview(
   // names no authority a book could hold.
   extracted.citations = extracted.citations.filter((citation) =>
     citation.form !== "full" || citation.authority !== "webpage" || !!citation.style?.text.trim());
-  // PDF layout units can end in the middle of a citation. Join only those body
-  // boundaries, retaining the engine's exact text and global UTF-16 addresses.
-  if (imported.kind === "document" && imported.fileType === "pdf") {
-    const joins = new Set<number>();
-    for (const citation of extracted.citations) {
-      if (citation.form === "unknown") continue;
-      const spans = [citation.fullSpan, citation.span, ...(citation.style ? [citation.style] : []),
-        ...(citation.pinpoints ?? []).map(({ span }) => span)];
-      const start = Math.min(...spans.map(({ start }) => start)), end = Math.max(...spans.map(({ end }) => end));
-      const first = ranges.findIndex((range) => range.end > start);
-      for (let index = first; index >= 0 && index + 1 < ranges.length && ranges[index + 1].start < end; index++) {
-        if (ranges[index].unit.kind === "body" && ranges[index + 1].unit.kind === "body") joins.add(index);
+  // PDF layout units can end in the middle of a citation: the engine names the body units a citation runs across,
+  // which are joined here, keeping the engine's exact text and global UTF-16 addresses; it also reads the citations in
+  // the brief's reading order over the units as joined.
+  const { joins, order } = native.briefCitationOrder(units, extracted.citations,
+    imported.kind === "document" && imported.fileType === "pdf");
+  if (joins.length) {
+    const joined = new Set(joins), merged: typeof ranges = [];
+    ranges.forEach((range, index) => {
+      const prior = merged.at(-1);
+      if (!prior || !joined.has(index - 1)) { merged.push({ ...range }); return; }
+      const leftSource = prior.unit.source, rightSource = range.unit.source;
+      if ((leftSource || rightSource) && (!leftSource || !rightSource ||
+          leftSource.documentId !== rightSource.documentId || leftSource.textSha256 !== rightSource.textSha256)) {
+        throw new Error("Cannot join authority units from different source representations");
       }
-    }
-    if (joins.size) {
-      const merged: typeof ranges = [];
-      ranges.forEach((range, index) => {
-        const prior = merged.at(-1);
-        if (!prior || !joins.has(index - 1)) { merged.push({ ...range }); return; }
-        const leftSource = prior.unit.source, rightSource = range.unit.source;
-        if ((leftSource || rightSource) && (!leftSource || !rightSource ||
-            leftSource.documentId !== rightSource.documentId || leftSource.textSha256 !== rightSource.textSha256)) {
-          throw new Error("Cannot join authority units from different source representations");
-        }
-        const source = leftSource && rightSource ? { ...leftSource,
-          nodeIds: [...new Set([...leftSource.nodeIds, ...rightSource.nodeIds])],
-          lineIds: [...new Set([...leftSource.lineIds, ...rightSource.lineIds])],
-          ranges: [...leftSource.ranges, ...rightSource.ranges],
-          mappings: [...leftSource.mappings, ...rightSource.mappings.map((mapping) => ({ ...mapping,
-            start: mapping.start + range.start - prior.start, end: mapping.end + range.start - prior.start }))],
-        } : undefined;
-        prior.unit = { ...prior.unit, ...(source && { source }), text: `${prior.unit.text}\n\n${range.unit.text}`,
-          page_numbers: [...new Set([...prior.unit.page_numbers, ...range.unit.page_numbers])].sort((left, right) => left - right),
-          footnote_refs: [...prior.unit.footnote_refs, ...range.unit.footnote_refs.map(([id, offset]) =>
-            [id, range.start - prior.start + offset] as [number, number])] };
-        prior.end = range.end;
-      });
-      ranges = merged;
-    }
-  }
-  const cases = extracted.citations.filter(({ form, authority, key }) =>
+      const source = leftSource && rightSource ? { ...leftSource,
+        nodeIds: [...new Set([...leftSource.nodeIds, ...rightSource.nodeIds])],
+        lineIds: [...new Set([...leftSource.lineIds, ...rightSource.lineIds])],
+        ranges: [...leftSource.ranges, ...rightSource.ranges],
+        mappings: [...leftSource.mappings, ...rightSource.mappings.map((mapping) => ({ ...mapping,
+          start: mapping.start + range.start - prior.start, end: mapping.end + range.start - prior.start }))],
+      } : undefined;
+      prior.unit = { ...prior.unit, ...(source && { source }), text: `${prior.unit.text}\n\n${range.unit.text}`,
+        page_numbers: [...new Set([...prior.unit.page_numbers, ...range.unit.page_numbers])].sort((left, right) => left - right),
+        footnote_refs: [...prior.unit.footnote_refs, ...range.unit.footnote_refs.map(([id, offset]) =>
+          [id, range.start - prior.start + offset] as [number, number])] };
+      prior.end = range.end;
+    });
+    ranges = merged;
+  }  const cases = extracted.citations.filter(({ form, authority, key }) =>
     form === "full" && key && (authority === "case" || authority === "unknown"));
   const closures = native.a2ajAliasGroups(a2ajStorePath(), cases.map(({ key }) => key!)).map(({ keys }) => keys);
-  const parsed = ranges.map(({ unit }) => ({ unit, items: [] as Array<{ index: number; start: number }> }));
-  let unitIndex = 0;
-  for (const citation of [...extracted.citations].sort((left, right) =>
-    left.span.start - right.span.start || left.index - right.index)) {
-    while (unitIndex + 1 < ranges.length && citation.span.start >= ranges[unitIndex].end) unitIndex++;
-    parsed[unitIndex].items.push({ index: citation.index, start: citation.span.start - ranges[unitIndex].start });
-  }
-  const order = native.documentReadingOrder(parsed.map(({ unit: { kind, footnote_id, footnote_refs }, items }) =>
-    ({ kind, footnote_id, footnote_refs, item_offsets: items.map(({ start }) => start) })))
-    .map(([unit, item]) => parsed[unit].items[item].index);
   // The note parts that cite: only these can be an authority (a prose note is never one).
   const references = native.citationEngineCall("noteReferences", { parts: extracted.sourceParts,
     citations: extracted.citations, offsetUnit: "utf16" }) as NativeReferencePart[];

@@ -40,6 +40,9 @@ export interface LegalSourceViewerPayload {
     primary: LegalSourceViewerAnchor | null;
     /** The slice is a heading the structure reads. */
     heading?: boolean;
+    /** The marker its primary node prints ("(2)"), and where in `text` the words after it begin. */
+    marker?: string;
+    body?: number;
   }[];
   /** A judgment's front-matter parts and headings, as the engine's document outline reads them (offsets the
    *  slices'). */

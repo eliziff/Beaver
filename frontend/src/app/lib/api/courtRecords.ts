@@ -15,6 +15,19 @@ export const saveCourtRecordBuild = <State>(artifacts: Array<{
   }
   return apiRequest<WorkProduct<State>>("/court-records/builds", { method: "POST", body });
 };
+/** A PDF as the engine reads it, without recognizing any page: its page count, the pages (from 1) needing
+ *  recognition, its own bookmarks, its page labels and each page's text; encrypted where it could not be opened. */
+export type CourtRecordPdfInspection = {
+  page_count: number; encrypted: boolean; textless_pages: number[];
+  bookmarks: CourtRecordBookmark[]; page_labels: string[] | null;
+  pages: Array<{ page_number: number; text: string }>;
+};
+type CourtRecordBookmark = { title: string; pageIndex: number; children: CourtRecordBookmark[] };
+export const inspectCourtRecordPdf = (file: File) => {
+  const body = new FormData();
+  body.append("file", file, file.name);
+  return apiRequest<CourtRecordPdfInspection>("/court-records/pdf-preparation", { method: "POST", body });
+};
 export type CourtRecordPreparation = {
   document_id: string;
   version_id: string;

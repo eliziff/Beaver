@@ -31,8 +31,9 @@ export function createCourtRecordsRouter(application: CourtRecordsApplication) {
   }));
   router.post("/pdf-preparation", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const file = requiredFile(req);
+    // Without pages, the PDF is read without recognizing any.
     let pages: unknown;
-    try { pages = JSON.parse(String(req.body?.pages)); }
+    try { pages = req.body?.pages === undefined ? undefined : JSON.parse(String(req.body.pages)); }
     catch { reject(400, "pages must be JSON"); }
     res.json(await application.prepareUploadedPdf(uploadedDocument(file), pages));
   }));

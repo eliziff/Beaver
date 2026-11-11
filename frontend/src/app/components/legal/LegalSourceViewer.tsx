@@ -32,7 +32,6 @@ import { ResearchLabelEditor, ResearchLabelPicker,
 import { findResearchSource, SourcesWorkspace, useSourcesWorkspace } from "./SourcesWorkspace";
 import { RESEARCH_PASSAGE_REFERENCE_DRAG } from "./researchMemo";
 
-type Anchor = LegalSourceViewerPayload["slices"][number]["anchors"][number];
 type Metadata = LegalSourceViewerPayload["metadata"];
 const EMPTY_QUOTES: { quote: string }[] = [];
 
@@ -80,12 +79,6 @@ export type LegalSourceViewerProps = {
   onBack?: () => void;
 };
 
-function marginLabel({ node }: Anchor) {
-  const label = node.label ?? "";
-  // Range ownership can point to the whole section rather than the printed parent.
-  if (node.kind === "section") return label.match(/\([^()]+\)$/u)?.[0] ?? locatorLabel(node);
-  return locatorLabel(node);
-}
 
 /** A unit as the margin and the page breaks name it, by its kind and its label as the document prints it. */
 function locatorLabel({ kind, label = "" }: { kind: string; label?: string }) {
@@ -136,29 +129,6 @@ export function legalSourceViewerActions(metadata: Metadata) {
   });
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-}
-
-function stripMarker(text: string, reading: Anchor | null) {
-  const anchor = reading?.node;
-  if (anchor?.kind === "paragraph") {
-    const label = escapeRegExp(anchor.label ?? "");
-    return text.replace(new RegExp(`^\\s*(?:\\[\\s*${label}\\s*\\]|${label}\\.)\\s*`, "u"), "");
-  }
-  if (anchor?.kind === "section") {
-    const label = anchor.label ?? "";
-    const bold = text.replace(new RegExp(`^\\s*\\*\\*${escapeRegExp(label)}\\*\\*(?=\\s|$)\\s*`, "iu"), "");
-    if (bold !== text) return bold;
-    const stripped = text.replace(new RegExp(`^\\s*${escapeRegExp(label).replace(/\\\(/gu, "\\s*\\(")}\\s*`, "iu"), "");
-    if (stripped !== text) return stripped;
-    const child = label.match(/(\([^)]+\))$/u)?.[1];
-    return child
-      ? text.replace(new RegExp(`^\\s*${escapeRegExp(child)}\\s*`, "iu"), "")
-      : text;
-  }
-  return text;
-}
 
 /** Every plain block is one tag and one class over its children; markdown's other props are dropped. */
 const styled = (Tag: React.ElementType, className: string) =>
@@ -213,7 +183,6 @@ function LegalMarkdown({ children }: { children: string }) {
 
 function viewerMarkdown(
   text: string,
-  anchor: Anchor | null,
   docType: LegalDocumentType,
   start: number,
 ) {
@@ -228,7 +197,7 @@ function viewerMarkdown(
         .join("\n\n");
     }
   }
-  return stripMarker(result, anchor);
+  return result;
 }
 
 function scrollTo(root: HTMLElement, target: HTMLElement, top = false) {
@@ -506,8 +475,9 @@ function LegalSourceViewerContent({
               const page = slice.primary?.node.kind === "page"
                 ? slice.primary.node
                 : slice.anchors.find(({ node }) => node.kind === "page")?.node;
+              // A provision's margin shows the marker it prints ("(2)"), which its text leaves out.
               const marker = slice.primary && slice.primary.node.kind !== "page" && slice.primary.node.label != null
-                ? marginLabel(slice.primary)
+                ? slice.primary.node.kind === "section" ? slice.marker ?? slice.primary.node.label : locatorLabel(slice.primary.node)
                 : null;
               const selectionAnchor = (slice.primary ?? slice.anchors.find(({ node: { kind } }) =>
                 kind === "paragraph" || kind === "prose" || kind === "section" || kind === "page" || kind === "footnote"))?.node;
@@ -544,8 +514,7 @@ function LegalSourceViewerContent({
                       ? <FrontMatter slice={slice} entries={outlineEntries(payload.outline, slice)} />
                       : <LegalMarkdown>
                         {viewerMarkdown(
-                          slice.text,
-                          slice.primary,
+                          slice.text.slice(slice.body ?? 0),
                           payload.reference.docType,
                           slice.start,
                         )}

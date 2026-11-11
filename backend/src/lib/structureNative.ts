@@ -317,9 +317,14 @@ type StructureAddon = {
     offset: number | undefined, limit: number, startChar?: number): NativeDocumentTextWindow;
   /** A call of the citation engine's API (legal-citations `api::call_value`): its method and its request as it reads it. */
   citationEngineCall(method: string, request: unknown): unknown;
-  /** Each unit's items in reading order, as (unit, item): a note follows the body up to its call. */
-  documentReadingOrder(units: Array<{ kind: string; footnote_id: number | null;
-    footnote_refs: Array<[number, number]>; item_offsets: number[] }>): Array<[number, number]>;
+  /** A brief's text, its units joined by a blank line, where each unit starts in it, and its notes in reading order
+   *  as the citation engine reads them (number u32::MAX where unprinted, the span, the sequence, the call). */
+  briefText(units: readonly NativeAuthorityTextUnit[]): { text: string; starts: number[];
+    notes: Array<{ number: number; start: number; end: number; sequence: number; anchor?: number }> };
+  /** With `joinBodies`, the body units each citation runs across (each the first of a pair joined to the next); and
+   *  the citations' indexes in the brief's reading order (a note's after the body up to its call). */
+  briefCitationOrder(units: readonly NativeAuthorityTextUnit[], citations: readonly unknown[], joinBodies: boolean):
+    { joins: number[]; order: number[] };
   /** Each note's proposition in a brief's body text (its body units in order, each followed by a line break): the
    *  passage since the call before its one call, or with `context` "sentence", the sentence its call ends or stands
    *  in; each with the parts of the units (by their place in `units`) it holds. Also where each body unit starts in
@@ -479,6 +484,9 @@ type StructureAddon = {
         primary: NativeNodeReading | null;
         /** The slice is a heading the structure reads. */
         heading?: boolean;
+        /** The marker its primary node prints ("(2)"), and where in `text` (UTF-16) the words after it begin. */
+        marker?: string;
+        body?: number;
       }>;
       truncated: boolean;
       documentRevision: string;
@@ -494,6 +502,9 @@ type StructureAddon = {
   /** A reader's labels of one kind as few as they can be written: runs of numbers ("12–14"), provisions' spans
    *  ("5(2)(a)–(c)"); null where a label is not of the kind's shape. */
   collapseLabels(labels: readonly string[], kind: string): string[] | null;
+  /** Each typed locator of a kind as the label it names, the words it may open on taken off: "para. 12" and "par12"
+   *  are "12", "s. 5(2)" and "sec5(2)" are "5(2)", "fn 3" is "3". */
+  bareLabels(labels: readonly string[], kind: string): string[];
   /** Each numbered label of a kind as the numbers it names, a run written out ("12–14": 12, 13, 14): null for one
    *  naming no number or run, or a run reversed or spanning more than `limit` past its first number. */
   expandLabels(labels: readonly string[], kind: "paragraph" | "page" | "line", limit: number): Array<string[] | null>;
@@ -568,6 +579,8 @@ export type PdfPreparationSummary = {
   ocrRoutedPages: number[];
   /** Pages that are a picture of their text (a scan, an image of a page): only these may be recognized on import. */
   scannedPages?: number[];
+  /** The PDF's own bookmarks in outline order: `level` from 1 at the top, `page_index` the target page from 0. */
+  outline: Array<{ title: string; level: number; page_index: number }>;
 };
 
 export type NativeGraphScopeOmission = {

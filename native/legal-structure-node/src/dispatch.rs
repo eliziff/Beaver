@@ -306,6 +306,11 @@ fn dispatch(
             &call.get::<Vec<String>>("labels")?,
             &call.get::<String>("kind")?,
         ))),
+        "bareLabels" => {
+            let kind = call.get::<String>("kind")?;
+            done(value(call.get::<Vec<String>>("labels")?.iter()
+                .map(|label| legal_structure::bare_label(&kind, label)).collect::<Vec<_>>()))
+        }
         "expandLabels" => done(value(legal_structure::expand_labels(
             &call.get::<Vec<String>>("labels")?,
             &call.get::<String>("kind")?,
@@ -336,8 +341,13 @@ fn dispatch(
             call.get::<Option<legal_structure_features::QuoteContext>>("context")?
                 .unwrap_or(legal_structure_features::QuoteContext::Passage),
         ))),
-        "documentReadingOrder" => done(value(legal_structure_features::document_reading_order(
-            &call.get::<Vec<legal_structure_features::ReadingOrderUnit>>("units")?,
+        "briefText" => done(value(legal_structure_features::brief_text(
+            &call.get::<Vec<legal_structure_features::BriefUnit>>("units")?,
+        ))),
+        "briefCitationOrder" => done(value(legal_structure_features::brief_citation_order(
+            &call.get::<Vec<legal_structure_features::BriefUnit>>("units")?,
+            &call.get::<Vec<legal_structure_features::BriefCitation>>("citations")?,
+            call.get("joinBodies")?,
         ))),
         "citationLookupKeys" => done(value(
             call.get::<Vec<String>>("texts")?

@@ -128,7 +128,7 @@ export function findAuthoritiesDiscrepancies(
       }
       const base = { occurrenceId: occurrence.id, authorityId: occurrence.authorityId!,
         footnoteId: unit.footnoteId, citation: occurrence.citation, proposition,
-        authoredQuote, authoredPinpoint: { kind: occurrence.pinpoints[0].kind, text: occurrence.pinpoints[0].text }, cited: source.cited,
+        authoredQuote, authoredPinpoint: (({ kind, text, first, last }) => ({ kind, text, ...first && { first }, ...last && { last } }))(occurrence.pinpoints[0]), cited: source.cited,
         citedPassage: source.citedPassage };
       if (matchCount === 1 && found && !sameLocator(source.cited, found)) {
         const replacement = pinpointCorrection(occurrence, found.locator.label)?.replacement,

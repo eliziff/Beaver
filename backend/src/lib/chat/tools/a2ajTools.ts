@@ -21,22 +21,9 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu;
 
-function activityLocatorLabel(label: string, kind?: string) {
-  const value = label
-    .replace(/^\[\s*[a-z]+(?:\s+|=)([^\]]+)\s*\]$/iu, "$1")
-    .replace(/^[a-z]+=/iu, "").trim()
-    // A section's place carries its kind's mark before the label the source prints: "sec11(1)", "secSchedule 1".
-    .replace(/^sec(?=\p{Lu})/u, "");
-  const prefix = kind === "paragraph" ? /^(?:paragraphs?|paras?|par)\.?\s*/iu
-    : kind === "section" ? /^(?:sections?|secs?|ss?|s)(?![a-z])\.?\s*/iu
-      : kind === "page" ? /^(?:pages?|pp?)\.?[\s._=-]*/iu
-        : kind === "footnote" ? /^(?:footnotes?|notes?|nn?|fn)\.?[\s._=-]*/iu
-          : null;
-  return prefix
-    ? value.replace(prefix, "")
-      .replace(new RegExp(`([–—-])${prefix.source.slice(1)}`, "giu"), "$1")
-    : value;
-}
+/** A locator as the label it names, the words it may open on taken off (the engine's bareLabels): "par12", "para. 12"
+ *  and "[par 12]" are "12", "sec11(1)" is "11(1)". */
+const activityLocatorLabel = (label: string, kind?: string) => structureNative().bareLabels([label], kind ?? "")[0];
 
 function activityLocatorNoun(kind: string, plural: boolean) {
   if (kind === "paragraph") return plural ? "paras" : "para";

@@ -1,14 +1,13 @@
 const PREFIX: Record<string, string> = { paragraph: "¶", section: "s.", page: "p.", footnote: "n." };
 type Locator = { kind: string; label: string };
 
-/** A locator as a reader says it: "¶ 12", "s. 24(2)", "p. 3" — never the stored key ("par12"). */
+/** A locator as a reader says it: "¶ 12", "s. 24(2)", "p. 3"; a receipt's label is the one the document prints. */
 export function passageLabel({ kind, label }: Locator) {
   const stored = (label ?? "").trim();
   // Document offsets have one canonical presentation, independent of how a provider named them.
-  const raw = kind === "document" ? stored.replace(/^(?:characters|lines?)(?=\s+\d)/iu, "line") : stored;
-  const bare = raw.replace(/^(?:par(?:a(?:graph)?)?|sec(?:tion)?|page|p|fn|n|s)[.\s]*(?=[\d(])/iu, "").trim() || raw;
+  const shown = kind === "document" ? stored.replace(/^(?:characters|lines?)(?=\s+\d)/iu, "line") : stored;
   const prefix = PREFIX[kind] ?? "";
-  return prefix ? `${prefix} ${bare}` : bare;
+  return prefix ? `${prefix} ${shown}` : shown;
 }
 
 /** Passage text carries the printed marker of its own paragraph; a row that already names the locator must not repeat it. */
