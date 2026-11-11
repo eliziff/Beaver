@@ -1460,7 +1460,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
             loading={sourcePreview?.pdf.status === "reading"}
             recognizedText={sourcePreview?.recognizedText} pageLabels={sourcePreview && sourcePageLabels(draft, sourcePreview.role)}
             error={sourcePreview?.pdf.status === "failed" ? sourcePreview.pdf.error : undefined} quoteFocusKey={sourcePreview?.quote}
-            quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined} />
+            quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined}
+            locateQuotes={sourcePreview && draft && host.sourceQuotes ? async (quotes, signal) =>
+              (await host.sourceQuotes!(draft, sourcePreview.role, quotes, signal)).map(placed => placed?.pageNumber ?? null)
+              : undefined} />
         </div>
       </Modal>
       {/* A statute's PDF for a court that files them in both languages: its language, chosen as the import's choices are. */}

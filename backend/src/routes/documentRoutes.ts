@@ -17,6 +17,7 @@ import { requiredFile, requiredUpload, singleFileUpload, uploadedDocument } from
 import { z } from "mike/shared/runtime/schema.mjs";
 import { openDocument, pdfTextLayer, PLAIN_PDF } from "../lib/sourceDocument";
 import { structureNative } from "../lib/structureNative";
+import { pdfQuotePlacements } from "../lib/pdfQuotes";
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 const researchVersion = textField(200);
 const revisionNumber = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -147,6 +148,18 @@ export function createDocumentsRouter(
     const summary = structureNative().pdfDocumentSummary(await openDocument(source, PLAIN_PDF));
     res.setHeader("Cache-Control", "private, no-store");
     res.json({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr.map(page => page + 1) });
+  }));
+
+  // Where each quotation stands in the PDF as the engine reads it: its page (from 1) and rectangles, or null.
+  router.post("/:documentId/pdf-quotes", asyncRoute(async (req, res) => {
+    const quotes = z.array(z.string().min(1).max(4_000)).min(1).max(50).parse(req.body?.quotes);
+    const source = await documents.documentSource(scope(res), req.params.documentId, versionId(req))
+      ?? reject(404, "Document version not found");
+    if (source.fileType !== "pdf") reject(400, "Quotations are placed in a PDF");
+    if (req.query.source_sha256 !== undefined && req.query.source_sha256 !== source.sourceSha256)
+      reject(409, "This PDF changed. Open it again.");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ quotes: await pdfQuotePlacements(await openDocument(source), quotes) });
   }));
 
   router.get("/:documentId/pdf-page-labels", asyncRoute(async (req, res) => {

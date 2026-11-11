@@ -9,8 +9,7 @@ import type { CitationQuote } from "@/app/lib/citations";
 import type { PdfRecognizedText } from "@/app/lib/api/documents";
 import { clearHighlights, getPdfJs, highlightQuote, STANDARD_FONT_DATA_URL } from "./highlightQuote";
 import { PDF_DOCUMENT_OPTIONS, openPdfDocument } from "@/app/lib/pdfJs";
-import { createPdfPageCache } from "./pdfPageCache";
-import { matchesQuoteText, quoteSegments } from "./quoteText";
+import { quoteSegments } from "./quoteText";
 import { type PdfAnnotationEditorPort } from "../../../../../../shared/pdf/pdfAnnotationLayer";
 import { type PdfPageTextLoader } from "../../../../../../shared/pdf/pdfPageTextLayer";
 import { PdfPageNavigation } from "./PdfPageNavigation";
@@ -28,6 +27,8 @@ export interface PdfCanvasProps {
     loading?: boolean;
     error?: string | null;
     quotes?: CitationQuote[];
+    /** The page (from 1) the engine finds each quotation on, null where it finds none: where it is highlighted. */
+    locateQuotes?: (quotes: string[], signal: AbortSignal) => Promise<Array<number | null>>;
     quoteFocusKey?: string | number;
     initialView?: PdfInitialView;
     onViewChange?: (view: PdfViewPosition) => void;
@@ -51,7 +52,7 @@ export interface PdfCanvasProps {
 const PDF_VIEWER_ERROR = "Unable to open this PDF. The file may be invalid or unsupported.";
 type Layout = PdfSession & { search(quotes: CitationQuote[]): Promise<void> };
 
-export function PdfCanvas({source, bytes, loading = false, error, quotes = [], quoteFocusKey,
+export function PdfCanvas({source, bytes, loading = false, error, quotes = [], locateQuotes, quoteFocusKey,
     rounded = true, ariaLabel = "PDF document", onUnavailable, annotationEditor,
     recognizedText, loadRecognizedText, pageLabels, authoredPageLabels = false, onTextReady, onRendered, drawPage, hidden,
     initialView, onViewChange}: PdfCanvasProps) {
@@ -63,7 +64,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
         previewRef.current?.remove(); previewRef.current = null;
         containerRef.current?.style.removeProperty('min-height');
     }, []);
-    const editorRef = useRef(annotationEditor), quotesRef = useRef(quotes);
+    const editorRef = useRef(annotationEditor), quotesRef = useRef(quotes), locateRef = useRef(locateQuotes);
     const recognizedPages = useMemo(() => new Map(recognizedText?.pages.map(page => [page.number, page])), [recognizedText]);
     const recognizedRef = useRef(recognizedPages), textLoaderRef = useRef(loadRecognizedText);
     const navigationRef = useRef(0), quoteGenerationRef = useRef(0);
@@ -83,7 +84,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
     const notifyView = useEffectEvent((view: PdfViewPosition) => onViewChange?.(view));
     useLayoutEffect(() => { setEmbeddedPageLabels(undefined); }, [bytes, source, authoredPageLabels]);
     useLayoutEffect(() => {
-        editorRef.current = annotationEditor; quotesRef.current = quotes;
+        editorRef.current = annotationEditor; quotesRef.current = quotes; locateRef.current = locateQuotes;
         recognizedRef.current = recognizedPages; textLoaderRef.current = loadRecognizedText;
     });
 
@@ -149,7 +150,7 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
             if (authoredPageLabels) void pdf.getPageLabels().then(labels => {
                 if (!signal.aborted && labels?.length === pdf.numPages) setEmbeddedPageLabels(labels);
             }).catch(() => { /* Printed labels are optional; physical navigation remains available. */ });
-            const cache = createPdfPageCache(pdf), found = new Map<number, CitationQuote[]>();
+            const found = new Map<number, CitationQuote[]>();
             const restoredView = readView();
             session = createPdfSession({lib:{PDFViewer,EventBus},TextLayer:lib.TextLayer,pdf,
                 container:scrollRef.current!,element:containerRef.current!,signal,
@@ -167,15 +168,17 @@ export function PdfCanvas({source, bytes, loading = false, error, quotes = [], q
                 const request = ++quoteGenerationRef.current;
                 const live = () => !signal.aborted && request === quoteGenerationRef.current;
                 pages.forEach(clearHighlights); found.clear(); let focused = !focus;
-                for (const entry of entries) {
-                    const hint = Number.isSafeInteger(entry.page) && entry.page! > 0 && entry.page! <= pages.length ? entry.page : undefined;
+                // The engine finds each quotation's page; the text layer only marks the words there.
+                const locate = locateRef.current, located = locate && entries.length
+                    ? await locate(entries.map(({ quote }) => quote), signal).catch(() => [] as Array<number | null>) : [];
+                if (!live()) return;
+                const page = (value: number | null | undefined) =>
+                    Number.isSafeInteger(value) && value! > 0 && value! <= pages.length ? value! : undefined;
+                for (const [index, entry] of entries.entries()) {
                     if (!quoteSegments(entry.quote).length) continue;
-                    for (const number of new Set([...(hint ? [hint] : []), ...pages.map((_, i) => i + 1)])) {
+                    for (const number of new Set([page(located[index]), page(entry.page)].filter((value) => value !== undefined))) {
                         if (!live()) return;
-                        let text: string;
-                        try { text = await cache.normalizedText(number); } catch { continue; }
-                        if (!live()) return;
-                        if (!matchesQuoteText(text, entry.quote) || !await preparePage(number)) continue;
+                        if (!await preparePage(number)) continue;
                         const matches = [...found.get(number) ?? [], entry]; found.set(number, matches);
                         await ensureText(number);
                         if (!live()) return;

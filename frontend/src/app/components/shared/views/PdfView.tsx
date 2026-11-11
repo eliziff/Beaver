@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PdfCanvas, type PdfCanvasProps } from "./PdfCanvas";
 import { createPdfDocumentSource, getDocumentPdfPageLabels } from "@/app/lib/pdfDocumentSource";
+import { getDocumentPdfQuotes } from "@/app/lib/api/documents";
 
 /** Authorized document adapter; standalone callers continue to supply owned bytes. */
 export function PdfView({ doc, bytes, revision, ...props }: Omit<PdfCanvasProps, "source"> & {
@@ -20,5 +21,9 @@ export function PdfView({ doc, bytes, revision, ...props }: Omit<PdfCanvasProps,
   const source = useMemo(() => !bytes && doc
     ? createPdfDocumentSource(doc.document_id, doc.version_id, revision) : undefined,
   [bytes, doc?.document_id, doc?.version_id, revision]);
-  return <PdfCanvas {...props} pageLabels={props.pageLabels ?? (detected?.key === key ? detected.labels : undefined)} bytes={bytes} source={source} />;
+  // A stored document's quotations are found by the engine's reading of it.
+  const locateQuotes = useMemo(() => doc ? async (quotes: string[], signal: AbortSignal) =>
+    (await getDocumentPdfQuotes(doc.document_id, doc.version_id, quotes, signal)).map((placed) => placed?.pageNumber ?? null)
+    : undefined, [doc?.document_id, doc?.version_id]);
+  return <PdfCanvas locateQuotes={locateQuotes} {...props} pageLabels={props.pageLabels ?? (detected?.key === key ? detected.labels : undefined)} bytes={bytes} source={source} />;
 }

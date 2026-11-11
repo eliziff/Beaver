@@ -28,7 +28,7 @@ import {
   listWorkProducts,
   updateWorkProduct,
 } from "@/app/lib/api/workProducts";
-import { directoryResource, downloadDocument, getDocument, readDocumentFile, getDocumentPdfPages, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
+import { directoryResource, downloadDocument, getDocument, readDocumentFile, getDocumentPdfPages, getDocumentPdfQuotes, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
 import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import { watchedFolder } from "@/app/lib/standaloneWorkProducts";
@@ -142,6 +142,10 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     const { documentId, versionId, sourceSha256 } = attachedDocument(draft, role);
     // The text endpoint resolves latest + verifies the displayed hash in the same request.
     return getDocumentPdfTextLayer(documentId, versionId, signal, pages, sourceSha256);
+  },
+  async sourceQuotes(draft, role, quotes, signal) {
+    const { documentId, versionId, sourceSha256 } = attachedDocument(draft, role);
+    return getDocumentPdfQuotes(documentId, versionId, quotes, signal, sourceSha256);
   },
   async sourcePages(draft, role, signal) {
     const { documentId, versionId, sourceSha256 } = attachedDocument(draft, role);

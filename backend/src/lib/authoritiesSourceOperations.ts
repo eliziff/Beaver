@@ -3,6 +3,7 @@
  *  operations are authoritiesOperations.ts's, which an app that builds no book (the ALR Quote Verifier) never loads. */
 import { decodePdfProfileSelection } from "./documentStore";
 import { pdfTextLayer, preparePdf } from "./sourceDocument";
+import { pdfQuotePlacements } from "./pdfQuotes";
 import { wordToPdfAvailable } from "./convert";
 import { reject } from "./applicationError";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
@@ -142,6 +143,15 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
       const { bytes, reference } = authoritySource(input);
       const summary = await preparePdf({ ...reference, bytes, ocrProvider: null, layout: false, signal: context.signal });
       return value({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr.map(page => page + 1) });
+    },
+    // Where each quotation stands in the PDF as the engine reads it without recognition: its page and rectangles.
+    "source-quotes": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
+      const { bytes, reference } = authoritySource(input);
+      const quotes = json(input?.quotes, "quotes");
+      if (!Array.isArray(quotes) || !quotes.length || quotes.length > 50 ||
+          quotes.some(quote => typeof quote !== "string" || !quote || quote.length > 4_000)) reject(400, "Invalid quotations");
+      const { document } = await preparePdf({ ...reference, bytes, ocrProvider: null, layout: false, signal: context.signal });
+      return value(await pdfQuotePlacements(document, quotes as string[]));
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;
