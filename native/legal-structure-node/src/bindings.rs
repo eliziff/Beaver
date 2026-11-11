@@ -6,8 +6,8 @@ use ts_rs::{Config, ExportError, TS};
 
 /// Each declaration, and every type it names, written as `<name>.d.ts` in `directory`.
 pub fn export_types(directory: &std::path::Path) -> Result<(), ExportError> {
-    std::env::set_var("TS_RS_EXPORT_DIR", directory);
-    let config = Config::default();
+    // (serde_json writes 64-bit integers as numbers, which JavaScript reads as numbers.)
+    let config = Config::new().with_out_dir(directory).with_large_int("number");
     macro_rules! export { ($($type:ty),+ $(,)?) => { $(<$type>::export_all(&config)?;)+ }; }
     // The structure, its nodes as a reader takes them, and the queries over a document.
     export!(
