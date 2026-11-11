@@ -2,11 +2,9 @@
 //! surface the Node addon and the browser's WebAssembly module share, calls beside the readers themselves.
 
 use legal_structure::{
-    analyze_instrument, analyze_native_markup, docx_structure_lint,
-    journal_document_structure, journal_text_document_structure, provider_text_document_structure,
-    utf16_prefix_ceil, AuthoritativeTableCell, DocumentQuery,
-    DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind,
-    ProviderTextInput,
+    analyze_instrument, analyze_native_markup, docx_structure_lint, journal_document_structure, journal_text_document_structure,
+    provider_text_document_structure, utf16_prefix_ceil, AuthoritativeTableCell, DocumentQuery, DocumentStructure,
+    FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind, ProviderTextInput,
 };
 use legal_structure_features::{grounded_prose_errors, VisibleEvidenceText};
 use serde::{Deserialize, Serialize};
@@ -32,12 +30,7 @@ pub struct Failure {
 
 impl From<String> for Failure {
     fn from(message: String) -> Self {
-        Self {
-            message,
-            #[cfg(feature = "legalpdf")]
-            kind: None,
-            detail: None,
-        }
+        Self { message, #[cfg(feature = "legalpdf")] kind: None, detail: None }
     }
 }
 
@@ -55,11 +48,7 @@ impl From<legalpdf::Error> for Failure {
             legalpdf::Error::Failure { detail, .. } => detail,
             error => error.to_string(),
         };
-        Self {
-            message: kind.message().to_owned(),
-            kind: Some(kind),
-            detail: Some(detail),
-        }
+        Self { message: kind.message().to_owned(), kind: Some(kind), detail: Some(detail) }
     }
 }
 
@@ -74,17 +63,10 @@ pub enum StructureRequest {
         table_cells: Vec<AuthoritativeTableCell>,
         reconstruct_lineation: bool,
     },
-    ProviderText {
-        input: ProviderTextInput,
-    },
-    NativeMarkup {
-        input: NativeMarkupInput,
-    },
+    ProviderText { input: ProviderTextInput },
+    NativeMarkup { input: NativeMarkupInput },
     /// A CourtListener opinion read whole: every rendition, the case's citations and its cluster's fields.
-    Opinion {
-        record: legal_structure::opinion::OpinionRecord,
-        url: Option<String>,
-    },
+    Opinion { record: legal_structure::opinion::OpinionRecord, url: Option<String> },
     Journal {
         article_id: usize,
         url: Option<String>,
@@ -112,11 +94,7 @@ pub struct NativeDocument {
 
 impl NativeDocument {
     pub(crate) fn new(product: NativeProduct) -> Self {
-        Self {
-            product,
-            query: DocumentQuery::new(),
-            quotes: Default::default(),
-        }
+        Self { product, query: DocumentQuery::new(), quotes: Default::default() }
     }
 
     /// A structure the engine read, as its document.
@@ -134,38 +112,17 @@ impl NativeDocument {
 }
 
 pub fn native_build_features() -> &'static str {
-    if cfg!(feature = "legalpdf") {
-        "legalpdf"
-    } else {
-        ""
-    }
+    if cfg!(feature = "legalpdf") { "legalpdf" } else { "" }
 }
 
 pub fn derive_document_structure(request: StructureRequest) -> CoreResult<NativeDocument> {
     let structure = match request {
-        StructureRequest::Instrument {
-            text,
-            id,
-            table_cells,
-            reconstruct_lineation,
-        } => analyze_instrument(text, id, &table_cells, reconstruct_lineation)
-            .map_err(|error| error.to_string())?,
-        StructureRequest::ProviderText { input } => {
-            provider_text_document_structure(input).map_err(|error| error.to_string())?
-        }
-        StructureRequest::NativeMarkup { input } => {
-            analyze_native_markup(input).map_err(|error| error.to_string())?
-        }
-        StructureRequest::Opinion { record, url } => {
-            legal_structure::opinion::opinion_structure(&record, url)
-        }
-        StructureRequest::Journal {
-            article_id,
-            url,
-            filename,
-            text,
-            page_rows,
-        } => if let Some(filename) = filename {
+        StructureRequest::Instrument { text, id, table_cells, reconstruct_lineation } =>
+            analyze_instrument(text, id, &table_cells, reconstruct_lineation).map_err(|error| error.to_string())?,
+        StructureRequest::ProviderText { input } => provider_text_document_structure(input).map_err(|error| error.to_string())?,
+        StructureRequest::NativeMarkup { input } => analyze_native_markup(input).map_err(|error| error.to_string())?,
+        StructureRequest::Opinion { record, url } => legal_structure::opinion::opinion_structure(&record, url),
+        StructureRequest::Journal { article_id, url, filename, text, page_rows } => if let Some(filename) = filename {
             let file = File::open(filename).map_err(|error| error.to_string())?;
             journal_document_structure(article_id, url, BufReader::new(file), &page_rows)
         } else if let Some(text) = text {
@@ -175,7 +132,7 @@ pub fn derive_document_structure(request: StructureRequest) -> CoreResult<Native
         }
         .map_err(|error| error.to_string())?,
     };
-    Ok(NativeDocument::new(NativeProduct::Structure(structure)))
+    Ok(NativeDocument::of(structure))
 }
 
 pub fn docx_structure_lint_json(document: &NativeDocument) -> CoreResult<legal_structure::DocxLintReport> {
@@ -195,109 +152,52 @@ pub fn document_text(document: &NativeDocument, limit: Option<u32>) -> &str {
 
 /// The nodes the query serves, in its order, each as a reader takes it (`DocumentStructure::reading`); with `kind`, those
 /// it serves as that kind (a paragraph's prose among them); with `end`, those starting before it.
-pub fn document_anchors(
-    document: &NativeDocument,
-    kind: Option<NodeKind>,
-    end: Option<u32>,
-) -> Vec<legal_structure::NodeReading<'_>> {
+pub fn document_anchors(document: &NativeDocument, kind: Option<NodeKind>, end: Option<u32>) -> Vec<legal_structure::NodeReading<'_>> {
     let structure = document.structure();
-    document
-        .query
-        .blocks(structure, kind)
-        .map(|node| structure.reading(node))
-        .filter(|reading| end.is_none_or(|end| reading.span.start < end as usize))
-        .collect::<Vec<_>>()
+    document.query.blocks(structure, kind).map(|node| structure.reading(node))
+        .filter(|reading| end.is_none_or(|end| reading.span.start < end as usize)).collect()
 }
 
 /// The pages a text's full citations of reported cases cite ("[1986] 1 SCR 103" cites 103).
 pub fn reporter_pages(text: &str) -> Vec<String> {
     use legal_structure::citations::{extract, Authority, Form, Format, Options};
-    extract(
-        text,
-        &Options {
-            resolve: false,
-            ..Options::default()
-        },
-    )
-    .into_iter()
-    .filter(|citation| {
-        citation.form == Form::Full
-            && citation.authority == Authority::Case
-            && citation.format == Some(Format::Reporter)
-    })
-    .filter_map(|citation| citation.fields.page)
-    .collect()
+    extract(text, &Options { resolve: false, ..Options::default() }).into_iter()
+        .filter(|citation| citation.form == Form::Full && citation.authority == Authority::Case && citation.format == Some(Format::Reporter))
+        .filter_map(|citation| citation.fields.page)
+        .collect()
 }
 
 /// The first pages of the reports `citations` cite, each once: a page map's anchors.
 pub fn reporter_start_pages(citations: &[String]) -> Vec<u32> {
-    let mut pages: Vec<u32> = citations
-        .iter()
-        .flat_map(|citation| reporter_pages(citation))
-        .filter_map(|page| page.trim().parse().ok())
-        .filter(|page| *page > 0)
-        .collect();
-    pages.sort_unstable();
-    pages.dedup();
-    pages
+    let pages = citations.iter().flat_map(|citation| reporter_pages(citation)).filter_map(|page| page.trim().parse().ok());
+    pages.filter(|page| *page > 0).collect::<std::collections::BTreeSet<u32>>().into_iter().collect()
 }
 
 /// Each quotation located in a document's text and, with `compare`, compared with it, with what grounded_prose_errors
 /// says of the quotation against the passage it was found in (the whole text where it was not), the evidence named by
 /// its id.
-pub fn quote_locate_document(
-    document: &NativeDocument,
-    source: legal_structure_features::QuoteSource,
-    quotes: &[legal_structure_features::QuoteToLocate],
-    compare: bool,
-    keep: bool,
-) -> CoreResult<Vec<LocatedQuotation>> {
+pub fn quote_locate_document(document: &NativeDocument, source: legal_structure_features::QuoteSource,
+    quotes: &[legal_structure_features::QuoteToLocate], compare: bool, keep: bool) -> CoreResult<Vec<LocatedQuotation>> {
     let text = document_text(document, None);
     let locate = |locator: &mut legal_structure_features::QuoteLocator| {
-        legal_structure_features::locate_document_quotes(
-            locator,
-            document.structure(),
-            &document.query,
-            source,
-            quotes,
-            compare,
-        )
+        legal_structure_features::locate_document_quotes(locator, document.structure(), &document.query, source, quotes, compare)
     };
     let located = if keep {
-        locate(
-            &mut document
-                .quotes
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner()),
-        )
+        locate(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
     } else {
         locate(&mut Default::default())
     };
-    Ok(located
-        .into_iter()
-        .zip(quotes)
-        .map(|(located, item)| {
-            if !compare {
-                return LocatedQuotation { located, errors: None };
-            }
-            let id = item.id.clone().unwrap_or_default();
-            let evidence = if located.found.text.is_empty() {
-                text
-            } else {
-                located.found.text.as_str()
-            };
-            let errors = grounded_prose_errors(
-                &format!("\u{201c}{}\u{201d}", item.quote),
-                std::slice::from_ref(&id),
-                &[VisibleEvidenceText {
-                    evidence_id: id.clone(),
-                    text: evidence.to_owned(),
-                    labels: Vec::new(),
-                }],
-            );
-            LocatedQuotation { located, errors: Some(errors) }
-        })
-        .collect())
+    Ok(located.into_iter().zip(quotes).map(|(located, item)| {
+        if !compare {
+            return LocatedQuotation { located, errors: None };
+        }
+        let id = item.id.clone().unwrap_or_default();
+        let evidence = if located.found.text.is_empty() { text } else { located.found.text.as_str() };
+        let evidence = VisibleEvidenceText { evidence_id: id.clone(), text: evidence.to_owned(), labels: Vec::new() };
+        let errors = grounded_prose_errors(&format!("\u{201c}{}\u{201d}", item.quote), std::slice::from_ref(&id), &[evidence]);
+        LocatedQuotation { located, errors: Some(errors) }
+    })
+    .collect())
 }
 
 /// A quotation located in a document, and where it was compared, the grounding errors its words leave (`errors`).
@@ -313,45 +213,20 @@ pub struct LocatedQuotation {
 
 pub use legal_structure_features::{citation_key_version, AliasGroup};
 
-pub fn lookup_structure_block(
-    document: &NativeDocument,
-    locator: serde_json::Value,
-    context_blocks: u32,
-) -> CoreResult<legal_structure::DocumentLookup<'_>> {
+pub fn lookup_structure_block(document: &NativeDocument, locator: serde_json::Value, context_blocks: u32)
+    -> CoreResult<legal_structure::DocumentLookup<'_>> {
     let selector = match locator {
         serde_json::Value::String(locator) => legal_structure::GraphScopeSeed::Locator(locator),
-        value => serde_json::from_value::<legal_structure::GraphScopeSeed>(value)
-            .map_err(|error| error.to_string())?,
+        value => serde_json::from_value::<legal_structure::GraphScopeSeed>(value).map_err(|error| error.to_string())?,
     };
-    Ok(document
-        .query
-        .structure_selection(document.structure(), &selector, context_blocks as usize))
+    Ok(document.query.structure_selection(document.structure(), &selector, context_blocks as usize))
 }
 
-pub fn graph_scope<'a>(
-    document: &'a NativeDocument,
-    seed: &legal_structure::GraphScopeSeed,
-    follow: FollowDirection,
-    depth: u32,
-    include_descendants: bool,
-    include_units: bool,
-) -> Option<legal_structure::GraphScope<'a>> {
+pub fn graph_scope<'a>(document: &'a NativeDocument, seed: &legal_structure::GraphScopeSeed, follow: FollowDirection, depth: u32,
+    include_descendants: bool, include_units: bool) -> Option<legal_structure::GraphScope<'a>> {
     let structure = document.structure();
-    structure
-        .cross_references
-        .as_ref()
-        .filter(|graph| !graph.document_abstained)
-        .and_then(|graph| {
-            document.query.graph_scope(
-                structure,
-                graph,
-                seed,
-                follow,
-                depth as usize,
-                include_descendants,
-                include_units,
-            )
-        })
+    let graph = structure.cross_references.as_ref().filter(|graph| !graph.document_abstained)?;
+    document.query.graph_scope(structure, graph, seed, follow, depth as usize, include_descendants, include_units)
 }
 
 /// Supplies this engine to the PDF and DOCX parsers, which are built without it so that an engine edit does not recompile
@@ -377,68 +252,36 @@ mod pdf {
         }
     }
 
-    pub fn pdf_recognized_text(
-        document: &NativeDocument,
-        pages: Option<Vec<u32>>,
-    ) -> CoreResult<Option<Vec<&legal_structure::layout::Page>>> {
+    pub fn pdf_recognized_text(document: &NativeDocument, pages: Option<Vec<u32>>)
+        -> CoreResult<Option<Vec<&legal_structure::layout::Page>>> {
         let document = pdf(document)?;
-        if let Some(pages) = &pages {
-            if pages.is_empty() || pages.len() > 16 || pages.contains(&0) {
-                return Err("Request between 1 and 16 PDF text pages".to_owned());
-            }
+        if pages.as_ref().is_some_and(|pages| pages.is_empty() || pages.len() > 16 || pages.contains(&0)) {
+            return Err("Request between 1 and 16 PDF text pages".to_owned());
         }
         // Filter before serializing: a viewport read must not copy the whole scan into JS.
-        Ok(Some(
-            document
-                .recognized_pages()
-                .filter(|page| {
-                    pages
-                        .as_ref()
-                        .is_none_or(|pages| pages.contains(&page.number))
-                })
-                .collect::<Vec<_>>(),
-        ))
+        Ok(Some(document.recognized_pages().filter(|page| pages.as_ref().is_none_or(|pages| pages.contains(&page.number))).collect()))
     }
 
     /// The document's page map (`PdfDocument::page_map`), anchored on the first pages of the reports `citations` cite.
-    pub fn pdf_page_map(
-        document: &NativeDocument,
-        citations: &[String],
-    ) -> CoreResult<Vec<PdfPageBinding>> {
+    pub fn pdf_page_map(document: &NativeDocument, citations: &[String]) -> CoreResult<Vec<PdfPageBinding>> {
         let starts = super::reporter_start_pages(citations);
-        let is_citation = |text: &str, page: &str| {
-            super::reporter_pages(text)
-                .iter()
-                .any(|cited| cited == page)
-        };
+        let is_citation = |text: &str, page: &str| super::reporter_pages(text).iter().any(|cited| cited == page);
         Ok(legalpdf::page_map(pdf(document)?, &starts, &is_citation))
     }
 
     /// The PDF pages (from 1) each printed page label names by the document's page map, anchored on the reports
     /// `citations` cite (`printed_pages`); none for a label the map does not resolve.
-    pub fn pdf_printed_pages(
-        document: &NativeDocument,
-        citations: &[String],
-        labels: &[String],
-    ) -> CoreResult<Vec<Vec<u32>>> {
+    pub fn pdf_printed_pages(document: &NativeDocument, citations: &[String], labels: &[String]) -> CoreResult<Vec<Vec<u32>>> {
         let map = pdf_page_map(document, citations)?;
-        Ok(labels
-            .iter()
-            .map(|label| printed_pages(label, &map))
-            .collect())
+        Ok(labels.iter().map(|label| printed_pages(label, &map)).collect())
     }
 
     /// Each passage placed on the PDF's pages (`PdfDocument::passage_geometry`). With `citations`, a page locator that
     /// names no pages of its own is a printed page: the PDF's pages the page map, anchored on the reports they cite,
     /// gives it.
-    pub fn passage_geometry(
-        document: &NativeDocument,
-        mut targets: Vec<legalpdf::PassageTarget>,
-        citations: Option<Vec<String>>,
-    ) -> CoreResult<legalpdf::PassageGeometry> {
-        let printed = |target: &legalpdf::PassageTarget| {
-            target.locator_kind == "page" && target.physical_pages.is_none()
-        };
+    pub fn passage_geometry(document: &NativeDocument, mut targets: Vec<legalpdf::PassageTarget>, citations: Option<Vec<String>>)
+        -> CoreResult<legalpdf::PassageGeometry> {
+        let printed = |target: &legalpdf::PassageTarget| target.locator_kind == "page" && target.physical_pages.is_none();
         if let Some(citations) = citations.filter(|_| targets.iter().any(printed)) {
             let map = pdf_page_map(document, &citations)?;
             for target in targets.iter_mut().filter(|target| printed(target)) {
@@ -453,62 +296,38 @@ mod pdf {
     /// order, resolves none; one with unnumbered pages only where they open the PDF and every page after them takes its
     /// number from a report's first page, for unknown pages can hide a repeated folio.
     pub fn printed_pages(label: &str, map: &[PdfPageBinding]) -> Vec<u32> {
-        static RANGE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-            regex::Regex::new(r"^\s*(\d+)(?:\s*[-\u{2013}\u{2014}]\s*(\d+))?\s*$").unwrap()
-        });
+        static RANGE: std::sync::LazyLock<regex::Regex> =
+            std::sync::LazyLock::new(|| regex::Regex::new(r"^\s*(\d+)(?:\s*[-\u{2013}\u{2014}]\s*(\d+))?\s*$").unwrap());
         let resolved = |page: &PdfPageBinding| page.status == "resolved";
-        let Some(first_resolved) = map.iter().position(resolved) else {
-            return Vec::new();
-        };
-        if map
-            .iter()
-            .enumerate()
-            .any(|(index, page)| page.pdf_page as usize != index + 1 || page.status == "ambiguous")
-        {
+        let Some(first_resolved) = map.iter().position(resolved) else { return Vec::new() };
+        if map.iter().enumerate().any(|(index, page)| page.pdf_page as usize != index + 1 || page.status == "ambiguous") {
             return Vec::new();
         }
         if !map.iter().all(resolved)
-            && (map[..first_resolved]
-                .iter()
-                .any(|page| page.status != "unknown")
-                || map[first_resolved..]
-                    .iter()
-                    .any(|page| !resolved(page) || page.source.as_deref() != Some("reporter")))
+            && (map[..first_resolved].iter().any(|page| page.status != "unknown")
+                || map[first_resolved..].iter().any(|page| !resolved(page) || page.source.as_deref() != Some("reporter")))
         {
             return Vec::new();
         }
         let once = |label: &str| {
-            let mut pages = map
-                .iter()
-                .filter(|page| !label.is_empty() && page.label.as_deref() == Some(label))
-                .map(|page| page.pdf_page);
+            let mut pages = map.iter().filter(|page| !label.is_empty() && page.label.as_deref() == Some(label)).map(|page| page.pdf_page);
             match (pages.next(), pages.next()) {
                 (Some(page), None) => Some(page),
                 _ => None,
             }
         };
-        let Some(range) = RANGE.captures(label) else {
-            return once(label.trim()).into_iter().collect();
-        };
+        let Some(range) = RANGE.captures(label) else { return once(label.trim()).into_iter().collect() };
         let start = &range[1];
         // A range's end may be written short: "138-39" ends at 139.
         let end = range.get(2).map_or(start, |end| end.as_str());
-        let end = if end.len() < start.len() {
-            format!("{}{end}", &start[..start.len() - end.len()])
-        } else {
-            end.to_owned()
-        };
-        let (Ok(first), Ok(last)) = (start.parse::<u64>(), end.parse::<u64>()) else {
-            return Vec::new();
-        };
+        let end = if end.len() < start.len() { format!("{}{end}", &start[..start.len() - end.len()]) } else { end.to_owned() };
+        let (Ok(first), Ok(last)) = (start.parse::<u64>(), end.parse::<u64>()) else { return Vec::new() };
         if last < first || last - first > 2000 {
             return Vec::new();
         }
         let mut pages = Vec::new();
         for number in first..=last {
-            let Some(page) = once(&number.to_string()) else {
-                return Vec::new();
-            };
+            let Some(page) = once(&number.to_string()) else { return Vec::new() };
             if !pages.contains(&page) {
                 pages.push(page);
             }
