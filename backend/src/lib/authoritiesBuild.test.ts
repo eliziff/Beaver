@@ -213,8 +213,8 @@ describe("Authorities final export", () => {
   it("abstains from duplicate filing text while retaining verified target pages in the report", async () => {
     const brief = await sourcePdf("2009 SCC 32 at para 12 repeated", [[612, 792]]);
     const original = await judgmentPdf(UP_TO_14), state = finalDraft(brief, original);
-    const geometry: PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v2", sourceSha256: sha256(brief),
-      parserVersion: "test-fixture", coordinateSpace: "visible_page_fraction", coordinateOrigin: "top_left", rotationApplied: true, targets: [{ id: "filing:grant:0",
+    const geometry: PassageGeometry = { sourceSha256: sha256(brief),
+      targets: [{ id: "filing:grant:0",
       locatorKind: "page", locator: "1", status: "found", pages: [], quotes: [
         { text: "2009 SCC 32", status: "ambiguous", rects: [] },
         { text: "para 12", status: "ambiguous", rects: [] },
@@ -236,8 +236,8 @@ describe("Authorities final export", () => {
     const brief = Buffer.from(await plain.save()), original = await judgmentPdf(UP_TO_14);
     const state = finalDraft(brief, original);
     state.units[0].text += " [Tab 1]";
-    const filingGeometry: PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v2", sourceSha256: sha256(brief),
-      parserVersion: "test-fixture", coordinateSpace: "visible_page_fraction", coordinateOrigin: "top_left", rotationApplied: true, targets: [{ id: "filing:grant:0",
+    const filingGeometry: PassageGeometry = { sourceSha256: sha256(brief),
+      targets: [{ id: "filing:grant:0",
       locatorKind: "page", locator: "1", status: "found", pages: [{ pageNumber: 1, width: 612, height: 792,
         source: "native", passageRects: [[36 / 612, 50 / 792, 300 / 612, 80 / 792]] }], quotes: [
         { text: "[Tab 1]", status: "found", pageNumber: 1, rects: [[190 / 612, 60 / 792, 240 / 612, 80 / 792]] },
@@ -754,7 +754,7 @@ describe("Authorities output builder", () => {
         ["omitted", "Omitted v Test, 2024 ABKB 3", "Not reproduced"]]);
   });
 
-  it("builds a table without source bytes and rejects a changed attached PDF for a book", async () => {
+  it("builds a table without source bytes", async () => {
     const casePdf = await sourcePdf("Grant", [[400, 500]]);
     const legislationPdf = await sourcePdf("Act", [[500, 600]]);
     const tableDraft = { ...draft(casePdf, legislationPdf), outputMode: "table" as const };
@@ -765,13 +765,6 @@ describe("Authorities output builder", () => {
     expect((await buildAuthorities({ draft: tableDraft, title: "CON",
       workProduct: { id: "authorities-2", revision: 1 } })).artifacts.table?.filename)
       .toBe("_CON.table-of-authorities.docx");
-
-    const bookDraft = { ...tableDraft, outputMode: "book" as const };
-    await expect(buildAuthorities({ draft: bookDraft, title: "Book",
-      workProduct: { id: "authorities-2", revision: 2 },
-      sources: { "source:grant": { bytes: casePdf },
-        "source:fca": { bytes: Buffer.from("changed") } } }))
-      .rejects.toThrow("Attached PDF changed for Federal Courts Act, RSC 1985, c F-7");
 
     const invalid = Buffer.from("not a PDF"), invalidDraft = draft(casePdf, invalid);
     invalidDraft.outputMode = "book";

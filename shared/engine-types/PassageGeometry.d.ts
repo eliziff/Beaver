@@ -5,4 +5,4 @@ import type { PlacedPassage } from "./PlacedPassage";
  * Every passage asked for, placed: the rectangles are fractions of the page as it is displayed (its visible crop box,
  * rotation applied), from its top left, what marks and links are placed by.
  */
-export type PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v2", sourceSha256: string, parserVersion: string, coordinateSpace: "visible_page_fraction", coordinateOrigin: "top_left", rotationApplied: true, targets: Array<PlacedPassage>, };
+export type PassageGeometry = { sourceSha256: string, targets: Array<PlacedPassage>, };
