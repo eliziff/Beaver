@@ -1,11 +1,7 @@
-import type { NativePdfPassageGeometry } from './structureNative';
-import { sha256 } from './hash';
-import { ANNOTATION_SCHEMA, decodeAnnotationSet, validRect,
-  type AnnotationFragment, type AnnotationRect, type PdfAnnotation,
-  type AnnotationPreparation } from 'mike/shared/pdf-annotations.mjs';
+import type { PassageGeometry } from 'mike/shared/engine-types/PassageGeometry';
+import type { AnnotationRect } from 'mike/shared/pdf-annotations.mjs';
 export type { AnnotationPreparation } from 'mike/shared/pdf-annotations.mjs';
 
-type Style = 'none' | 'margin' | 'paragraph' | 'text' | 'sidelined';
 /** A cited locator as the book writes it: "s 33(1)", "art 49", "r 20.01", "para 12", "p 4". */
 export const locatorLabel = (kind: string, value: string) =>
   `${({ paragraph: 'para', section: 's', article: 'art', rule: 'r' } as Record<string, string>)[kind] ?? 'p'} ${value}`;
@@ -14,94 +10,5 @@ export const normalizePassageRect = (rect: number[], width: number, height: numb
     .map(v => Math.min(1, Math.max(0, v))) as AnnotationRect;
 
 /** A paragraph pinpoint is located only by its printed number, which the engine witnesses. */
-export const hasPrintedParagraphLocator = (target: NativePdfPassageGeometry['targets'][number]) =>
+export const hasPrintedParagraphLocator = (target: PassageGeometry['targets'][number]) =>
   target.locatorKind !== 'paragraph' || target.printed === true;
-
-/** Both pre-build review and unreviewed exports use these exact initial marks. */
-export function initialAuthorityAnnotations(input: {
-  sourceSha256: string; style: Style; geometry?: NativePdfPassageGeometry;
-  pages: Array<{ width: number; height: number }>; citedPages: Set<number>;
-  exclusions?: ReadonlySet<string>;
-  requirePrintedParagraphLocator?: boolean;
-}): AnnotationPreparation {
-  const marks: PdfAnnotation[] = [], unlocated: string[] = [];
-  const add = (kind: PdfAnnotation['kind'], label: string, excerpt: string, fragments: AnnotationFragment[]) => {
-    fragments = fragments.map(f => ({ ...f, rects: f.rects.filter(validRect) })).filter(f => f.rects.length);
-    if (!fragments.length) return;
-    const identity = sha256(JSON.stringify([kind, label, excerpt, fragments])).slice(0, 32);
-    if (marks.some(mark => mark.id === identity)) return;
-    marks.push({ id: identity, kind, origin: 'automatic', label, excerpt: excerpt.slice(0, 2_000),
-      rgb: kind === 'highlight' ? [1, .92, .6] : input.style === 'sidelined' ? [.08, .08, .08] : [.75, .08, .08],
-      opacity: kind === 'highlight' ? .45 : .9, fragments });
-  };
-  if (input.geometry && input.geometry.sourceSha256 !== input.sourceSha256)
-    throw new Error('Passage geometry belongs to a different PDF.');
-  const targets = (input.geometry?.targets ?? []).filter(target =>
-    !input.exclusions?.has(`${target.locatorKind.trim()}\0${target.locator.trim()}`));
-  if (input.style !== 'none') for (const target of targets) {
-    const label = locatorLabel(target.locatorKind, target.locator);
-    const excerpt = target.pages.map(page => page.text ?? '').join(' ').trim().slice(0, 2_000);
-    const found = target.status === 'found' &&
-      (!input.requirePrintedParagraphLocator || hasPrintedParagraphLocator(target));
-    const fragments = found ? target.pages.flatMap(page => {
-      if (page.source !== 'native' || !input.pages[page.pageNumber - 1] || page.width <= 0 || page.height <= 0) return [];
-      const rects = page.passageRects.map(r => normalizePassageRect(r, page.width, page.height)).filter(validRect);
-      return rects.length ? [{ pageNumber: page.pageNumber, rects }] : [];
-    }) : [];
-    if (!fragments.length && target.locatorKind !== 'page') unlocated.push(label);
-    if (input.style === 'paragraph') add('highlight', label, excerpt, fragments);
-    if (input.style === 'margin' || input.style === 'sidelined') {
-      // One line down the margin of each column the passage runs in: a line's bar joins the bar above it where it
-      // stands in the same column, and a line in another column starts its own.
-      add('margin', label, excerpt, fragments.map(fragment => {
-        const width = input.pages[fragment.pageNumber - 1].width;
-        const bars: AnnotationRect[] = [];
-        for (const rect of fragment.rects) {
-          const x = Math.max(0, rect[0] - 7 / width), last = bars[bars.length - 1];
-          if (last && Math.abs(last[0] - x) < 0.02 && rect[1] >= last[1]) last[3] = Math.max(last[3], rect[3]);
-          else bars.push([x, rect[1], x + 2 / width, rect[3]]);
-        }
-        return { ...fragment, rects: bars };
-      }));
-    }
-    if (input.style === 'text' || input.style === 'margin') for (const quote of target.quotes) {
-      // Each quote is independent, even when several quotes cite the same paragraph/page.
-      const quoteFragments = (quote.fragments ?? (quote.pageNumber ? [{ pageNumber: quote.pageNumber, rects: quote.rects }] : []))
-        .flatMap(fragment => {
-          const page = target.pages.find(page => page.pageNumber === fragment.pageNumber);
-          return page && input.pages[page.pageNumber - 1] ? [{ pageNumber: page.pageNumber,
-            rects: fragment.rects.map(rect => normalizePassageRect(rect, page.width, page.height)).filter(validRect) }] : [];
-        });
-      if (quote.status !== 'found' || !quoteFragments.length || quoteFragments.some(f => !f.rects.length)) continue;
-      add('highlight', `${label} · Quote`, quote.text, quoteFragments);
-    }
-  }
-  // Verified passage pages and explicit page citations anchor a page margin, and so
-  // does a passage whose own extent could not be located: the page carries the mark.
-  const marginal = input.style === 'margin' || input.style === 'sidelined';
-  if (marginal || unlocated.length) {
-    const allExcluded = !!input.geometry?.targets.length && !targets.length;
-    if (!allExcluded) for (const [index, { width, height }] of input.pages.entries()) {
-      const pageNumber = index + 1;
-      const hasMark = marks.some(mark => mark.kind === 'margin' && mark.fragments.some(f => f.pageNumber === pageNumber));
-      const hasTarget = marginal && targets.some(target => target.status === 'found' &&
-        (!input.requirePrintedParagraphLocator || hasPrintedParagraphLocator(target)) &&
-        target.pages.some(page => page.pageNumber === pageNumber));
-      if (!hasMark && (input.citedPages.has(index) || hasTarget)) add('margin', 'Cited page', '', [{ pageNumber,
-        rects: [[6.75 / width, 18 / height, 9.25 / width, 1 - 18 / height]] }]);
-    }
-  }
-  const marked = marks.some(mark => mark.label === 'Cited page');
-  // A bare reference whose passage another mark of the same kind already covers gets no mark of its
-  // own; a quote keeps its own, as it marks its words.
-  const inside = (a: AnnotationRect, b: AnnotationRect) => a[0] >= b[0] - 1e-3 && a[1] >= b[1] - 1e-3 && a[2] <= b[2] + 1e-3 && a[3] <= b[3] + 1e-3;
-  const covers = (outer: PdfAnnotation, inner: PdfAnnotation) => outer !== inner && outer.kind === inner.kind &&
-    inner.fragments.every(fragment => fragment.rects.every(rect => outer.fragments.some(other =>
-      other.pageNumber === fragment.pageNumber && other.rects.some(box => inside(rect, box)))));
-  const quote = (mark: PdfAnnotation) => mark.label.endsWith('· Quote');
-  const kept = marks.filter((mark, index) => quote(mark) || !marks.some((other, at) => !quote(other) && covers(other, mark) &&
-    (!covers(mark, other) || at < index)));
-  return { annotations: decodeAnnotationSet({ schemaVersion: ANNOTATION_SCHEMA,
-    sourceSha256: input.sourceSha256, marks: kept }),
-    pageMarked: marked ? [...new Set(unlocated)] : [] };
-}

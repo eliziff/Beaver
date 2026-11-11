@@ -5,12 +5,10 @@ import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, Stand
 import * as pdf from 'pdf-lib';
 import { ANNOTATION_SCHEMA, annotationSetForSource, decodeAnnotationSet, emptyAnnotationSet,
   rectToPdfQuad, type PdfAnnotation, type PdfAnnotationSet } from 'mike/shared/pdf-annotations.mjs';
-import { initialAuthorityAnnotations } from './authoritiesAnnotations';
-import { buildAuthorities, prepareAuthorityAnnotations } from './authoritiesBuild';
+import { buildAuthorities } from './authoritiesBuild';
 import { createAuthoritiesDraft, decodeAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft } from './authoritiesDomain';
 import { decodeAuthoritiesUserAction } from './authoritiesActionContract';
 import { sha256 } from './hash';
-import type { NativePdfPassageGeometry } from './structureNative';
 const mark = (id='one'): PdfAnnotation => ({id,kind:'highlight',origin:'manual',label:'Custom highlight',excerpt:'Manually selected passage',
   rgb:[1,.92,.6],opacity:.45,fragments:[{pageNumber:1,rects:[[.1,.2,.9,.4]]}]});
 const set = (sourceSha256: string, marks=[mark()]): PdfAnnotationSet => ({schemaVersion:ANNOTATION_SCHEMA,sourceSha256,marks});
@@ -37,17 +35,11 @@ async function fixture(rotated=false) {
       lastSeen:{name:'case.pdf',size:bytes.length,modified:1,sha256:hash}}});
   return {bytes,hash,draft};
 }
-const geometry=(hash:string): NativePdfPassageGeometry=>({schemaVersion:'legalpdf.passage-geometry.v1',sourceSha256:hash,
-  parserVersion:'test',coordinateSpace:'visible_crop_box',coordinateOrigin:'top_left',rotationApplied:true,
-  targets:[{id:'42',locatorKind:'paragraph',locator:'42',status:'found',pages:[{pageNumber:1,width:400,height:500,
-    source:'native',passageRects:[[40,40,320,180]]}],quotes:[
-      {text:'First independent quote',status:'found',pageNumber:1,rects:[[50,50,200,65]]},
-      {text:'Second independent quote',status:'found',pageNumber:1,rects:[[50,100,230,115]]}]}]});
 const action=(annotations:PdfAnnotationSet)=>({type:'set-annotations' as const,
   entries:[{authorityId:'case',bindingRole:'case-en',annotations}]});
-async function build(draft:AuthoritiesDraft,bytes:Uint8Array,passageGeometry?:NativePdfPassageGeometry) {
+async function build(draft:AuthoritiesDraft,bytes:Uint8Array) {
   const result=await buildAuthorities({draft,title:'Editor test',workProduct:{id:'test',revision:1},
-    sources:{'case-en':{bytes,passageGeometry}}});
+    sources:{'case-en':{bytes}}});
   return PDFDocument.load(result.artifacts.book!.bytes);
 }
 describe('persistent visual PDF annotations',()=>{
@@ -93,12 +85,6 @@ describe('persistent visual PDF annotations',()=>{
     expect(rectToPdfQuad(r,crop,180)).toEqual([370,140,290,140,370,260,290,260]);
     expect(rectToPdfQuad(r,crop,270)).toEqual([330,560,330,440,250,560,250,440]);
   });
-  it('creates independently selectable quote marks for one pinpoint',async()=>{
-    const {hash}=await fixture();
-    const result=initialAuthorityAnnotations({sourceSha256:hash,style:'text',geometry:geometry(hash),pages:[{width:400,height:500}],citedPages:new Set()});
-    expect(result.annotations.marks.map(mark=>mark.excerpt)).toEqual(['First independent quote','Second independent quote']);
-    expect(new Set(result.annotations.marks.map(mark=>mark.id)).size).toBe(2);
-  });
   it('exports manual annotations with automatic marking off, without flattening or changing source bytes',async()=>{
     const {draft,bytes,hash}=await fixture(true);draft.settings.passageMarking='none';
     const edited=reduceAuthoritiesDraft(draft,action(set(hash)));
@@ -116,13 +102,13 @@ describe('persistent visual PDF annotations',()=>{
   });
   it('exports the edited set, never independently regenerating deleted automatic quotes',async()=>{
     const {draft,bytes,hash}=await fixture();draft.settings.passageMarking='text';
-    const initial=prepareAuthorityAnnotations((await PDFDocument.load(bytes)).getPages().map(page=>[page.getWidth(),page.getHeight()] as [number,number]),draft,draft.authorities.case,
-      {bindingRole:'case-en',filename:'case.pdf',sourceSha256:hash},{passageGeometry:geometry(hash)}).annotations;
-    const edited=reduceAuthoritiesDraft(draft,action({...initial,marks:[initial.marks[1],mark()]}));
-    const output=await build(edited,bytes,geometry(hash));
-    expect(annots(output,output.getPageCount()-1).map(markId)).toEqual([initial.marks[1].id,'one']);
+    // A reviewed set keeps one automatic quote of two: the other is never made again.
+    const kept={...mark('quote-2'),origin:'automatic' as const,label:'para 42 · Quote'};
+    const edited=reduceAuthoritiesDraft(draft,action(set(hash,[kept,mark()])));
+    const output=await build(edited,bytes);
+    expect(annots(output,output.getPageCount()-1).map(markId)).toEqual(['quote-2','one']);
     const empty=reduceAuthoritiesDraft(edited,action(set(hash,[])));
-    const cleared=await build(empty,bytes,geometry(hash));
+    const cleared=await build(empty,bytes);
     expect(annots(cleared,cleared.getPageCount()-1)).toHaveLength(0);
   });
   it('rejects annotations on missing pages instead of dropping them during export',async()=>{
@@ -133,46 +119,3 @@ describe('persistent visual PDF annotations',()=>{
   });
 });
 
-it('abstains from inferred manual paragraph extents and accepts detached printed-number witnesses', () => {
-  const hash = 'a'.repeat(64), source = geometry(hash);
-  source.targets[0].pages[0].text = 'Fixture judgment / public synthetic';
-  source.targets[0].printed = false;
-  source.targets[0].quotes = [];
-  for (const style of ['paragraph', 'margin', 'sidelined'] as const) {
-    const result = initialAuthorityAnnotations({ sourceSha256: hash, style, geometry: source,
-      pages: [{ width: 400, height: 500 }], citedPages: new Set(), requirePrintedParagraphLocator: true });
-    expect(result.annotations.marks).toEqual([]);
-    expect(result.pageMarked).toEqual([]);
-  }
-  source.targets[0].printed = true;
-  const proved = initialAuthorityAnnotations({ sourceSha256: hash, style: 'paragraph', geometry: source,
-    pages: [{ width: 400, height: 500 }], citedPages: new Set(), requirePrintedParagraphLocator: true });
-  expect(proved.annotations.marks).toHaveLength(1);
-  expect(proved.annotations.marks[0].fragments[0].rects[0]).toEqual([.1, .08, .8, .36]);
-  source.targets[0].printed = false;
-  const existingPolicy = initialAuthorityAnnotations({ sourceSha256: hash, style: 'paragraph', geometry: source,
-    pages: [{ width: 400, height: 500 }], citedPages: new Set() });
-  expect(existingPolicy.annotations.marks).toHaveLength(1);
-  source.targets[0].locatorKind = 'section';
-  const section = initialAuthorityAnnotations({ sourceSha256: hash, style: 'paragraph', geometry: source,
-    pages: [{ width: 400, height: 500 }], citedPages: new Set(), requirePrintedParagraphLocator: true });
-  expect(section.annotations.marks).toHaveLength(1);
-});
-
-it('populates compact paragraph cards directly from prepared PDF text', () => {
-  const source = geometry('a'.repeat(64)); source.targets[0].pages[0].text = '[42] First sentence. Second sentence.';
-  const result = initialAuthorityAnnotations({sourceSha256: source.sourceSha256, style:'margin', geometry:source,
-    pages:[{width:400,height:500}], citedPages:new Set()});
-  expect(result.annotations.marks[0].excerpt).toBe('[42] First sentence. Second sentence.');
-});
-it('keeps a cross-page quotation as a single editable mark', () => {
-  const source = geometry('a'.repeat(64));
-  source.targets[0].pages.push({...source.targets[0].pages[0],pageNumber:2});
-  source.targets[0].quotes = [{text:'A quotation across pages',status:'found',rects:[],
-    fragments:[{pageNumber:1,rects:[[50,400,200,415]]},{pageNumber:2,rects:[[50,40,200,55]]}]}];
-  const result = initialAuthorityAnnotations({sourceSha256:source.sourceSha256,style:'text',geometry:source,
-    pages:[{width:400,height:500},{width:400,height:500}],citedPages:new Set()});
-  expect(result.annotations.marks).toHaveLength(1);
-  expect(result.annotations.marks[0].fragments.map(f=>f.pageNumber)).toEqual([1,2]);
-  expect(result.pageMarked).toEqual([]);
-});

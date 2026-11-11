@@ -5,4 +5,4 @@ import type { AnnotationFragment } from "./AnnotationFragment";
  * A mark as `decodeAnnotationSet` (shared/pdf-annotations.mjs) returns it: rects are page fractions
  * [left, top, right, bottom] with the origin at the top left of the page as it is displayed.
  */
-export type AnnotationMark = { id: string, kind: string, rgb: [number, number, number], opacity: number, fragments: Array<AnnotationFragment>, };
+export type AnnotationMark = { id: string, kind: string, origin: string, label: string, excerpt: string, rgb: [number, number, number], opacity: number, fragments: Array<AnnotationFragment>, };

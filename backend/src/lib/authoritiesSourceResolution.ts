@@ -560,7 +560,7 @@ export async function resolveAuthoritiesSources(
         break;
       }
     } catch { signal?.throwIfAborted(); }
-    let reconstructed: { bytes: Uint8Array; pageCount: number } | null = null;
+    let reconstructed: { bytes: Buffer; pageCount: number } | null = null;
     const text = reconstruct && !original ? source.searchText() : "";
     if (text.trim()) try {
       reconstructed = await sources.render!({ kind: authority.kind,

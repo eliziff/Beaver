@@ -12,12 +12,11 @@ import { assertAuthoritiesBuildUploadSize } from "../lib/authoritiesOperations";
 import { createAuthoritiesRuntimeRouter } from
   "./authoritiesRuntime";
 
-const mocks = vi.hoisted(() => ({ importFile: vi.fn(), pdfText: vi.fn() }));
+const mocks = vi.hoisted(() => ({ importFile: vi.fn() }));
 vi.mock("../lib/authoritiesImport", async (importOriginal) => ({
   ...await importOriginal<typeof import("../lib/authoritiesImport")>(),
   importStandaloneAuthoritiesFile: mocks.importFile,
 }));
-vi.mock("../lib/authorityPdfText", () => ({ authorityPdfText: mocks.pdfText, authorityPdfOutline: vi.fn(async () => []) }));
 
 const originalMode = process.env.AUTH_MODE;
 const app = express(); app.use(express.json());
@@ -82,7 +81,6 @@ describe("standalone Authorities runtime", () => {
       locators: [], source: { kind: "attached", sources: [{ bindingRole: "other", filename: "Other.pdf",
         sourceSha256: replaced, sourceUrl: null, origin: "manual", language: "en" }] },
       annotations: { other: { schemaVersion: ANNOTATION_SCHEMA, sourceSha256: "c".repeat(64), marks: [] } } };
-    mocks.pdfText.mockResolvedValue({ pageTextByPage: [""], ocrTextByPage: [""] });
     const response = await request(app).post("/authorities-runtime/annotations")
       .field("draft", JSON.stringify(state)).field("authorityId", "case").field("bindingRole", "source")
       .attach("file", bytes, "Example.pdf").expect(200);

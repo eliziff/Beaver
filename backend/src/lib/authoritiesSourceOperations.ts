@@ -60,7 +60,7 @@ function authoritySource(input: AuthoritiesOperationInput) {
   const role = String(input?.role), bytes = sourceBytes(requiredSource(input));
   const source = Object.values(state.authorities).flatMap(authority =>
     attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
-  if (!source || sha256(bytes) !== source.sourceSha256) reject(409, "The PDF no longer matches this authority source");
+  if (!source || sha256(bytes) !== source.sourceSha256) return reject(409, "The PDF no longer matches this authority source");
   return { bytes, reference: { documentId: `standalone-authority:${source.sourceSha256}`,
     versionId: source.sourceSha256, sourceSha256: source.sourceSha256 } };
 }

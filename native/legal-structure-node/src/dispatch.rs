@@ -205,7 +205,7 @@ fn dispatch(
         }
         #[cfg(feature = "legalpdf")]
         "renderAuthoritiesBook" => {
-            let (books, out) = crate::assembly::book::render_book(&call.get("book")?, bytes)?;
+            let (books, out) = crate::assembly::book::render_book(call.get("book")?, bytes)?;
             Ok((value(serde_json::json!({ "books": books }))?, out))
         }
         #[cfg(feature = "legalpdf")]
@@ -230,7 +230,7 @@ fn dispatch(
         )),
         // The cache key a PDF's reading would be kept under, without reading it (request.expectedSourceSha256 names it).
         #[cfg(feature = "legalpdf")]
-        "pdfCacheKey" => done(value(legalpdf::pdf_cache_key(&call.get("request")?).map_err(Failure::from)?)),
+        "pdfCacheKey" => done(value(legalpdf::pdf_cache_key((!bytes.is_empty()).then_some(bytes), &call.get("request")?).map_err(Failure::from)?)),
         "openSource" => done(value(
             source::open_source(bytes, call.get("request")?, progress)?.map(Handle),
         )),
@@ -268,6 +268,24 @@ fn dispatch(
         "pdfAuthorityTextUnits" => done(with_document(doc()?, |d| {
             value(engine::pdf(d)?.authority_text_units())
         })),
+        #[cfg(feature = "legalpdf")]
+        "authorityReading" => {
+            #[derive(serde::Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct PartCall { document: Option<u32>, #[serde(default)] pages: usize, native: Option<u32>, recognized_pages: Option<Vec<usize>>,
+                saved: Option<Vec<legalpdf::AnnotationMark>>, #[serde(default)] require_printed: bool, #[serde(default)] pages_only: bool }
+            let calls = call.get::<Vec<Option<PartCall>>>("parts")?;
+            let held = {
+                let documents = documents();
+                let get = |handle: u32| documents.1.get(&handle).cloned().ok_or("document handle was released");
+                calls.iter().map(|part| part.as_ref().map(|part| Ok::<_, &str>((part.document.map(get).transpose()?, part.native.map(get).transpose()?))).transpose())
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            let parts = calls.into_iter().zip(&held).map(|(call, held)| call.zip(held.as_ref()).map(|(call, (document, native))|
+                crate::assembly::authority::Part { document: document.as_deref(), pages: call.pages, native: native.as_deref(), recognized: call.recognized_pages.map(|pages| pages.into_iter().collect()), saved: call.saved, require_printed: call.require_printed, pages_only: call.pages_only }))
+                .collect::<Vec<_>>();
+            done(crate::assembly::authority::authority_reading(&parts, &call.get("request")?).and_then(value))
+        }
         #[cfg(feature = "legalpdf")]
         "pdfPassageGeometry" => done(with_document(doc()?, |d| {
             engine::passage_geometry(d, call.get("targets")?, call.get("citations")?)
@@ -355,9 +373,6 @@ fn dispatch(
             &call.get::<String>("kind")?,
             call.get("limit")?,
         ))),
-        "statuteCurrency" => done(value(legal_structure_features::statute_currency(
-            &call.get::<Vec<String>>("pages")?,
-        ))),
         "filingCover" => done(value(legal_structure::filing_cover(
             &call.get::<String>("opening")?,
             call.get::<Option<String>>("title")?.as_deref(),
@@ -383,7 +398,6 @@ fn dispatch(
         "briefText" => done(value(legal_structure_features::brief_text(&call.get::<Vec<_>>("units")?))),
         "briefCitationOrder" => done(value(legal_structure_features::brief_citation_order(
             &call.get::<Vec<_>>("units")?,
-            &call.get::<Vec<legal_structure_features::BriefCitation>>("citations")?,
             &call.get::<Vec<legal_structure_features::BriefCitation>>("citations")?,
             call.get("joinBodies")?,
         ))),

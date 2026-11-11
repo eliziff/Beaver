@@ -5,16 +5,14 @@ import { attachAuthoritiesBookPdf, applyAuthoritiesUserAction, type AuthoritiesU
 import { authoritiesBookFront, authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations,
   type AuthoritiesBuildInput, type StatuteText } from "./authoritiesBuild";
 import type { KeptPdf, SourcePdfReference } from "./authoritiesCore";
-import { attachedAuthoritySources, authorityCitationForms, type AuthoritiesDraft } from "./authoritiesDomain";
+import { attachedAuthoritySources, type AuthoritiesDraft } from "./authoritiesDomain";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { authoritiesSourceText, createAuthoritiesPreparation } from "./authoritiesPreparation";
 import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { openDocument, PLAIN_PDF } from "./sourceDocument";
-import { structureNative } from "./structureNative";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
 import { mapBounded } from "./mapBounded";
-import type { SourceReadings } from "./sourceReadings";
 import type { ResolvedWorkProductInput } from "./workProduct";
 
 /** A PDF for the book itself: its cover, index, brief or a supplement. */
@@ -39,23 +37,20 @@ export async function authoritiesBookFrontPdf(current: AuthoritiesDraft, actions
  *  (`recognize: false`) has the source read with the recognition it has kept, never recognized here. */
 export async function authorityAnnotations(state: AuthoritiesDraft, input: {
   authorityId: string; bindingRole: string; bytes: Buffer; reference?: SourcePdfReference;
-  pdfProfile?: PdfProfileSelection; recognize: boolean; readings?: SourceReadings; signal?: AbortSignal;
+  pdfProfile?: PdfProfileSelection; recognize: boolean; signal?: AbortSignal;
 }) {
   const authority = state.authorities[input.authorityId];
   const source = authority && attachedAuthoritySources(authority.source).find((item) =>
     item.bindingRole === input.bindingRole);
   if (!authority || !source) return reject(400, "The authority PDF is not attached");
   if (sha256(input.bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
-  const pages = (await structureNative().pdfPages(input.bytes)).map(({ crop: [, , width, height], rotation }) =>
-    (Math.abs(rotation % 180) === 90 ? [height, width] : [width, height]) as [number, number]);
-  if (!pages.length || pages.length > 2_000) return reject(400, "Unsupported PDF page count");
   const reading = input.recognize ? state
     : { ...state, settings: { ...state.settings, scannedPdfPolicy: "page-margin" as const } };
-  const text = state.settings.passageMarking !== "none" && authorityPassageTargets(state, authority.id).length
-    ? await authoritiesSourceText(reading, input.readings)(source.bindingRole, { bytes: input.bytes,
+  const read = state.settings.passageMarking !== "none" && authorityPassageTargets(state, authority.id).length
+    ? await authoritiesSourceText(reading)(source.bindingRole, { bytes: input.bytes,
       sourceSha256: source.sourceSha256, ...input.reference, pdfProfile: input.pdfProfile, signal: input.signal }) : {};
   input.signal?.throwIfAborted();
-  return prepareAuthorityAnnotations(pages, state, authority, source, text, true);
+  return prepareAuthorityAnnotations(state, authority, source, "reading" in read ? read.reading : undefined, true);
 }
 
 /** A source a build reads, as its host holds it. */
@@ -69,13 +64,13 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
   /** Roles the build names without reading them. */
   unread?: Record<string, ResolvedWorkProductInput>;
   statuteText: StatuteText; finalPdfSource?: AuthoritiesBuildInput["finalPdfSource"];
-  readings?: SourceReadings; builder?: typeof buildAuthorities;
+  builder?: typeof buildAuthorities;
   signal: AbortSignal; progress?: (message: string) => void;
 }) {
   const { signal, progress, files } = options;
   let preparation: ReturnType<typeof createAuthoritiesPreparation>;
   // Saved highlights for a PDF that was since replaced are the user's to review, not a server fault.
-  try { preparation = createAuthoritiesPreparation(state, options.readings); }
+  try { preparation = createAuthoritiesPreparation(state); }
   catch (error) { return reject(409, error instanceof Error ? error.message : "Authorities could not be built"); }
   const authorityOf = new Map(preparation.authoritySources.map(({ source, authority }) => [source.bindingRole,
     { source, authority }]));
@@ -95,24 +90,18 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
         // A PDF whose text cannot be read still goes in the book, whole and unmarked: it was attached to be there.
         console.warn("[authorities] source text unread", { filename: file.filename,
           error: error instanceof Error ? error.message : String(error) });
-        return { pageTextByPage: [] as string[] };
+        return {};
       }).finally(() => progress?.(`Reading sources · ${++read} of ${files.length}`));
-    // An authority's PDF in the book is placed at its cited printed pages, read from it where its text was not read.
+    // An authority's PDF in the book is placed at its cited printed pages, read plainly where its text was not read.
     const attached = authorityOf.get(file.role);
-    const pageTargets = attached && !("passageGeometry" in text) && preparation.bookRoles.has(file.role)
-      ? authorityPassageTargets(state, attached.authority.id).filter((target) => target.locatorKind === "page") : [];
-    const passageGeometry = pageTargets.length ? await openDocument({
-      documentId: file.reference?.documentId ?? `standalone-authority:${file.sourceSha256}`,
-      versionId: file.reference?.versionId ?? file.sourceSha256, sourceSha256: file.sourceSha256, fileType: "pdf",
-      readBytes: () => file.bytes, pdfProfile: file.pdfProfile,
-    }, PLAIN_PDF).then((document) => structureNative().pdfPassageGeometry(document, pageTargets,
-      authorityCitationForms(state, attached!.authority.id))).catch((error) => {
-      if (signal.aborted) throw error;
-      return undefined;
-    }) : undefined;
+    const plain = attached && !("reading" in text) && preparation.bookRoles.has(file.role) &&
+      authorityPassageTargets(state, attached.authority.id).some(({ locatorKind }) => locatorKind === "page")
+      ? await openDocument({ documentId: file.reference?.documentId ?? `standalone-authority:${file.sourceSha256}`,
+        versionId: file.reference?.versionId ?? file.sourceSha256, sourceSha256: file.sourceSha256, fileType: "pdf",
+        readBytes: () => file.bytes, pdfProfile: file.pdfProfile }, PLAIN_PDF).then((document) => ({ document, plain: true }),
+      (error) => { if (signal.aborted) throw error; return undefined; }) : undefined;
     sources[file.role] = { ...(preparation.byteRoles.has(file.role) ? { bytes: file.bytes } : {}),
-      ...text, ...(passageGeometry && { passageGeometry }),
-      ...(file.resolved ? { resolved: file.resolved } : {}) };
+      ...text, ...(plain && { reading: plain }), ...(file.resolved ? { resolved: file.resolved } : {}) };
   });
   const built = await (options.builder ?? buildAuthorities)({ draft: state, title: options.title,
     workProduct: options.workProduct, sources, signal, progress, statuteText: options.statuteText,

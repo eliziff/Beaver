@@ -90,6 +90,13 @@ pub fn export_types(directory: &std::path::Path) -> Result<(), ExportError> {
         legalpdf::AnnotationMark,
         legalpdf::BriefUnit,
         legal_structure::layout::Page,
+        crate::assembly::authority::SourceRequest,
+        crate::assembly::authority::AuthorityReading,
+        crate::assembly::book::PreparedBook,
+        crate::assembly::book::BuiltBook,
+        crate::assembly::book::FilingEntry,
+        crate::assembly::book::FinalPlan,
+        crate::assembly::statute::SourceText,
     );    // ts-rs writes `.ts`; these are declarations.
     for entry in std::fs::read_dir(config.out_dir())? {
         let path = entry?.path();

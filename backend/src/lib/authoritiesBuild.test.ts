@@ -10,9 +10,11 @@ import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests,
 import { attachedAuthoritySources, createAuthoritiesDraft as createDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
+import { authorityPdfReading } from "./authorityPdfText";
 import { filingLinkUrl } from "./authoritiesFinalPdf";
 import { createAuthoritiesPreparation } from "./authoritiesPreparation";
-import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
+import { structureNative } from "./structureNative";
+import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
 import { createAuthoritiesOperations } from "./authoritiesOperations";
 import { authoritySourceServices } from "./authoritiesSourceResolution";
 
@@ -43,6 +45,22 @@ async function sourcePdf(label: string, sizes: Array<[number, number]>) {
   });
   return Buffer.from(await pdf.save());
 }
+
+/** A PDF printing each of `pages` on a page of its own. */
+async function printedPdf(pages: string[], size: [number, number] = [400, 500]) {
+  const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica);
+  pages.forEach((text) => pdf.addPage(size).drawText(text, { x: 36, y: size[1] - 60, font, size: 12 }));
+  return Buffer.from(await pdf.save());
+}
+/** A judgment printing paragraphs `numbers`, as the engine typesets one from its text (paragraph 12 of 1–14 opens
+ *  its page 2). */
+const PROSE = "The appellant argues that the trial judge erred in law by failing to consider the evidence as a whole, and the respondent replies that the reasons, read fairly and in context, show otherwise.";
+const judgmentPdf = async (numbers: number[], words = (n: number) => `${PROSE} ${PROSE} (${n})`) => (await structureNative()
+  .renderSourcePdf({ kind: "case", name: "R v Grant", citation: "2009 SCC 32", text: numbers.map((n) => `[${n}] ${words(n)}`)
+    .join("\n\n"), provider: null, retrieved: null, federal: false })).bytes;
+const UP_TO_14 = Array.from({ length: 14 }, (_, index) => index + 1);
+/** A source PDF as a build reads it. */
+const read = async (bytes: Uint8Array) => ({ bytes, reading: (await authorityPdfReading({ bytes: Buffer.from(bytes) }))! });
 
 async function withDecimalPageLabels(bytes: Uint8Array, start: number) {
   const pdf = await PDFDocument.load(bytes);
@@ -147,14 +165,6 @@ function finalDraft(brief: Uint8Array, original: Uint8Array) {
   return state;
 }
 
-const paragraphGeometry = (bytes: Uint8Array, status: "found" | "ambiguous" = "found"): NativePdfPassageGeometry => ({
-  schemaVersion: "legalpdf.passage-geometry.v1", sourceSha256: sha256(bytes), parserVersion: "test-fixture",
-  coordinateSpace: "visible_crop_box", coordinateOrigin: "top_left", rotationApplied: true,
-  targets: [{ id: "paragraph:12", locatorKind: "paragraph", locator: "12", status, printed: status === "found",
-    pages: status === "found" ? [{ pageNumber: 2, width: 400, height: 500,
-      source: "native", passageRects: [[36, 60, 320, 90]], text: "[12] Relevant paragraph." }] : [], quotes: [] }],
-});
-
 describe("Authorities final export", () => {
   async function linkedBrief() {
     const document = await PDFDocument.create(), page = document.addPage([612, 792]);
@@ -168,17 +178,17 @@ describe("Authorities final export", () => {
     return Buffer.from(await document.save());
   }
 
-  it("abstains from ambiguous manual pinpoints and supplies a concise manual-link report", async () => {
-    const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+  it("abstains from manual pinpoints it cannot place and supplies a concise manual-link report", async () => {
+    const brief = await linkedBrief(), original = await judgmentPdf([1, 2, 3, 4, 5]);
     const state = finalDraft(brief, original);
     const result = await buildAuthorities({ draft: state, title: "Appeal", workProduct: { id: "ambiguous", revision: 1 },
-      sources: { source: { bytes: brief }, original: { bytes: original, passageGeometry: paragraphGeometry(original, "ambiguous") } } });
+      sources: { source: { bytes: brief }, original: await read(original) } });
     expect(result.receipt.linkWarnings).toEqual([{ occurrenceId: "grant:0", citation: "2009 SCC 32",
-      pinpoint: "para 12", tab: "Tab 1", reason: "pinpoint-ambiguous" }]);
+      pinpoint: "para 12", tab: "Tab 1", reason: "pinpoint-unlocated" }]);
     const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
     expect(pageAnnots(combined, 0).filter((annotation) => annotation.has(PDFName.of("Dest")))).toHaveLength(1);
     expect(result.artifacts["link-report"]!.bytes.toString()).toContain("1 link wasn't added. Add it in a PDF editor.");
-    expect(result.artifacts["link-report"]!.bytes.toString()).toContain("2009 SCC 32 — para 12 [Tab 1]: Pinpoint is ambiguous.");
+    expect(result.artifacts["link-report"]!.bytes.toString()).toContain("2009 SCC 32 — para 12 [Tab 1]: Pinpoint not located.");
     expect(result.artifacts["link-report"]!.bytes.toString()).not.toContain("source PDF page");
     state.settings.linkTabs = false; state.settings.linkPinpoints = false;
     const plain = await buildAuthorities({ draft: state, title: "Plain", workProduct: { id: "plain", revision: 1 },
@@ -188,14 +198,10 @@ describe("Authorities final export", () => {
   });
 
   it("does not link an inferred paragraph number to unnumbered source prose", async () => {
-    const brief = await linkedBrief(), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
-    const state = finalDraft(brief, original), geometry = paragraphGeometry(original);
-    geometry.targets[0].pages[0].text = "Fixture judgment / public synthetic";
-    geometry.targets[0].printed = false;
+    const brief = await linkedBrief(), original = await printedPdf(["Fixture judgment / public synthetic", "More prose."]);
+    const state = finalDraft(brief, original);
     const result = await buildAuthorities({ draft: state, title: "Unnumbered source",
-      workProduct: { id: "unnumbered", revision: 1 }, sources: {
-        source: { bytes: brief }, original: { bytes: original, passageGeometry: geometry },
-      } });
+      workProduct: { id: "unnumbered", revision: 1 }, sources: { source: { bytes: brief }, original: await read(original) } });
     expect(result.receipt.linkWarnings).toEqual([{ occurrenceId: "grant:0", citation: "2009 SCC 32",
       pinpoint: "para 12", tab: "Tab 1", reason: "pinpoint-unlocated" }]);
     const combined = await PDFDocument.load(result.artifacts["final-pdf"]!.bytes);
@@ -206,15 +212,15 @@ describe("Authorities final export", () => {
 
   it("abstains from duplicate filing text while retaining verified target pages in the report", async () => {
     const brief = await sourcePdf("2009 SCC 32 at para 12 repeated", [[612, 792]]);
-    const original = await sourcePdf("Original", [[400, 500], [400, 500]]), state = finalDraft(brief, original);
-    const geometry: NativePdfPassageGeometry = { ...paragraphGeometry(brief), targets: [{ id: "filing:grant:0",
+    const original = await judgmentPdf(UP_TO_14), state = finalDraft(brief, original);
+    const geometry: PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v1", sourceSha256: sha256(brief),
+      parserVersion: "test-fixture", coordinateSpace: "visible_crop_box", coordinateOrigin: "top_left", rotationApplied: true, targets: [{ id: "filing:grant:0",
       locatorKind: "page", locator: "1", status: "found", pages: [], quotes: [
         { text: "2009 SCC 32", status: "ambiguous", rects: [] },
         { text: "para 12", status: "ambiguous", rects: [] },
       ] }] };
     const result = await buildAuthorities({ draft: state, title: "Duplicate", workProduct: { id: "duplicate", revision: 1 },
-      sources: { source: { bytes: brief, passageGeometry: geometry },
-        original: { bytes: original, passageGeometry: paragraphGeometry(original) } } });
+      sources: { source: { bytes: brief, passageGeometry: geometry }, original: await read(original) } });
     expect(result.receipt.linkWarnings).toHaveLength(2);
     expect(result.receipt.linkWarnings!.find(({ pinpoint }) => pinpoint !== null))
       .toMatchObject({ reason: "citation-location", sourcePageNumber: 2 });
@@ -227,18 +233,18 @@ describe("Authorities final export", () => {
     const plain = await PDFDocument.load(await sourcePdf("2009 SCC 32 at para 12 [Tab 1]", [[612, 792]]));
     plain.getPage(0).node.addAnnot(plain.context.register(plain.context.obj({ Type: "Annot", Subtype: "Link",
       Rect: [110, 708, 190, 736], A: { S: "URI", URI: PDFHexString.fromText("https://example.test/grant-para-12") } })));
-    const brief = Buffer.from(await plain.save()), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const brief = Buffer.from(await plain.save()), original = await judgmentPdf(UP_TO_14);
     const state = finalDraft(brief, original);
     state.units[0].text += " [Tab 1]";
-    const filingGeometry: NativePdfPassageGeometry = { ...paragraphGeometry(brief), targets: [{ id: "filing:grant:0",
+    const filingGeometry: PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v1", sourceSha256: sha256(brief),
+      parserVersion: "test-fixture", coordinateSpace: "visible_crop_box", coordinateOrigin: "top_left", rotationApplied: true, targets: [{ id: "filing:grant:0",
       locatorKind: "page", locator: "1", status: "found", pages: [{ pageNumber: 1, width: 612, height: 792,
         source: "native", passageRects: [[36, 50, 300, 80]] }], quotes: [
         { text: "[Tab 1]", status: "found", pageNumber: 1, rects: [[190, 60, 240, 80]] },
         { text: "para 12", status: "found", pageNumber: 1, rects: [[120, 60, 185, 80]] },
       ] }] };
     const result = await buildAuthorities({ draft: state, title: "Web link", workProduct: { id: "web-link", revision: 1 },
-      sources: { source: { bytes: brief, passageGeometry: filingGeometry },
-        original: { bytes: original, passageGeometry: paragraphGeometry(original) } } });
+      sources: { source: { bytes: brief, passageGeometry: filingGeometry }, original: await read(original) } });
     expect(result.receipt.linkWarnings).toEqual([{ occurrenceId: "grant:0", citation: "2009 SCC 32", pinpoint: "para 12",
       tab: "Tab 1", reason: "web-link" }]);
     const links = pageAnnots(await PDFDocument.load(result.artifacts["final-pdf"]!.bytes), 0);
@@ -255,7 +261,7 @@ describe("Authorities final export", () => {
       for (const text of pages) document.addPage([612, 792]).drawText(text, { x: 72, y: 700, font, size: 12 });
       return Buffer.from(await document.save());
     };
-    const brief = await savedBrief(lines), original = await sourcePdf("Original", [[400, 500], [400, 500]]);
+    const brief = await savedBrief(lines), original = await judgmentPdf(UP_TO_14);
     const citation = "2009 SCC 32 at para 12", stray = "2009 SCC 32 at para 14";
     const texts = [lines[0], lines[1].replace(" [Tab 1]", ""), `Compare ${stray}.`];
     // The tab references come in a Word copy, which the user saved as this PDF.
@@ -275,9 +281,10 @@ describe("Authorities final export", () => {
         pinpointSpan: { start: end - 7, end, text: quoted.slice(-7) },
         pinpoints: [{ kind: "paragraph", text: quoted.slice(-2) }] };
     });
+    const originalSource = await read(original);
     const build = (sources: NonNullable<Parameters<typeof buildAuthorities>[0]["sources"]>) => buildAuthorities({
       draft: state, title: "Appeal", workProduct: { id: "brief-pdf", revision: 1 }, sources: {
-        source: { bytes: word }, original: { bytes: original, passageGeometry: paragraphGeometry(original) }, ...sources } });
+        source: { bytes: word }, original: originalSource, ...sources } });
     // Until the brief PDF is added, everything else builds and the final PDF waits for it.
     expect(Object.keys((await build({})).artifacts).sort()).toEqual(["annotated-document", "book"]);
     const attach = async (bytes: Buffer) => {
@@ -309,7 +316,8 @@ describe("Authorities final export", () => {
     expect(links[0][0].x).toBeLessThan(links[0][1].x);
     expect(result.receipt.linkWarnings).toEqual([
       { occurrenceId: "grant:2", citation: "2009 SCC 32", pinpoint: null, tab: "Tab 1", reason: "citation-location" },
-      { occurrenceId: "grant:2", citation: "2009 SCC 32", pinpoint: "para 14", tab: "Tab 1", reason: "citation-location" },
+      { occurrenceId: "grant:2", citation: "2009 SCC 32", pinpoint: "para 14", tab: "Tab 1", reason: "citation-location",
+        sourcePageNumber: 2 },
     ]);
     expect(result.artifacts["link-report"]!.bytes.toString()).toContain("2009 SCC 32 — para 14 [Tab 1]");
   });
@@ -484,25 +492,6 @@ function draft(
 }
 
 describe("Authorities output builder", () => {
-  it("keeps prepared OCR text when a cited pinpoint cannot be placed", async () => {
-    const bytes = await sourcePdf("Invented scan", [[400, 500]]);
-    const binding = { kind: "local-file" as const, handleId: "scan", lastSeen: {
-      name: "permit.pdf", size: bytes.length, modified: 1, sha256: sha256(bytes) } };
-    const state = createAuthoritiesDraft({ kind: "document", bindingRole: "source",
-      filename: "submission.pdf", fileType: "pdf", snapshot: null }, { source: binding });
-    state.bindings.scan = binding;
-    state.settings.scannedPdfPolicy = "cited-pages";
-    state.authorities.permit = attached("permit", "case", "2034 ABKB 63", "Fenwick v Permit Board", "scan", bytes);
-    state.authorities.permit.locators = [{ kind: "paragraph", label: "999" }];
-    state.authorityOrder = ["permit"];
-    const recognized = "A permit remains effective until the board gives written notice.";
-    const input = { draft: state, title: "Permits", workProduct: { id: "ocr-export", revision: 1 },
-      sources: { source: { bytes }, scan: { bytes, pageTextByPage: [recognized], ocrTextByPage: [recognized] } } };
-    expect(await pdfText((await buildAuthorities(input)).artifacts.book!.bytes)).toContain(recognized);
-    state.settings.scannedPdfPolicy = "page-margin";
-    expect(await pdfText((await buildAuthorities(input)).artifacts.book!.bytes)).not.toContain(recognized);
-  });
-
   it("renders publisher text containing Unicode punctuation and multiline titles", async () => {
     const { bytes } = await structureNative().renderSourcePdf({ kind: "case", name: "A ‑ B\r\nSecond\tline",
       citation: "2026 SCC 16",
@@ -621,7 +610,7 @@ describe("Authorities output builder", () => {
   });
 
   it("renders each passage-marking style from exact PDF geometry", async () => {
-    const pdf = await sourcePdf("[1] exact words", [[400, 500]]);
+    const pdf = await judgmentPdf([1, 2, 3]);
     const state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
     state.authorities.item = attached("item", "case", "2024 SCC 1", "R v Test", "item", pdf);
     state.authorities.item.locators = [{ kind: "paragraph", label: "1" }];
@@ -629,38 +618,29 @@ describe("Authorities output builder", () => {
     state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
       name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
     } };
-    const passageGeometry = {
-      schemaVersion: "legalpdf.passage-geometry.v1" as const,
-      sourceSha256: sha256(pdf), parserVersion: "test",
-      coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
-      rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
-        locatorKind: "paragraph" as const, locator: "1", printed: true,
-        pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
-          text: "[1] exact words", passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
-        quotes: [{ text: "exact words", status: "found" as const, pageNumber: 1,
-          rects: [[70, 65, 170, 78] as [number, number, number, number]] }] }],
-    };
     const marks = async (style: AuthoritiesDraft["settings"]["passageMarking"]) => {
       const marked = structuredClone(state); marked.settings.passageMarking = style;
       const built = await buildAuthorities({ draft: marked, title: style,
         workProduct: { id: style, revision: 1 },
-        sources: { item: { bytes: pdf, passageGeometry } } });
+        sources: { item: await read(pdf) } });
       const book = await PDFDocument.load(built.artifacts.book!.bytes);
-      return annotSubtypes(book, 2).sort();
+      return [...new Set(annotSubtypes(book, 2))].sort();
     };
+    // No quotation is cited, so marking the quoted text marks nothing.
     expect(await marks("none")).toEqual([]);
     expect(await marks("sidelined")).toEqual(["/Square"]);
     expect(await marks("paragraph")).toEqual(["/Highlight"]);
-    expect(await marks("text")).toEqual(["/Highlight"]);
-    expect(await marks("margin")).toEqual(["/Highlight", "/Square"]);
-    const marked = structuredClone(state); marked.settings.passageMarking = "margin";
+    expect(await marks("text")).toEqual([]);
+    expect(await marks("margin")).toEqual(["/Square"]);
+    const marked = structuredClone(state); marked.settings.passageMarking = "paragraph";
     const markedBook = await PDFDocument.load((await buildAuthorities({ draft: marked,
       title: "Marked", workProduct: { id: "marked", revision: 1 },
-      sources: { item: { bytes: pdf, passageGeometry } } })).artifacts.book!.bytes);
-    expect(annotSubtypes(markedBook, 2).sort()).toEqual(["/Highlight", "/Square"]);
+      sources: { item: await read(pdf) } })).artifacts.book!.bytes);
+    expect(annotSubtypes(markedBook, 2).sort()).toEqual(["/Highlight"]);
     const highlight = pageAnnots(markedBook, 2).find((annot) =>
       String(annot.lookup(PDFName.of("Subtype"))) === "/Highlight")!;
-    expect(highlight.lookup(PDFName.of("QuadPoints"), PDFArray).size()).toBe(8);
+    // A quad for each of the paragraph's lines.
+    expect(highlight.lookup(PDFName.of("QuadPoints"), PDFArray).size() % 8).toBe(0);
     expect(annotNotes(markedBook, 2)).toEqual([]);
     const outline = markedBook.catalog.lookup(PDFName.of("Outlines"), PDFDict)
       .lookup(PDFName.of("First"), PDFDict).lookup(PDFName.of("Next"), PDFDict)
@@ -681,22 +661,12 @@ describe("Authorities output builder", () => {
       name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
     } };
     state.settings.passageMarking = "paragraph";
-    const passageGeometry = {
-      schemaVersion: "legalpdf.passage-geometry.v1" as const,
-      sourceSha256: sha256(pdf), parserVersion: "test",
-      coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
-      rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
-        locatorKind: "paragraph" as const, locator: "1",
-        pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
-          passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
-        quotes: [] }],
-    };
     const excluded = reduceAuthoritiesDraft(state, { type: "set-highlight-exclusion",
       authorityId: "item", locator: { kind: "paragraph", label: "1" }, excluded: true });
     expect(excluded.authorities.item.highlightExclusions).toEqual([{ kind: "paragraph", label: "1" }]);
     const built = await buildAuthorities({ draft: excluded, title: "Excluded",
       workProduct: { id: "excluded", revision: 1 },
-      sources: { item: { bytes: pdf, passageGeometry } } });
+      sources: { item: await read(pdf) } });
     expect(annotSubtypes(await PDFDocument.load(built.artifacts.book!.bytes), 2)).toEqual([]);
     const restored = reduceAuthoritiesDraft(excluded, { type: "set-highlight-exclusion",
       authorityId: "item", locator: { kind: "paragraph", label: "1" }, excluded: false });
@@ -712,21 +682,11 @@ describe("Authorities output builder", () => {
     state.bindings.item = { kind: "local-file", handleId: "item", lastSeen: {
       name: "item.pdf", size: pdf.length, modified: 1, sha256: sha256(pdf),
     } };
-    const passageGeometry = {
-      schemaVersion: "legalpdf.passage-geometry.v1" as const,
-      sourceSha256: sha256(pdf), parserVersion: "test",
-      coordinateSpace: "visible_crop_box" as const, coordinateOrigin: "top_left" as const,
-      rotationApplied: true as const, targets: [{ id: "passage:1", status: "found" as const,
-        locatorKind: "paragraph" as const, locator: "1",
-        pages: [{ pageNumber: 1, width: 400, height: 500, source: "native" as const,
-          passageRects: [[40, 40, 300, 110] as [number, number, number, number]] }],
-        quotes: [] }],
-    };
     const excluded = reduceAuthoritiesDraft(state, { type: "set-highlight-exclusion",
       authorityId: "item", locator: { kind: "paragraph", label: "1" }, excluded: true });
     const built = await buildAuthorities({ draft: excluded, title: "Excluded margin",
       workProduct: { id: "excluded-margin", revision: 1 },
-      sources: { item: { bytes: pdf, passageGeometry } } });
+      sources: { item: await read(pdf) } });
     expect(annotSubtypes(await PDFDocument.load(built.artifacts.book!.bytes), 2)).toEqual([]);
   });
 
@@ -1058,24 +1018,21 @@ describe("Authorities output builder", () => {
       state = reduceAuthoritiesDraft(state, { type: "set-settings", settings: { filingMedium } });
       const built = await buildAuthorities({ draft: state, title: "Full authorities",
         workProduct: { id: `full-${filingMedium}`, revision: 1 }, sources: { "source:item": {
-          bytes: decision, pageTextByPage: ["Headnote", "[1] Reasons", "[10] cited", "[11]"] } } });
+          bytes: decision } } });
       expect((await PDFDocument.load(built.artifacts.book!.bytes)).getPageCount()).toBe(6);
     }
   });
 
   it("puts a short statute in whole unless an excerpt is chosen", async () => {
-    const statute = await sourcePdf("Short Act", Array.from({ length: 4 }, () => [400, 500] as [number, number]));
+    const statute = await printedPdf(["SHORT ACT", "1 This Act may be cited as the Short Act.", "3 A vessel needs a permit before it leaves harbour.", "4 A permit lapses after a year."]);
     let state = createAuthoritiesDraft({ kind: "manual" }, {}, "book");
     state.authorities.act = attached("act", "legislation", "SA 2031, c W-4", "Short Act", "act", statute);
     state.authorities.act.locators = [{ kind: "section", label: "3" }];
     state.authorityOrder = ["act"];
     state.bindings.act = { kind: "local-file", handleId: "act", lastSeen: { name: "act.pdf", size: statute.length,
       modified: 1, sha256: sha256(statute) } };
-    const passageGeometry: NativePdfPassageGeometry = { ...paragraphGeometry(statute), targets: [{ id: "passage:1",
-      locatorKind: "section", locator: "3", status: "found", pages: [{ pageNumber: 3, width: 400, height: 500,
-        source: "native", passageRects: [[36, 60, 320, 90]] }], quotes: [] }] };
     const pages = async (draft: AuthoritiesDraft) => (await PDFDocument.load((await buildAuthorities({ draft,
-      title: "Short", workProduct: { id: "short", revision: 1 }, sources: { act: { bytes: statute, passageGeometry } } }))
+      title: "Short", workProduct: { id: "short", revision: 1 }, sources: { act: await read(statute) } }))
       .artifacts.book!.bytes)).getPageCount();
     expect(await pages(state)).toBe(6);
     state = reduceAuthoritiesDraft(state, { type: "set-authority-excerpt", authorityId: "act", excerpt: true });

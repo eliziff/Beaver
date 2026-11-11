@@ -6,11 +6,13 @@ import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from 
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
 import { structureNative } from "./structureNative";
+import type { FinalLink } from "mike/shared/engine-types/FinalLink";
+import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
 
 const LINK_PREFIX = "https://beaver-authorities.invalid/";
 export const filingLinkUrl = (kind: "tab" | "pinpoint", id: string) =>
   `${LINK_PREFIX}${kind}/${encodeURIComponent(id)}`;
-type Book = Pick<AuthoritiesBuildArtifact, "role" | "bytes" | "bookPlacements">;
+type Book = Pick<AuthoritiesBuildArtifact, "role" | "bytes" | "bookPlacements" | "pageCount">;
 type Warnings = NonNullable<AuthoritiesBuildReceipt["linkWarnings"]>;
 
 export function filingTabText(unitText: string, occurrence: AuthorityOccurrence, tab?: string) {
@@ -42,8 +44,9 @@ const cropBox = ({ crop: [x, y, width, height] }: PdfPage) => ({ x, y, width, he
 /** The brief and the book as one PDF, as the engine joins them (assembly/book.rs): the brief's links to the book's tabs
  *  and pinpoints go there, links are added over citations the brief's text places, and what cannot be linked is
  *  reported. */
-export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
-  sourceBytes: Uint8Array, books: Book[]) {
+/** `read`: each source PDF's cited passages, and where its pages start among its authority's. */
+export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput, sourceBytes: Uint8Array, books: Book[],
+  read: ReadonlyMap<string, { geometry: PassageGeometry; offset: number }>) {
   const draft = input.draft, sources = input.sources ?? {}, native = structureNative();
   let pages: PdfPage[];
   try { pages = await native.pdfPages(sourceBytes); } catch { throw new Error("The brief PDF could not be opened for final export."); }
@@ -55,10 +58,9 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   // A book that starts its authorities on right-hand pages starts on one itself: after a brief of an odd
   // number of pages, a blank page, so the book's right-hand pages stay right-hand when the whole is printed.
   const blankPage = (draft.settings.rightHandStarts ?? true) && sourcePages % 2 === 1;
-  const bookPages: PdfPage[] = [];
+  let offset = sourcePages + (blankPage ? 1 : 0);
   for (const output of books) {
     input.signal?.throwIfAborted();
-    const offset = sourcePages + (blankPage ? 1 : 0) + bookPages.length;
     for (const placement of output.bookPlacements ?? []) {
       if (!placement.key.startsWith("authority:")) continue;
       const id = placement.key.slice("authority:".length);
@@ -67,9 +69,8 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
         placed.pages.set(pageIndex, offset + placement.pageIndex + index));
       destinations.set(id, placed);
     }
-    bookPages.push(...await native.pdfPages(output.bytes));
+    offset += output.pageCount ?? 0;
   }
-  const pageAt = (pageIndex: number) => bookPages[pageIndex - sourcePages - (blankPage ? 1 : 0)];
   const warnings: Warnings = [], warned = new Set<string>();
   const tabs = new Map(deriveAuthorityProcedure(authorityProcedureInput(draft, { purpose: "book" }))
     .map(({ id, tab }) => [id, tab]));
@@ -84,15 +85,6 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
       pinpoint: printed || (pinpoint ? occurrence.pinpointSpan?.text ?? null : null),
       tab: tabs.get(occurrence.authorityId ?? ""), reason });
   };
-  const sourceOffsets = new Map<string, number>();
-  if (draft.settings.linkPinpoints) for (const authority of Object.values(draft.authorities)) {
-    if (authority.excluded) continue;
-    let offset = 0;
-    for (const source of attachedAuthoritySources(authority.source)) {
-      sourceOffsets.set(source.bindingRole, offset);
-      offset += sources[source.bindingRole]?.bytes === undefined ? 1 : (await native.pdfPages(sources[source.bindingRole].bytes!)).length;
-    }
-  }
   const pinpointDestination = (id: string) => {
     const occurrence = draft.occurrences[id], authority = draft.authorities[occurrence?.authorityId ?? ""];
     const placement = destinations.get(authority?.id ?? "");
@@ -105,7 +97,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
     }
     let ambiguous = false;
     for (const source of manual) {
-      const geometry = sources[source.bindingRole]?.passageGeometry;
+      const { geometry, offset: start = 0 } = read.get(source.bindingRole) ?? {};
       if (!sources[source.bindingRole]?.bytes || geometry?.sourceSha256 !== source.sourceSha256) continue;
       const matching = geometry.targets.filter((target) => occurrence.pinpoints.some(({ kind, text }) =>
         target.locatorKind === kind && target.locator.trim() === text.trim()));
@@ -115,16 +107,13 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
         matching.some(target => target.status !== "found" || !target.pages.length ||
           !hasPrintedParagraphLocator(target))) continue;
       const found = matching.flatMap(({ pages }) => pages).sort((left, right) => left.pageNumber - right.pageNumber);
-      const page = found[0], sourceIndex = (sourceOffsets.get(source.bindingRole) ?? 0) + page.pageNumber - 1;
+      const page = found[0], sourceIndex = start + page.pageNumber - 1;
       const pageIndex = placement.pages.get(sourceIndex);
       if (pageIndex === undefined) continue;
-      const target = pageAt(pageIndex), rawRect = page.passageRects[0];
-      const rect = rawRect && normalizePassageRect(rawRect, page.width, page.height);
-      const rotation = ((target.rotation % 360) + 360) % 360;
-      if (rect && (!validRect(rect) || ![0, 90, 180, 270].includes(rotation))) continue;
-      const top = rect ? Math.max(...rectToPdfQuad(rect, cropBox(target), target.rotation)
-        .filter((_value, index) => index % 2 === 1)) : target.crop[1] + target.crop[3];
-      return { pageIndex, top, sourcePageNumber: page.pageNumber };
+      // The link lands at the top of the passage's first line, or of its page.
+      const rect = page.passageRects[0] && normalizePassageRect(page.passageRects[0], page.width, page.height);
+      if (rect && !validRect(rect)) continue;
+      return { pageIndex, rect: rect ?? [0, 0, 1, 1] as [number, number, number, number], sourcePageNumber: page.pageNumber };
     }
     warn(id, ambiguous ? "pinpoint-ambiguous" : "pinpoint-unlocated", true); return null;
   };
@@ -133,12 +122,12 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
     if (kind === "tab") {
       const value = destinations.get(draft.occurrences[id]?.authorityId ?? "");
       if (!value) { warn(id, "source-missing"); return null; }
-      return { pageIndex: value.tab, top: null };
+      return { pageIndex: value.tab, rect: null };
     }
     if (!pinpointCache.has(id)) pinpointCache.set(id, pinpointDestination(id));
     return pinpointCache.get(id) ?? null;
   };
-  type Link = { page: number; uri?: string; rect?: number[]; to: [number, number | null] | null };
+  type Link = FinalLink;
   const relinks: Link[] = [], links: Link[] = [], linked = new Set<string>();
   // The brief's own links to the book, written as placeholders, go where they name, or go.
   pages.forEach(({ links: own }, page) => own.forEach(([, uri]) => {
@@ -148,7 +137,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
     try { id = decodeURIComponent(encodedId); } catch { relinks.push({ page, uri, to: null }); return; }
     const target = draft.occurrences[id] && (kind === "tab" ? draft.settings.linkTabs :
       kind === "pinpoint" && draft.settings.linkPinpoints) ? destination(kind, id) : null;
-    relinks.push({ page, uri, to: target && [target.pageIndex, target.top] });
+    relinks.push({ page, uri, to: target && [target.pageIndex, target.rect] });
     if (target) linked.add(`${kind}:${id}`);
   }));
   const importedGeometry = filingRole ? sources[filingRole]?.passageGeometry : undefined;
@@ -201,7 +190,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
       }
       const target = destination(kind, occurrence.id);
       if (!target) continue;
-      links.push(...placed.map(({ page, bounds }) => ({ page, rect: bounds, to: [target.pageIndex, target.top] as [number, number | null] })));
+      links.push(...placed.map(({ page, bounds }) => ({ page, rect: bounds, to: [target.pageIndex, target.rect] as FinalLink["to"] })));
     }
   }
   input.signal?.throwIfAborted();

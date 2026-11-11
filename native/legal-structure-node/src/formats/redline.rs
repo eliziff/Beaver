@@ -7,7 +7,8 @@
 //! them: element names as written, a closing tag closing whatever is open, only the five XML entities decoded, and a
 //! numeric reference left as written unless XML forbids its character, which is dropped.
 
-use super::slides::{bounded_entries, is_js_space, js_trim, read_entry, Bounds, Package};
+use super::slides::{bounded_entries, read_entry, Bounds, Package};
+use legal_structure::{javascript_whitespace, trim_javascript_whitespace};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use std::collections::HashMap;
@@ -130,7 +131,7 @@ fn has_doctype(xml: &str) -> bool {
     while let Some(offset) = bytes[at..].windows(9).position(|window| window.eq_ignore_ascii_case(b"<!doctype")) {
         let after = at + offset + 9;
         match xml[after..].chars().next() {
-            Some(next) if next == '>' || is_js_space(next) => return true,
+            Some(next) if next == '>' || javascript_whitespace(next) => return true,
             _ => at = after,
         }
     }
@@ -200,7 +201,7 @@ impl Tree {
                 Event::Decl(declaration) => {
                     tree.keep_text(&mut text, open.last().copied(), xml_11);
                     if let Ok(version) = declaration.version() {
-                        xml_11 = js_trim(&version).parse::<f64>().is_ok_and(|number| number == 1.1);
+                        xml_11 = trim_javascript_whitespace(&version).parse::<f64>().is_ok_and(|number| number == 1.1);
                     }
                 }
                 Event::PI(_) => tree.keep_text(&mut text, open.last().copied(), xml_11),
@@ -351,7 +352,7 @@ fn dropped_reference(number: &str, xml_11: bool) -> bool {
         Some(hex) => (hex, 16),
         None => (number, 10),
     };
-    let digits = digits.trim_start_matches(is_js_space);
+    let digits = digits.trim_start_matches(javascript_whitespace);
     let (negative, digits) = match digits.strip_prefix('-') {
         Some(rest) => (true, rest),
         None => (false, digits.strip_prefix('+').unwrap_or(digits)),
@@ -495,7 +496,7 @@ fn read_comments(tree: &Tree) -> HashMap<String, Comment> {
         let Some(name) = tree.name(node) else { continue };
         if name == "w:comment" {
             if let Some(id) = tree.attribute(node, "w:id") {
-                let author = js_trim(tree.attribute(node, "w:author").unwrap_or("")).to_owned();
+                let author = trim_javascript_whitespace(tree.attribute(node, "w:author").unwrap_or("")).to_owned();
                 let text = collapse_whitespace(&subtree_text(tree, node));
                 comments.insert(id.to_owned(), Comment { author, text });
             }
@@ -523,7 +524,7 @@ fn collapse_whitespace(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut space = false;
     for c in text.chars() {
-        if is_js_space(c) {
+        if javascript_whitespace(c) {
             space = true;
         } else {
             if space && !out.is_empty() {
@@ -538,7 +539,7 @@ fn collapse_whitespace(text: &str) -> String {
 
 /// A colour in the red family: `#RRGGBB` or `RRGGBB` with red at least B0 and green and blue at most 60.
 fn is_red_family(value: &str) -> bool {
-    let value = js_trim(value);
+    let value = trim_javascript_whitespace(value);
     let hex = value.strip_prefix('#').unwrap_or(value);
     if hex.len() != 6 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return false;

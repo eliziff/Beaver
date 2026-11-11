@@ -30,7 +30,6 @@ import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
 import { preparePdf } from "./sourceDocument";
-import { sourceReadings } from "./sourceReadings";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
@@ -93,9 +92,6 @@ export function createAuthoritiesWorkspaceApplication(
   // The book stands a PDF typeset from a provider's text in for an original there is none of.
   const importer = createAuthoritiesImporter(documents), sources = { ...authoritySourceServices,
     render: (source: Parameters<ReturnType<typeof structureNative>["renderSourcePdf"]>[0]) => structureNative().renderSourcePdf(source) };
-  // What each source was read to, kept across builds as the standalone app keeps it: a rebuild reads again only
-  // a source whose bytes or reading changed.
-  const readings = sourceReadings();
   async function open(scope: ApplicationScope, id: string) {
     const found = await workProducts.get(scope, id);
     if (found.kind !== "authorities") throw new ApplicationError(404,
@@ -530,7 +526,7 @@ export function createAuthoritiesWorkspaceApplication(
       try {
         const { files, unread } = await buildFiles(scope, draft, signal);
         ({ built } = await buildAuthoritiesDraft(draft, { title: product.title, workProduct: { id, revision },
-          files, unread, builder: buildAuthorities, readings, signal: signal ?? new AbortController().signal, progress,
+          files, unread, builder: buildAuthorities, signal: signal ?? new AbortController().signal, progress,
           statuteText: (authority, abort) => authorityStatuteText(draft, authority, sources, abort),
           ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}),
         }));

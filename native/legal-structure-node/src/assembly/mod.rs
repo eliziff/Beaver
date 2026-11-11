@@ -1,5 +1,6 @@
 //! PDFs Beaver writes on the parser's page writer (legalpdf::compose): sources set from their text, and books of
 //! authorities. Text is set in the fonts' WinAnsi range, measured as it is drawn.
+pub mod authority;
 pub mod book;
 pub mod statute;
 

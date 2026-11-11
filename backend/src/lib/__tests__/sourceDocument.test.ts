@@ -110,7 +110,8 @@ describe("stored source documents", () => {
     const changed = await PDFDocument.create();
     changed.addPage();
     const changedBytes = Buffer.from(await changed.save());
-    await expect(openDocument({ ...source, assertAvailable: undefined, versionId: "v2",
+    // A reading is the source's by its hash: bytes read for a version must be the ones it records.
+    await expect(openDocument({ ...source, assertAvailable: undefined, versionId: "v2", sourceSha256: sha256(Buffer.from("v2")),
       readBytes: () => changedBytes }, PLAIN_PDF)).rejects.toMatchObject({ kind: "source_changed" });
   });
 

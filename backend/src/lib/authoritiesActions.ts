@@ -6,7 +6,7 @@ import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForm
   type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage, type AuthorityCitedCase,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
 import { nativeOccurrenceSpans, nativeReferenceSpans, pinpointValues } from "./authoritiesImport";
-import { authorityPdfText } from "./authorityPdfText";
+import { authorityPdfReading } from "./authorityPdfText";
 import { a2ajStorePath } from "./legalDataPath";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { structureNative, type NativeCitationOccurrence } from "./structureNative";
@@ -184,7 +184,8 @@ export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: 
   if (autoFetched && authority?.source.kind === "attached")
     throw new ApplicationError(400, `${authority.citation} already has a PDF; it was not replaced.`);
   if (!authority || authority.kind !== "case") return draft;
-  const pages = (await authorityPdfText({ bytes, maxPages: 2 })).pageTextByPage;
+  const reading = await authorityPdfReading({ bytes });
+  const pages = reading ? structureNative().pdfPageTexts(reading.document).slice(0, 2) : [];
   const other = openingOtherCase(draft, authority, pages);
   const native = structureNative();
   const name = other ? null : captionStyleOfCause(pages[0] ?? "", native.a2ajAliasGroups(a2ajStorePath(),

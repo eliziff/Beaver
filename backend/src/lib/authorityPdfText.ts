@@ -1,7 +1,8 @@
 import { openDocument, PLAIN_PDF, preparePdf, type PdfPreparationProgress } from "./sourceDocument";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
-import { structureNative, type NativePdfPassageTarget } from "./structureNative";
+import { structureNative, type NativeDocument } from "./structureNative";
+import type { PassageTarget } from "mike/shared/engine-types/PassageTarget";
 import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
 type Prepared = Awaited<ReturnType<typeof preparePdf>>;
@@ -21,31 +22,31 @@ export async function authorityPdfOutline(input: {
     .flatMap(({ title, ...entry }) => entry.kind === "heading" && title ? [{ ...entry, title }] : []);
 }
 
-export async function authorityPdfText(input: {
+/** A source PDF as a build reads it: the document its text and passages are read from, recognized as the scan setting
+ *  asks; where only some of its pages were recognized, those pages and the unrecognized reading of the rest. Null for
+ *  a PDF without pages. */
+export type AuthorityPdfReading = { document: NativeDocument; native?: NativeDocument; recognizedPages?: number[] };
+
+export async function authorityPdfReading(input: {
   bytes: Buffer;
   citations?: string[];
-  maxPages?: number;
   documentId?: string;
   versionId?: string;
   sourceSha256?: string;
   pdfProfile?: PdfProfileSelection;
-  /** Targets, or a function of the page text when the text says where they are. */
-  passageTargets?: NativePdfPassageTarget[] | ((pageTextByPage: string[]) => NativePdfPassageTarget[]);
-  ocrTargets?: NativePdfPassageTarget[];
+  /** The passages a cited-pages scan setting recognizes the pages of. */
+  ocrTargets?: PassageTarget[];
   scannedPdfPolicy?: AuthoritiesBuildSettings["scannedPdfPolicy"];
   /** Pages recognized so far, of those this pass reads. */
   progress?: (recognized: number, total: number) => void;
   signal?: AbortSignal;
-}) {
+}): Promise<AuthorityPdfReading | null> {
   const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
-  const documentId = input.documentId ?? `standalone-authority:${sourceSha256}`;
-  const versionId = input.versionId ?? sourceSha256;
+  const reference = { documentId: input.documentId ?? `standalone-authority:${sourceSha256}`,
+    versionId: input.versionId ?? sourceSha256, sourceSha256 };
   const policy = input.scannedPdfPolicy ?? "page-margin";
-  const listed = Array.isArray(input.passageTargets) ? input.passageTargets : [];
-  const targets = input.ocrTargets ?? listed;
-  const pageOnly = targets.length > 0 && [...targets, ...listed]
-    .every(target => target.locatorKind === "page" && !target.exactQuotes?.length);
-  const reference = { documentId, versionId, sourceSha256 };
+  const targets = input.ocrTargets ?? [];
+  const pageOnly = targets.length > 0 && targets.every(target => target.locatorKind === "page" && !target.exactQuotes?.length);
   const options = { ...reference, bytes: input.bytes, signal: input.signal };
   // Physical page selection needs folios, not a whole-document layout model.
   const recognition = { ...options, ...(pageOnly ? { layout: false } : {}),
@@ -58,11 +59,7 @@ export async function authorityPdfText(input: {
   const native = await preparePdf({ ...options, ...(retained ? { pdfProfile: retained }
     : { ocrProvider: null, ...(pageOnly ? { layout: false } : {}) }) });
   if (retained && native.cacheKey !== retained.cacheKey) throw new Error("Prepared authority PDF profile changed.");
-  if (!native.pageCount) return { pageTextByPage: [], ocrTextByPage: [] };
-  // A prepared reading is its own document; the plain reading (no recognition, no layout) is another.
-  const document = async (prepared: Prepared, plain = false) => !plain ? prepared.document : openDocument({ ...reference,
-    readBytes: () => input.bytes, pdfProfile: prepared }, { signal: input.signal,
-    ...(plain ? PLAIN_PDF : {}) });
+  if (!native.pageCount) return null;
   const citations = input.citations ?? [];
   let recognized = native;
   let recognizedPages: Set<number> | undefined;
@@ -70,8 +67,10 @@ export async function authorityPdfText(input: {
     recognized = await preparePdf({ ...recognition, ocrProvider: "indra" });
   } else if (policy === "cited-pages") {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
-      // Each pinpoint's PDF pages, zero-based, by the page map of the PDF as `prepared` reads it.
-      const locate = async (prepared: Prepared) => structureNative().pdfPrintedPages(await document(prepared, true),
+      // Each pinpoint's PDF pages, zero-based, by the page map of the PDF as `prepared` reads it: its plain reading,
+      // without recognition or layout.
+      const locate = async (prepared: Prepared) => structureNative().pdfPrintedPages(await openDocument({ ...reference,
+        readBytes: () => input.bytes, pdfProfile: prepared }, { signal: input.signal, ...PLAIN_PDF }),
         citations, targets.map(target => target.locator)).map(pages => pages.map(page => page - 1));
       let located = await locate(native);
       // Cited-page OCR is explicitly requested: establish the reporter offset
@@ -101,20 +100,7 @@ export async function authorityPdfText(input: {
       ocrProvider: "indra", ...(recognizedPages
         ? { pages: [...recognizedPages].map((index) => index + 1).sort((a, b) => a - b) } : {}) });
   }
-  const routed = new Set(policy === "page-margin" ? [] : recognized.ocrRoutedPages);
-  const pageCount = Math.min(native.pageCount, input.maxPages ?? native.pageCount);
-  // One read of every page's text per prepared profile, not one lookup per page.
-  const texts = async (prepared: Prepared) => structureNative().pdfPageTexts(await document(prepared));
-  const nativeTexts = await texts(native);
-  const recognizedTexts = recognized === native ? nativeTexts : await texts(recognized);
   input.signal?.throwIfAborted();
-  const pageTextByPage = Array.from({ length: pageCount }, (_, index) =>
-    (recognizedPages && !recognizedPages.has(index) ? nativeTexts : recognizedTexts)[index] ?? "");
-  const passageTargets = typeof input.passageTargets === "function"
-    ? input.passageTargets(pageTextByPage) : input.passageTargets;
-  const passageGeometry = passageTargets?.length
-    ? await structureNative().pdfPassageGeometry(await document(recognized), passageTargets, citations) : undefined;
-  return { pageTextByPage,
-    ocrTextByPage: pageTextByPage.map((value, index) => routed.has(index) ? value : ""),
-    ...(passageGeometry ? { passageGeometry } : {}) };
+  return { document: recognized.document, ...(recognizedPages && recognized !== native
+    ? { native: native.document, recognizedPages: [...recognizedPages] } : {}) };
 }

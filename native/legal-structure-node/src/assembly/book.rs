@@ -8,12 +8,14 @@ use std::collections::HashMap;
 
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct BookRow {
     pub key: String,
     pub name: String,
     /// How many of the name's first characters are italic: its style of cause or title.
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<usize>", optional))]
     pub italic: usize,
     pub tab: String,
     #[serde(default)]
@@ -24,6 +26,7 @@ pub struct BookRow {
 /// read from its text; or a page naming what is missing ("French version").
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum BookPart {
     Pdf { bytes: usize, #[serde(default)] headings: Vec<BookHeading> },
@@ -33,10 +36,11 @@ pub enum BookPart {
 
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct BookHeading { pub title: String, pub level: usize, pub page_index: Option<usize> }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct BookMark { pub title: String, pub page_index: usize }
@@ -49,6 +53,7 @@ pub struct DatabaseReference { pub url: String, pub host: String }
 /// `header`: a line atop its first page (an excerpt's currency); `link`: an address printed there as a link.
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct BookSource {
     #[serde(flatten)]
@@ -65,9 +70,11 @@ pub struct BookSource {
     #[serde(default)]
     pub database_reference: Option<DatabaseReference>,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<Vec<BookMark>>", optional))]
     pub bookmarks: Vec<BookMark>,
     /// Its own outline under its tab: its publisher's bookmarks with the headings read from it.
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub outline: bool,
 }
 
@@ -79,15 +86,18 @@ pub struct PartyGroup { pub role: String, pub parties: Vec<String> }
 #[derive(Deserialize, Clone, Default)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
-pub struct Contact { pub name: String, pub address: String, #[serde(default)] pub phone: String, #[serde(default)] pub fax: String, #[serde(default)] pub email: String }
+pub struct Contact { pub name: String, pub address: String, #[serde(default)] #[cfg_attr(feature = "binding-types", ts(as = "Option<String>", optional))] pub phone: String, #[serde(default)] #[cfg_attr(feature = "binding-types", ts(as = "Option<String>", optional))] pub fax: String, #[serde(default)] #[cfg_attr(feature = "binding-types", ts(as = "Option<String>", optional))] pub email: String }
 
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct Cover {
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<String>", optional))]
     pub court_file_number: String,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<Vec<PartyGroup>>", optional))]
     pub party_groups: Vec<PartyGroup>,
     #[serde(default)]
     pub application_under: Option<String>,
@@ -103,8 +113,9 @@ pub struct PaperCover { pub rgb: Rgb, pub dark: bool }
 
 #[derive(Deserialize, Clone, Default)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
-pub struct Limits { pub max_pages: Option<usize>, pub max_bytes: Option<usize>, #[serde(default)] pub complete_toc: bool, #[serde(default)] pub cover_labels: bool }
+pub struct Limits { pub max_pages: Option<usize>, pub max_bytes: Option<usize>, #[serde(default)] #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))] pub complete_toc: bool, #[serde(default)] #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))] pub cover_labels: bool }
 
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
@@ -113,6 +124,7 @@ pub struct BookGroup { pub label: String, pub entries: Vec<BookRow> }
 /// A book as the builder prepared it. `customCover`/`customIndex`: the filer's own PDFs, that long in the bytes.
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct PreparedBook {
     pub filename: String,
@@ -126,26 +138,34 @@ pub struct PreparedBook {
     pub cover_line: Option<String>,
     pub paper_cover: Option<PaperCover>,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub alberta: bool,
     /// What the index gives beside each citation: its tab ("tabs"), or its tab and pages ("tabs-and-pages").
     #[serde(default)]
     pub index_shows: Option<String>,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub index_links: bool,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub tab_pages: bool,
     #[serde(default)]
     pub custom_cover: Option<usize>,
     #[serde(default)]
     pub custom_index: Option<usize>,
+    /// The cover's pages and the filer's index's, as counted of their PDFs (a drawn cover is one page).
+    #[serde(skip)]
     pub cover_page_count: usize,
+    #[serde(skip)]
     pub custom_index_pages: usize,
     #[serde(default)]
     pub limits: Option<Limits>,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub right_hand_starts: bool,
     /// Only the cover and the index, for a preview: each source's pages are counted, none is copied.
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub front_only: bool,
     pub groups: Vec<BookGroup>,
     pub sources: Vec<BookSource>,
@@ -196,7 +216,7 @@ fn split_at_tabs(items: &[Slice], size: f64, added: usize, per_page: &dyn Fn(&Sl
 /// Each source's PDFs by part, and where each part's pages begin in the source's joined pages.
 struct SourcePdfs { parts: Vec<(Option<Vec<u8>>, usize)>, count: usize }
 
-pub fn render_book(book: &PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBook>, Vec<u8>), String> {
+pub fn render_book(mut book: PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBook>, Vec<u8>), String> {
     let mut cursor = 0;
     let mut take = |length: usize| -> Result<Vec<u8>, String> {
         let slice = bytes.get(cursor..cursor + length).ok_or("The book's PDFs are shorter than it says.")?.to_vec();
@@ -205,13 +225,17 @@ pub fn render_book(book: &PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBook>,
     };
     let custom_cover = book.custom_cover.map(&mut take).transpose()?;
     let custom_index = book.custom_index.map(&mut take).transpose()?;
+    let pages = |pdf: &[u8]| legalpdf::compose::page_frames(pdf).map(|frames| frames.len()).map_err(|e| e.to_string());
+    book.cover_page_count = custom_cover.as_deref().map_or(Ok(1), pages)?;
+    book.custom_index_pages = custom_index.as_deref().map_or(Ok(0), pages)?;
+    let book = &book;
     let mut pdfs = Vec::new();
     for source in &book.sources {
         let mut parts = Vec::new();
         let mut count = 0;
         for part in &source.parts {
             let (pdf, pages) = match part {
-                BookPart::Pdf { bytes, .. } => { let pdf = take(*bytes)?; let pages = legalpdf::compose::page_frames(&pdf).map_err(|e| e.to_string())?.len(); (Some(pdf), pages) }
+                BookPart::Pdf { bytes, .. } => { let pdf = take(*bytes)?; let count = pages(&pdf)?; (Some(pdf), count) }
                 BookPart::Missing { .. } => (None, 1),
             };
             parts.push((pdf, count));
@@ -224,8 +248,8 @@ pub fn render_book(book: &PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBook>,
     let (tab_pages, right_hand, front_only) = (book.tab_pages, book.right_hand_starts, book.front_only);
     let limits = book.limits.clone().unwrap_or_default();
     // Under headings where the authorities are grouped; one list, bookmarked tab by tab, where not.
-    let grouped = book.groups.len() > 1 || book.groups.first().is_some_and(|g| g.label != "Authorities");
-    let margin = if federal { 99.21 } else { 72.0 };
+    let grouped = grouped_book(book);
+    let margin = book_margin(federal);
     let body = if federal { 12.0 } else { 11.0 };
     let leading = body + 3.0;
     let title_x = if federal { margin + 52.0 } else { margin };
@@ -736,8 +760,9 @@ fn alberta_cover(c: &mut Composer, page: usize, regular: usize, bold: usize, boo
 /// An authority the filing's table lists: appended (its parts) where it has no public link.
 #[derive(Deserialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
-pub struct FilingEntry { #[serde(flatten)] pub row: BookRow, #[serde(default)] pub parts: Vec<BookPart> }
+pub struct FilingEntry { #[serde(flatten)] pub row: BookRow, #[serde(default)] #[cfg_attr(feature = "binding-types", ts(as = "Option<Vec<BookPart>>", optional))] pub parts: Vec<BookPart> }
 
 /// A filing PDF (`filing` long in the bytes, first) with its table of authorities after it: each authority in full, its
 /// link printed beneath it for a reader on paper, linked to its PDF appended after the table or else to its address.
@@ -801,6 +826,7 @@ pub fn render_filing(filing: usize, entries: &[FilingEntry], bytes: &[u8]) -> Re
 /// out, links added over its citations, and bookmarks: the brief's own (else its headings) and each volume's.
 #[derive(Deserialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct FinalPlan { pub brief: usize, pub headings: Vec<BookHeading>, pub blank_page: bool, pub books: Vec<FinalBook>, pub relinks: Vec<FinalLink>, pub links: Vec<FinalLink> }
 
@@ -808,11 +834,12 @@ pub struct FinalPlan { pub brief: usize, pub headings: Vec<BookHeading>, pub bla
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub struct FinalBook { pub bytes: usize, pub title: String }
 
-/// A link on `page`: the brief's own to `uri` (none where it is new, over `rect`), to `to` (a page, at `top` where
-/// given), or taken out where `to` is none.
+/// A link on `page`: the brief's own to `uri` (none where it is new, over `rect`), to `to` (a page, at the top of the
+/// part of it given in page fractions from its top left as displayed), or taken out where `to` is none.
 #[derive(Deserialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
-pub struct FinalLink { pub page: usize, #[serde(default)] pub uri: Option<String>, #[serde(default)] pub rect: Option<[f64; 4]>, pub to: Option<(usize, Option<f64>)> }
+#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
+pub struct FinalLink { pub page: usize, #[serde(default)] pub uri: Option<String>, #[serde(default)] pub rect: Option<[f64; 4]>, pub to: Option<(usize, Option<[f64; 4]>)> }
 
 pub fn render_final(plan: &FinalPlan, bytes: &[u8]) -> Result<(Vec<u8>, usize), String> {
     let (brief, mut rest) = bytes.split_at_checked(plan.brief).ok_or("The final PDF's parts are shorter than it says.")?;
@@ -829,9 +856,10 @@ pub fn render_final(plan: &FinalPlan, bytes: &[u8]) -> Result<(Vec<u8>, usize), 
         outline.push(Outline::page(book.title.clone(), offset, read_outline(pdf, offset).map_err(|e| e.to_string())?));
         c.append(pdf, None).map_err(|e| e.to_string())?;
     }
-    let target = |to: (usize, Option<f64>)| match to.1 { Some(top) => Target::At(to.0, top), None => Target::Page(to.0) };
-    for link in &plan.relinks { if let Some(uri) = &link.uri { c.relink(link.page, uri, link.to.map(target)).map_err(|e| e.to_string())?; } }
-    for link in &plan.links { if let (Some(rect), Some(to)) = (link.rect, link.to) { c.link(link.page, rect, target(to)); } }
+    let target = |c: &Composer, (page, rect): (usize, Option<[f64; 4]>)| match rect.and_then(|rect| c.top(page, rect)) {
+        Some(top) => Target::At(page, top), None => Target::Page(page) };
+    for link in &plan.relinks { if let Some(uri) = &link.uri { c.relink(link.page, uri, link.to.map(|to| target(&c, to))).map_err(|e| e.to_string())?; } }
+    for link in &plan.links { if let (Some(rect), Some(to)) = (link.rect, link.to) { let to = target(&c, to); c.link(link.page, rect, to); } }
     c.set_outline(outline, true);
     let pages = c.page_count();
     let out = c.save(&Meta { title: "Brief and Book of Authorities", subject: "Brief and its book of legal authorities", creator: "Beaver", producer: "Beaver", lang: None, xmp: true }, true)

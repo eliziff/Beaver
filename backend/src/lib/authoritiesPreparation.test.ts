@@ -4,11 +4,12 @@ import { createAuthoritiesDraft, type AuthoritiesDraft } from "./authoritiesDoma
 import type { AuthoritiesDiscrepancy } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation } from "./authoritiesPreparation";
 import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
-import { authorityPdfOutline, authorityPdfText } from "./authorityPdfText";
-import { sourceReadings } from "./sourceReadings";
+import { authorityPdfOutline, authorityPdfReading } from "./authorityPdfText";
+import type { NativeDocument } from "./structureNative";
 
-vi.mock("./authorityPdfText", () => ({ authorityPdfText: vi.fn(), authorityPdfOutline: vi.fn(async () => []) }));
-const pdfText = vi.mocked(authorityPdfText);
+vi.mock("./authorityPdfText", () => ({ authorityPdfReading: vi.fn(), authorityPdfOutline: vi.fn(async () => []) }));
+const pdfReading = vi.mocked(authorityPdfReading);
+const kept = { document: {} as NativeDocument };
 const hash = "a".repeat(64), id = "d".repeat(64);
 const binding = { kind: "local-file" as const, handleId: "source", lastSeen: {
   name: "Factum.docx", size: 1, modified: 0, sha256: hash,
@@ -27,7 +28,7 @@ const finding: AuthoritiesDiscrepancy = {
 const reviewer = async () => [finding];
 
 beforeEach(() => {
-  pdfText.mockReset().mockResolvedValue({ pageTextByPage: ["native"], ocrTextByPage: [""] });
+  pdfReading.mockReset().mockResolvedValue(null);
   vi.mocked(authorityPdfOutline).mockReset().mockResolvedValue([]);
 });
 
@@ -124,17 +125,6 @@ describe("shared Authorities text preparation", () => {
     expect(result.outline).toEqual(bookmarks === "headings" ? outline : undefined);
   });
 
-  it("retains manual-PDF pinpoint geometry when final links are enabled without passage marks", async () => {
-    const state = markedDraft(); state.settings.passageMarking = "none";
-    state.settings.finalPdf = true; state.settings.linkPinpoints = true;
-    const geometry = { schemaVersion: "test", sourceSha256: hash, targets: [] };
-    pdfText.mockImplementationOnce(async input => ({ pageTextByPage: ["19. Located passage"],
-      ocrTextByPage: [], ...(input.passageTargets?.some(target => target.locator === "19")
-        ? { passageGeometry: geometry as never } : {}) }));
-    expect(await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") }))
-      .toMatchObject({ passageGeometry: geometry });
-  });
-
   it("retains exact filing citation locations for final links independently of authority highlighting", async () => {
     const state = markedDraft();
     state.import = { kind: "document", bindingRole: "source", filename: "Factum.pdf", fileType: "pdf", snapshot: null };
@@ -147,12 +137,14 @@ describe("shared Authorities text preparation", () => {
       pinpointSpan: { start: 11, end: citation.length, text: "at para 19" }, kind: "case", citation: "2020 SCC 1",
       authorityId: "case", reference: null, pinpoints: [{ kind: "paragraph", text: "19" }], evidenceIds: [],
       sourceTextSha256: hash, localOrdinal: 0, reviewed: true };
-    const geometry = { schemaVersion: "test", sourceSha256: hash, targets: [] };
-    pdfText.mockImplementationOnce(async input => ({ pageTextByPage: ["page 1", citation], ocrTextByPage: [],
-      ...(input.passageTargets?.some(target => target.id === "filing:cite" && target.physicalPages?.includes(2))
-        ? { passageGeometry: geometry as never } : {}) }));
-    expect(await createAuthoritiesPreparation(state).prepareText("source", { bytes: Buffer.from("pdf") }))
-      .toMatchObject({ passageGeometry: geometry });
+    // The filing's own text is read, and the citation looked for on the page it is recorded on.
+    const { PDFDocument } = await import("pdf-lib"), pdf = await PDFDocument.create();
+    for (const text of ["page 1", citation]) pdf.addPage([612, 792]).drawText(text, { x: 72, y: 700, size: 12 });
+    const actual = await vi.importActual<typeof import("./authorityPdfText")>("./authorityPdfText");
+    pdfReading.mockImplementationOnce(actual.authorityPdfReading);
+    const result = await createAuthoritiesPreparation(state).prepareText("source", { bytes: Buffer.from(await pdf.save()) });
+    expect("passageGeometry" in result && result.passageGeometry?.targets.map(({ id, locator }) => [id, locator]))
+      .toEqual([["filing:cite", "2"]]);
   });
 
   it("reads the headings of a brief PDF that a final PDF will open with", async () => {
@@ -173,54 +165,31 @@ describe("shared Authorities text preparation", () => {
     const plan = createAuthoritiesPreparation(state);
     expect(plan.authoritySources).toHaveLength(1);
     expect(await plan.prepareText("authority", { bytes: Buffer.from("pdf") })).toEqual({});
-    expect(pdfText).not.toHaveBeenCalled();
+    expect(pdfReading).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])("uses the existing projection with unchanged identity (Library=%s)", async (library) => {
+  it.each([false, true])("reads an authority's PDF as its document, with unchanged identity (Library=%s)", async (library) => {
     const state = markedDraft(), bytes = Buffer.from("exact bytes"), signal = new AbortController().signal;
     const input = { bytes, signal, ...(library ? { documentId: "doc", versionId: "version", sourceSha256: hash } : {}) };
-    const result = await createAuthoritiesPreparation(state).prepareText("authority", input);
-    expect(result).toEqual({ pageTextByPage: ["native"] });
+    pdfReading.mockResolvedValueOnce(kept);
+    expect(await createAuthoritiesPreparation(state).prepareText("authority", input)).toEqual({ reading: kept });
+    expect(pdfReading).toHaveBeenCalledWith(expect.objectContaining(input));
   });
 
   it("preserves explicit recognition targets without enabling passage marking", async () => {
     const state = markedDraft(); state.settings.passageMarking = "none";
     state.settings.scannedPdfPolicy = "cited-pages";
-    pdfText.mockResolvedValueOnce({ pageTextByPage: ["recognized"], ocrTextByPage: ["recognized"] });
-    expect(await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") }))
-      .toEqual({ pageTextByPage: ["recognized"], ocrTextByPage: ["recognized"] });
+    pdfReading.mockResolvedValueOnce(kept);
+    expect(await createAuthoritiesPreparation(state).prepareText("authority", { bytes: Buffer.from("pdf") })).toEqual({ reading: kept });
+    expect(pdfReading).toHaveBeenCalledWith(expect.objectContaining({ scannedPdfPolicy: "cited-pages",
+      ocrTargets: [expect.objectContaining({ locatorKind: "paragraph", locator: "19" })] }));
   });
 
-  it("reads a kept source again only when something it is read with changes", async () => {
-    const readings = sourceReadings(), bytes = Buffer.from("exact bytes"), state = markedDraft();
-    const read = (draft: AuthoritiesDraft, source = bytes) =>
-      createAuthoritiesPreparation(draft, readings).prepareText("authority", { bytes: source });
-    expect(await read(state)).toEqual({ pageTextByPage: ["native"] });
-    // The step, the cover and the marks' style are not what the source is read for.
-    const moved = structuredClone(state);
-    moved.stage = "build"; moved.cover.title = "Book of Authorities"; moved.settings.passageMarking = "margin";
-    expect(await read(moved)).toEqual({ pageTextByPage: ["native"] });
-    expect(pdfText).toHaveBeenCalledTimes(1);
-    const changes: Array<(draft: AuthoritiesDraft) => void> = [
-      (draft) => { draft.authorities.case.locators = [{ kind: "paragraph", label: "20" }]; },
-      (draft) => { draft.authorities.case.citation = "2020 SCC 2"; },
-      (draft) => { draft.settings.scannedPdfPolicy = "cited-pages"; },
-    ];
-    for (const change of changes) { const changed = structuredClone(state); change(changed); await read(changed); }
-    // Where a source came from decides how its passages are used, not what it is read for.
-    const original = structuredClone(state);
-    original.authorities.case.source = { kind: "attached", sources: [{ ...(state.authorities.case.source as
-      Extract<AuthoritiesDraft["authorities"][string]["source"], { kind: "attached" }>).sources[0], origin: "original" }] };
-    await read(original);
-    await read(state, Buffer.from("other bytes"));
-    expect(pdfText).toHaveBeenCalledTimes(5);
-  });
-
-  it("does not return a projection that completed after cancellation", async () => {
+  it("does not return a reading that completed after cancellation", async () => {
     const abort = new AbortController();
-    pdfText.mockImplementationOnce(async () => {
+    pdfReading.mockImplementationOnce(async () => {
       abort.abort(new Error("Preparation cancelled"));
-      return { pageTextByPage: ["native"], ocrTextByPage: [] };
+      return kept;
     });
     await expect(createAuthoritiesPreparation(markedDraft()).prepareText("authority", {
       bytes: Buffer.from("pdf"), signal: abort.signal,

@@ -8,7 +8,7 @@
 //! header block and then its own text, every other leaf part an attachment; a body read line by line with its line
 //! breaks as newlines unless base64 carries them; a charset found by its WHATWG label, windows-1252 when it has none.
 
-use super::slides::{is_js_space, js_trim};
+use legal_structure::{javascript_whitespace, trim_javascript_whitespace};
 use mail_parser::{Address, DateTime, Encoding, HeaderForm, MessageParser, MessagePart, MessageRef, PartFlags, PartId};
 use regex::Regex;
 use std::collections::HashMap;
@@ -110,14 +110,14 @@ fn parse(bytes: &[u8]) -> Email {
     if !headers.iter().any(|(key, _)| EMAIL_MARKERS.contains(&key.as_str())) {
         return Email {
             headers,
-            body: js_trim(&String::from_utf8_lossy(bytes)).to_owned(),
+            body: trim_javascript_whitespace(&String::from_utf8_lossy(bytes)).to_owned(),
             attachments: Vec::new(),
             abstentions: vec![("not_an_email", "no From/Date/Subject/Message-ID/Received header".into())],
         };
     }
 
     let mut body = match (&message.text, &message.html) {
-        (Some(text), _) => js_trim(text).to_owned(),
+        (Some(text), _) => trim_javascript_whitespace(text).to_owned(),
         (None, Some(html)) => html_to_text(html),
         (None, None) => String::new(),
     };
@@ -400,7 +400,7 @@ fn text_content(part: &MessagePart) -> String {
 /// Bytes in the encoding a charset label names (UTF-8 when there is none, windows-1252 when no encoding has that
 /// label), a byte order mark of that encoding dropped.
 fn decode_charset(bytes: &[u8], label: Option<&str>) -> String {
-    let label = js_trim(label.filter(|label| !label.is_empty()).unwrap_or("utf8")).to_lowercase();
+    let label = trim_javascript_whitespace(label.filter(|label| !label.is_empty()).unwrap_or("utf8")).to_lowercase();
     let encoding = encoding_rs::Encoding::for_label_no_replacement(label.as_bytes()).unwrap_or(encoding_rs::WINDOWS_1252);
     encoding.decode_with_bom_removal(bytes).0.into_owned()
 }
@@ -454,7 +454,7 @@ fn header_fields(block: &[u8], max_bytes: usize) -> Result<Vec<(String, String)>
         }
         let line = encoding_rs::UTF_8.decode_with_bom_removal(line).0;
         match fields.last_mut() {
-            Some(field) if line.starts_with(is_js_space) => {
+            Some(field) if line.starts_with(javascript_whitespace) => {
                 field.push('\n');
                 field.push_str(&line);
             }
@@ -466,8 +466,8 @@ fn header_fields(block: &[u8], max_bytes: usize) -> Result<Vec<(String, String)>
         .map(|field| {
             let field = collapse_whitespace(field);
             match field.split_once(':') {
-                Some((name, value)) => (js_trim(name).to_lowercase(), js_trim(value).to_owned()),
-                None => (js_trim(&field).to_lowercase(), String::new()),
+                Some((name, value)) => (trim_javascript_whitespace(name).to_lowercase(), trim_javascript_whitespace(value).to_owned()),
+                None => (trim_javascript_whitespace(&field).to_lowercase(), String::new()),
             }
         })
         .collect())
@@ -478,7 +478,7 @@ fn collapse_whitespace(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut space = false;
     for c in text.chars() {
-        if is_js_space(c) {
+        if javascript_whitespace(c) {
             if !space {
                 out.push(' ');
             }
@@ -509,7 +509,7 @@ fn static_abstentions(bytes: &[u8]) -> Vec<(&'static str, String)> {
         }
     }
     for value in raw_header_values(&CONTENT_TYPE, bytes) {
-        let media_type = js_trim(value.split(';').next().unwrap_or_default()).to_lowercase();
+        let media_type = trim_javascript_whitespace(value.split(';').next().unwrap_or_default()).to_lowercase();
         if media_type == "application/pkcs7-mime" || media_type == "application/pgp-encrypted" {
             abstain(&mut abstentions, "encrypted", media_type);
         }
@@ -536,7 +536,7 @@ fn raw_header_values(pattern: &regex::bytes::Regex, bytes: &[u8]) -> Vec<String>
         .filter_map(|captures| captures.get(1))
         .map(|value| {
             let latin1: String = value.as_bytes().iter().map(|&byte| char::from(byte)).collect();
-            js_trim(&FOLD.replace_all(&latin1, " ")).to_owned()
+            trim_javascript_whitespace(&FOLD.replace_all(&latin1, " ")).to_owned()
         })
         .collect()
 }
@@ -553,21 +553,21 @@ fn charset_parameter(value: &str) -> Option<String> {
             continue;
         }
         let mut at = start + 7;
-        while at < chars.len() && is_js_space(chars[at]) {
+        while at < chars.len() && javascript_whitespace(chars[at]) {
             at += 1;
         }
         if chars.get(at) != Some(&'=') {
             continue;
         }
         at += 1;
-        while at < chars.len() && is_js_space(chars[at]) {
+        while at < chars.len() && javascript_whitespace(chars[at]) {
             at += 1;
         }
         if matches!(chars.get(at), Some('"' | '\'')) {
             at += 1;
         }
         let end = (at..chars.len())
-            .find(|&index| matches!(chars[index], ';' | '"' | '\'') || is_js_space(chars[index]))
+            .find(|&index| matches!(chars[index], ';' | '"' | '\'') || javascript_whitespace(chars[index]))
             .unwrap_or(chars.len());
         if end > at {
             return Some(chars[at..end].iter().collect());
@@ -603,7 +603,7 @@ fn html_to_text(html: &str) -> String {
     for (pattern, replacement) in STEPS.iter() {
         text = pattern.replace_all(&text, *replacement).into_owned();
     }
-    js_trim(&text).to_owned()
+    trim_javascript_whitespace(&text).to_owned()
 }
 
 /// postal-mime's text-to-HTML: escaped, newlines as `<br />`, in a div.
@@ -614,7 +614,7 @@ fn text_to_html(text: &str) -> String {
 /// Trimmed, with `<>"'?&` as hex character references.
 fn escape_html(text: &str) -> String {
     let mut out = String::new();
-    for c in js_trim(text).chars() {
+    for c in trim_javascript_whitespace(text).chars() {
         if matches!(c, '<' | '>' | '"' | '\'' | '?' | '&') {
             out.push_str(&format!("&#x{:02X};", c as u32));
         } else {
@@ -721,7 +721,7 @@ impl Forwarded {
                 let continued = format!("{} {pad}", " ".repeat(key.len() + 1));
                 fold_lines(value)
                     .split('\n')
-                    .map(|line| js_trim(line.strip_suffix('\r').unwrap_or(line)).to_owned())
+                    .map(|line| trim_javascript_whitespace(line.strip_suffix('\r').unwrap_or(line)).to_owned())
                     .enumerate()
                     .map(|(index, line)| format!("{}{line}", if index == 0 { &prefix } else { &continued }))
                     .collect::<Vec<_>>()
@@ -852,14 +852,14 @@ fn fold_lines(text: &str) -> String {
             at += end;
             continue;
         }
-        let word_start = line.iter().rposition(|&c| is_js_space(c)).map(|index| index + 1);
+        let word_start = line.iter().rposition(|&c| javascript_whitespace(c)).map(|index| index + 1);
         match word_start {
             Some(end) => line.truncate(end),
             None => {
                 let rest = &chars[at + line.len()..];
-                let word = rest.iter().take_while(|&&c| !is_js_space(c)).count();
+                let word = rest.iter().take_while(|&&c| !javascript_whitespace(c)).count();
                 if word > 0 {
-                    let space = rest[word..].iter().take_while(|&&c| is_js_space(c)).count();
+                    let space = rest[word..].iter().take_while(|&&c| javascript_whitespace(c)).count();
                     line.extend_from_slice(&rest[..word + space]);
                 }
             }

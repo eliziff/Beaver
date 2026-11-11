@@ -2,6 +2,16 @@ import { existsSync } from "node:fs";
 import { defaultNativeAddon, nativeAddonFile } from "mike/shared/nativeAddonFile.mjs";
 import { structureEngineAddon, type StructureEngineTransport } from "mike/shared/structure-engine.mjs";
 import path from "node:path";
+import type { AnnotationMark } from "mike/shared/engine-types/AnnotationMark";
+import type { AuthorityReading } from "mike/shared/engine-types/AuthorityReading";
+import type { BuiltBook } from "mike/shared/engine-types/BuiltBook";
+import type { FilingEntry } from "mike/shared/engine-types/FilingEntry";
+import type { FinalPlan } from "mike/shared/engine-types/FinalPlan";
+import type { PreparedBook } from "mike/shared/engine-types/PreparedBook";
+import type { SourceRequest } from "mike/shared/engine-types/SourceRequest";
+import type { SourceText } from "mike/shared/engine-types/SourceText";
+import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
+import type { PassageTarget } from "mike/shared/engine-types/PassageTarget";
 
 /** A table cell a document's text was rendered from (legal-structure's AuthoritativeTableCell): a workbook's cell by its
  *  sheet, address and display value, with its spans of the text (UTF-16). */
@@ -134,43 +144,6 @@ export type PdfPageBinding = {
 };
 
 type Rect = [number, number, number, number];
-type PassageStatus = "found" | "not_found" | "ambiguous" | "invalid" | "unavailable";
-
-export type NativePdfPassageTarget = {
-  physicalPages?: number[];
-  id: string;
-  locatorKind: "paragraph" | "section" | "article" | "rule" | "page";
-  locator: string;
-  /** The Act a statute locator is of, where its PDF prints several Acts. */
-  instrument?: string;
-  exactQuotes?: string[];
-  quoteSelections?: Array<{ text: string; start: number; end: number }>;
-};
-
-export type NativePdfPassageGeometry = {
-  schemaVersion: "legalpdf.passage-geometry.v1";
-  sourceSha256: string;
-  parserVersion: string;
-  coordinateSpace: "visible_crop_box";
-  coordinateOrigin: "top_left";
-  rotationApplied: true;
-  targets: Array<{
-    id: string;
-    locatorKind: NativePdfPassageTarget["locatorKind"];
-    locator: string;
-    status: PassageStatus;
-    /** The cited paragraph numbers are printed on the passage, not only counted. */
-    printed?: boolean;
-    pages: Array<{
-      pageNumber: number; width: number; height: number;
-      source: "native" | "unavailable"; passageRects: Rect[]; text: string;
-    }>;
-    quotes: Array<{
-      text: string; status: PassageStatus; pageNumber?: number; rects: Rect[];
-      fragments?: Array<{ pageNumber: number; rects: Rect[] }>;
-    }>;
-  }>;
-};
 
 /** A page of the extraction as the engine's layout holds it (`legal_layout::Page`), the fields read of it. */
 export type NativePdfTextPage = { number: number; width: number; height: number;
@@ -262,17 +235,21 @@ type StructureAddon = {
    *  unchanged, then the annotations; with `disarm` (default true) also what removeActiveContent takes out. */
   pdfWriteAnnotations(bytes: Uint8Array, marks: unknown[], namespace: string, disarm?: boolean): { bytes: Buffer };
   /** A source's own PDF set from its provider's text (a statute by its provisions, a judgment by its paragraphs). */
-  renderSourcePdf(source: { kind: string; name: string | null; citation: string; text: string; provider?: string;
-    retrieved?: string; federal?: boolean }): Promise<{ bytes: Buffer; pageCount: number;
+  renderSourcePdf(source: SourceText): Promise<{ bytes: Buffer; pageCount: number;
     outline: Array<{ title: string; pageIndex?: number; children?: unknown[] }> }>;
-  /** A book of authorities' volumes from its plan (assembly/book.rs) and its PDFs' bytes, in the order it names them:
-   *  each volume `bytes` long in the reply's bytes. */
-  renderAuthoritiesBook(bytes: Uint8Array, book: object): Promise<{ bytes: Buffer; books: Array<{ role: string; filename: string;
-    pageCount: number; bytes: number; placements: Array<{ key: string; pageIndex: number; tabPageIndex: number; sourcePageIndices: number[] }> }> }>;
+  /** A book of authorities' volumes from its plan and its PDFs' bytes, in the order it names them: each volume `bytes`
+   *  long in the reply's bytes. */
+  renderAuthoritiesBook(bytes: Uint8Array, book: PreparedBook): Promise<{ bytes: Buffer; books: BuiltBook[] }>;
   /** A filing PDF (its first `filing` bytes) with its table of authorities, and the PDFs appended after it. */
-  renderFilingPdf(bytes: Uint8Array, filing: number, entries: object[]): Promise<{ bytes: Buffer; pageCount: number }>;
-  /** The brief and its book as one PDF (assembly/book.rs FinalPlan). */
-  renderFinalPdf(bytes: Uint8Array, plan: object): Promise<{ bytes: Buffer; pageCount: number }>;
+  renderFilingPdf(bytes: Uint8Array, filing: number, entries: FilingEntry[]): Promise<{ bytes: Buffer; pageCount: number }>;
+  /** The brief and its book as one PDF. */
+  renderFinalPdf(bytes: Uint8Array, plan: FinalPlan): Promise<{ bytes: Buffer; pageCount: number }>;
+  /** An authority's source as its book reads it (assembly/authority.rs): each of its PDFs, in the order joined, by its
+   *  reading (else its count of pages, its text unread), with its marks where reviewed; null, the page the book holds
+   *  in place of a PDF not there. */
+  authorityReading(parts: Array<{ document?: NativeDocument; native?: NativeDocument; recognizedPages?: number[];
+    pages?: number; saved?: AnnotationMark[]; requirePrinted?: boolean; pagesOnly?: boolean } | null>,
+    request: SourceRequest): Promise<AuthorityReading>;
   /** Each page's crop box ([x, y, width, height]), rotation, and links to web addresses ([index, uri, rect]). */
   pdfPages(bytes: Uint8Array): Promise<Array<{ crop: [number, number, number, number]; rotation: number;
     links: Array<[number, string, [number, number, number, number]]> }>>;
@@ -304,8 +281,8 @@ type StructureAddon = {
   /** Each passage's pages, its lines' rectangles on each, and its quotations placed on them; a passage with no page it
    *  can be read on unavailable. With `citations`, a page locator naming no physical pages is a printed page, the PDF
    *  pages the page map anchored on the reports they cite gives it. */
-  pdfPassageGeometry(document: NativeDocument, targets: NativePdfPassageTarget[], citations?: string[]):
-    Promise<NativePdfPassageGeometry>;
+  pdfPassageGeometry(document: NativeDocument, targets: PassageTarget[], citations?: string[]):
+    Promise<PassageGeometry>;
   docxStructureLint(document: NativeDocument): {
     paragraphs: number;
     checks: {
@@ -523,8 +500,6 @@ type StructureAddon = {
   /** Each numbered label of a kind as the numbers it names, a run written out ("12–14": 12, 13, 14): null for one
    *  naming no number or run, or a run reversed or spanning more than `limit` past its first number. */
   expandLabels(labels: readonly string[], kind: "paragraph" | "page" | "line", limit: number): Array<string[] | null>;
-  /** How current a statute's print says it is, from its first pages ("Current to September 21, 2026"). */
-  statuteCurrency(pages: string[]): string | null;
   /** A filing's cover from its opening page's text: the parties its BETWEEN block names in their roles, and whose
    *  document it is, from `title` (its record title) where given, else its DOCUMENT line. */
   filingCover(opening: string, title: string | null): {

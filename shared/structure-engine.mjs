@@ -5,7 +5,7 @@
 const ASYNC = new Set(["deriveDocumentStructure",
   "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "pdfOpening", "renderSourcePdf",
   "renderAuthoritiesBook", "renderFilingPdf", "renderFinalPdf", "pdfPages", "preparePdfDocument", "openSource", "sourceText",
-  "pdfPassageGeometry", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments"]);
+  "pdfPassageGeometry", "authorityReading", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes, and a reply's bytes are its
 // value's `bytes`; "document" is a document's handle, and a reply's `{ $document: handle }` its document.
 export const SIGNATURES = {
@@ -13,7 +13,7 @@ export const SIGNATURES = {
   deriveDocumentStructure: ["request"],
   fixDocxSupraCrossReferences: ["bytes"],
   docxAuthorityTextUnits: ["bytes"],
-  preparePdfDocument: ["bytes", "request"], pdfCacheKey: ["request"],
+  preparePdfDocument: ["bytes", "request"], pdfCacheKey: ["bytes", "request"],
   pdfOpening: ["bytes"],
   // Annotations appended to the PDF as an incremental update; with disarm (default), its active content taken out.
   pdfWriteAnnotations: ["bytes", "marks", "namespace", "disarm"],
@@ -29,6 +29,8 @@ export const SIGNATURES = {
   pdfAuthorityTextUnits: ["document"], pdfPageMap: ["document", "citations"], pdfPageTexts: ["document"],
   pdfPrintedPages: ["document", "citations", "labels"], reporterStartPages: ["citations"],
   pdfPassageGeometry: ["document", "targets", "citations"],
+  // An authority's source as its book reads it: each of its PDFs (`document`, `native` handles within).
+  authorityReading: ["parts", "request"],
   briefOccurrencePages: ["pages", "units", "occurrences"],
   queryPdfDocument: ["document", "request"],
   docxStructureLint: ["document"],
@@ -39,7 +41,7 @@ export const SIGNATURES = {
   documentOutline: ["document"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   textOutline: ["text", "kind"], statuteProvisionSpans: ["text", "labels"], collapseLabels: ["labels", "kind"], expandLabels: ["labels", "kind", "limit"], bareLabels: ["labels", "kind"],
-  statuteCurrency: ["pages"], filingCover: ["opening", "title"],
+  filingCover: ["opening", "title"],
   searchQuery: ["query", "columns"], renderCitedBlocks: ["blocks"],
   citationLookupKeys: ["texts"], citationKeyVersion: [], providerCitationsInText: ["text"],
   citationEngineCall: ["method", "request"],
@@ -83,8 +85,15 @@ const PURE_KEPT = 4096;
 class EngineError extends Error {
   constructor({ message, kind, detail }) { super(message); if (kind) this.kind = kind; if (detail) this.detail = detail; }
 }
-/** An opaque engine document, released when JavaScript no longer references it. */
-class NativeDocumentHandle { constructor(handle, generation) { this.handle = handle; this.generation = generation; } }
+/** An opaque engine document, released when JavaScript no longer references it; sent to the engine, wherever a
+ *  request holds it, as its handle in the engine that made it. */
+class NativeDocumentHandle {
+  constructor(handle, generation, current) { this.handle = handle; this.generation = generation; this.current = current; }
+  toJSON() {
+    if (this.generation !== this.current()) throw new Error("This document was lost when the engine restarted. Reopen it and try again.");
+    return this.handle;
+  }
+}
 
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 /** `[u32 json length][json {op, args}][bytes]` */
@@ -139,18 +148,16 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     SIGNATURES[name].forEach((key, index) => {
       const value = positional[index];
       if (key === "bytes") bytes = value ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength) : bytes;
-      else if (key === "document") {
-        if (value?.generation !== generation)
-          throw new Error("This document was lost when the engine restarted. Reopen it and try again.");
-        args.document = value.handle;
-      } else args[key] = value ?? null;
+      else if (key === "document" && !(value instanceof NativeDocumentHandle))
+        throw new Error("This document was lost when the engine restarted. Reopen it and try again.");
+      else args[key] = value ?? null;
     });
     return engineRequest(name, args, bytes);
   }
   // A document a reply holds, as JavaScript holds it.
   function revive(_key, value) {
     if (typeof value?.$document !== "number") return value;
-    const document = new NativeDocumentHandle(value.$document, generation);
+    const document = new NativeDocumentHandle(value.$document, generation, () => generation);
     released.register(document, { handle: value.$document, generation });
     return document;
   }
@@ -211,7 +218,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
       const { ocr: _requested, ...rest } = request;
       request = { ...rest, ...(supplied ? { suppliedOcr: supplied } : {}) };
     }
-    const cacheKey = invoke("pdfCacheKey", [request]);
+    const cacheKey = invoke("pdfCacheKey", [bytes, request]);
     const kept = await reopen(cacheKey);
     if (kept) return kept;
     let pending = preparing.get(cacheKey);

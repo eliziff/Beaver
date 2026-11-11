@@ -3,6 +3,7 @@
 //! the bytes its slides inflate to. The bounded package reader and JavaScript's whitespace are shared with the email and
 //! redline readers.
 
+use legal_structure::trim_javascript_whitespace;
 use std::cmp::Ordering;
 use std::io::{Cursor, Read};
 use zip::ZipArchive;
@@ -39,7 +40,7 @@ pub fn text(bytes: &[u8]) -> Result<String, String> {
         }
         let text = tag_texts(&xml)
             .iter()
-            .map(|part| js_trim(part))
+            .map(|part| trim_javascript_whitespace(part))
             .filter(|part| !part.is_empty())
             .collect::<Vec<_>>()
             .join("\n");
@@ -47,7 +48,7 @@ pub fn text(bytes: &[u8]) -> Result<String, String> {
             out.push(format!("## Slide {}\n\n{text}", index + 1));
         }
     }
-    Ok(js_trim(&out.join("\n\n")).to_owned())
+    Ok(trim_javascript_whitespace(&out.join("\n\n")).to_owned())
 }
 
 /// `ppt/slides/slideN.xml`, letters in any case.
@@ -141,17 +142,6 @@ fn replace_references(value: &str, hex: bool) -> String {
     }
     out.push_str(rest);
     out
-}
-
-/// Whether `c` is whitespace as JavaScript's `\s` and `trim` read it.
-pub(super) fn is_js_space(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}'
-        | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
-}
-
-/// `text` without the whitespace JavaScript's `trim` removes.
-pub(super) fn js_trim(text: &str) -> &str {
-    text.trim_matches(is_js_space)
 }
 
 /// An open package over the bytes it was read from.
