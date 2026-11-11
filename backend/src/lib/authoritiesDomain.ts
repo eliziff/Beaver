@@ -125,7 +125,7 @@ export function createAuthoritiesDraft(
   outputMode: AuthoritiesOutputMode = "book",
 ): AuthoritiesDraft {
   const profile = authoritiesProfile("general");
-  const draft: AuthoritiesDraft = { schemaVersion: "beaver.authorities-draft.v1",
+  return { schemaVersion: "beaver.authorities-draft.v1",
     stage: source.kind === "manual" ? "sources" : "citations",
     import: source, bindings: structuredClone(bindings), outputMode,
     settings: { profileId: "general", ...structuredClone(profile.defaults.settings) },
@@ -134,9 +134,6 @@ export function createAuthoritiesDraft(
     insertIntoDocument: false, ledger: null,
     units: [], occurrences: {}, authorities: {}, authorityOrder: [],
     discrepancyDecisions: {} };
-  const errors = validateAuthoritiesDraft(draft);
-  if (errors.length) throw new AuthoritiesDomainError(errors[0]);
-  return draft;
 }
 
 const uniqueSorted = (values: string[]) => [...new Set(values)].sort();
@@ -804,8 +801,6 @@ export function reduceAuthoritiesDraft(
  *  authority clone and validate the draft once, not once per action. Each action sees the
  *  state the previous one left, exactly as successive reduceAuthoritiesDraft calls would. */
 export function authoritiesDraftEditor(current: AuthoritiesDraft) {
-  const priorErrors = validateAuthoritiesDraft(current);
-  if (priorErrors.length) throw new AuthoritiesDomainError(priorErrors[0]);
   const draft = structuredClone(current);
   return {
     draft,
@@ -835,8 +830,6 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       break;
     }
     case "set-stage":
-      if (!["citations", "sources", "highlights", "build"].includes(action.stage))
-        throw new AuthoritiesDomainError("Unknown Authorities stage.");
       draft.stage = action.stage;
       break;
     case "move-authority": {
@@ -846,8 +839,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       if (!authoritiesProfile(draft.settings.profileId).locked?.settings?.tableOrder)
         draft.settings.tableOrder = "custom";
       const from = draft.authorityOrder.indexOf(action.authorityId);
-      if (from < 0 || !Number.isSafeInteger(action.toIndex) || action.toIndex < 0 ||
-          action.toIndex >= draft.authorityOrder.length)
+      if (from < 0 || action.toIndex >= draft.authorityOrder.length)
         throw new AuthoritiesDomainError("Choose an existing authority slot.");
       draft.authorityOrder.splice(from, 1);
       draft.authorityOrder.splice(action.toIndex, 0, action.authorityId);
@@ -872,8 +864,6 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       requireRecord(draft.authorities, action.authorityId, "authority").excerpt = action.excerpt;
       break;
     case "set-annotations": {
-      if (!Array.isArray(action.entries) || !action.entries.length || action.entries.length > 2_000)
-        throw new AuthoritiesDomainError("Annotation sources are invalid.");
       const seen = new Set<string>();
       for (const entry of action.entries) {
         const authority = requireRecord(draft.authorities, entry.authorityId, "authority");
@@ -881,19 +871,15 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
         const key = `${entry.authorityId}\0${entry.bindingRole}`;
         if (!source || seen.has(key)) throw new AuthoritiesDomainError("Annotation source is no longer attached.");
         seen.add(key);
-        const annotations = decodeAnnotationSet(entry.annotations);
-        if (annotations.sourceSha256 !== source.sourceSha256)
+        if (entry.annotations.sourceSha256 !== source.sourceSha256)
           throw new AuthoritiesDomainError("This PDF changed. Reopen it before saving highlights.");
-        authority.annotations = { ...authority.annotations, [source.bindingRole]: annotations };
+        authority.annotations = { ...authority.annotations, [source.bindingRole]: entry.annotations };
       }
       break;
     }
     case "set-highlight-exclusion": {
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
-      const kind = action.locator.kind.trim(), label = action.locator.label.trim();
-      if (!kind || !label || kind.length > 200 || label.length > 500) {
-        throw new AuthoritiesDomainError("Invalid highlight passage.");
-      }
+      const { kind, label } = action.locator;
       const key = `${kind}\0${label}`;
       const current = authority.highlightExclusions ?? [];
       const filtered = current.filter((item) => `${item.kind}\0${item.label}` !== key);
@@ -1147,14 +1133,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
       break;
     }
     case "set-cover":
-      draft.cover = { ...structuredClone(action.cover),
-        ...(action.cover.judicialCentre !== undefined && { judicialCentre: action.cover.judicialCentre.trim() }),
-        courtFileNumber: action.cover.courtFileNumber.trim(),
-        applicationUnder: action.cover.applicationUnder.trim(),
-        title: action.cover.title.trim(),
-        partyGroups: action.cover.partyGroups.map(({ role, parties }) => ({
-          role: role.trim(), parties: parties.map((party) => party.trim()),
-        })) };
+      draft.cover = structuredClone(action.cover);
       break;
     case "set-profile": {
       const profile = authoritiesProfile(action.profileId);
@@ -1243,15 +1222,8 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
 
 export function validateAuthoritiesDraft(draft: AuthoritiesDraft): string[] {
   const errors: string[] = [];
-  if (draft.schemaVersion !== "beaver.authorities-draft.v1") errors.push("Invalid draft schema version.");
-  if (!["table", "book", "both"].includes(draft.outputMode)) errors.push("Invalid output mode.");
   if (!buildSettings(draft.settings)) errors.push("Invalid Authorities settings.");
   if (!authoritiesCover(draft.cover)) errors.push("Invalid Authorities cover.");
-  if (draft.discrepancyDecisions !== undefined && Object.entries(draft.discrepancyDecisions).some(
-    ([id, action]) => !/^[a-f0-9]{64}$/u.test(id) ||
-      !(AUTHORITIES_ACTION_CHOICES.discrepancy as readonly string[]).includes(action))) {
-    errors.push("Invalid discrepancy decisions.");
-  }
   const profile = AUTHORITIES_PROFILES.get(draft.settings?.profileId as AuthoritiesProfileId);
   if (profile?.locked?.outputMode && draft.outputMode !== profile.locked.outputMode) {
     errors.push("Output mode conflicts with the court profile.");
