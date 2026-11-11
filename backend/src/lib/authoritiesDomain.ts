@@ -36,7 +36,7 @@ import { closed, dictionary, flag, hash, integer, isJsonRecord, jsonRecord, list
   type Check, type FieldTable } from "./value";
 import profileValues from "mike/shared/authorities-profiles.json";
 import { courtCover } from "mike/shared/authorities-cover.mjs";
-import { authorityProcedureInput, deriveAuthorityProcedure } from "mike/shared/authorities-order.mjs";
+import { authorityProcedure } from "mike/shared/authorities-order.mjs";
 
 import { AUTHORITIES_ACTION_CHOICES, AUTHORITIES_SETTINGS_CHOICES, authorityKinds,
   decodeAuthoritiesInitialSettings } from "./authoritiesActionContract";
@@ -862,8 +862,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     case "move-authority": {
       // A move is made in the order the user sees, and from then on that order is theirs: the
       // book's order is written down, and kept as arranged, where the court leaves it free.
-      draft.authorityOrder = deriveAuthorityProcedure(authorityProcedureInput(draft, { purpose: "book" }))
-        .map(({ id }) => id);
+      draft.authorityOrder = authorityProcedure(draft).map(({ id }) => id);
       if (!authoritiesProfile(draft.settings.profileId).locked?.settings?.tableOrder)
         draft.settings.tableOrder = "custom";
       const from = draft.authorityOrder.indexOf(action.authorityId);

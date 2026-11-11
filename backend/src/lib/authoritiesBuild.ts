@@ -32,7 +32,7 @@ import type { OutlineEntry } from "mike/shared/engine-types/OutlineEntry";
 import type { PassageTarget } from "mike/shared/engine-types/PassageTarget";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
-import { authorityCitation, authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference } from "mike/shared/authorities-order.mjs";
+import { authorityCitation, authorityProcedure, tabLabel, tabNumber, tabReference } from "mike/shared/authorities-order.mjs";
 import { urlHostname } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
   filingTabText } from "./authoritiesFinalPdf";
@@ -154,7 +154,7 @@ const inContext = (text: string, start: number, end: number) => [[4, 4], [0, 4],
 /** Exact reviewed text on known physical filing pages; ambiguity is retained by the parser.
  *  A PDF saved from a Word brief has no recorded pages: its text places each citation. */
 export function authorityFilingTargets(draft: AuthoritiesDraft, briefPageText?: string[]): PassageTarget[] {
-  const tabs = new Map(authorityProcedure(draft, "book").map(({ id, tab }) => [id, tab]));
+  const tabs = new Map(authorityProcedure(draft).map(({ id, tab }) => [id, tab]));
   const located = briefPageText && briefOccurrencePages(draft, briefPageText);
   return draft.units.flatMap((unit) => unit.occurrenceIds.flatMap((id) => {
     const occurrence = draft.occurrences[id], authority = draft.authorities[occurrence?.authorityId ?? ""];
@@ -252,9 +252,6 @@ function citedAt(draft: AuthoritiesDraft, authorityId: string) {
   return value || "—";
 }
 
-const authorityProcedure = (draft: AuthoritiesDraft, purpose: "table" | "book") =>
-  deriveAuthorityProcedure(authorityProcedureInput(draft, { purpose }));
-
 function authoritySourceLink(authority: AuthorityIdentity) {
   const value = authoritySourceUrl(authority);
   if (!value) return null;
@@ -276,7 +273,7 @@ function freePublicDatabaseReference(authority: AuthorityIdentity) {
 }
 
 function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
-  const planned = authorityProcedure(draft, purpose);
+  const planned = authorityProcedure(draft);
   const entry = ({ id, tab }: typeof planned[number]): Entry => {
     const authority = draft.authorities[id], { text, italic } = authorityCitation(draft, authority);
     return { authority, name: text, italic, citedAt: citedAt(draft, authority.id),
@@ -295,7 +292,8 @@ function groupedEntries(draft: AuthoritiesDraft, purpose: "table" | "book") {
  *  the pages it is cited on (a PDF brief's) and its tab. A Court of Appeal table numbers each authority
  *  in the order the brief first cites it, its link printed beneath it for a reader on paper. */
 async function tableArtifact(groups: Group[], filename: string, subtitle: string,
-  linked = false, tabs = false, ruled?: { tabPrefix: string; location: AuthoritiesDraft["settings"]["tableLocation"] }) {
+  settings: AuthoritiesDraft["settings"], tabs: boolean) {
+  const linked = settings.tableDelivery === "linked-append", ruled = settings.tableDelivery === "ruled-append";
   const { AlignmentType, BorderStyle, Document, ExternalHyperlink, LeaderType, Packer, Paragraph, ShadingType, Tab, Table,
     TableCell, TableLayoutType, TableRow, TabStopType, TextRun, WidthType } = await import("docx");
   const heading = (text: string) => new Paragraph({ keepNext: true, spacing: { before: 240, after: 120 },
@@ -326,7 +324,7 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
         spacing: { before: 40, after: 40 }, children: runs })] });
     const line = { style: BorderStyle.SINGLE, size: 4, color: "auto" };
     const heads = [...tabs ? ["Tab"] : [], "Authority", ...citedAt ? [{ pages: "Cited at page(s)", pinpoints: "Pinpoint(s)",
-      combined: "Cited at" }[ruled.location]] : []];
+      combined: "Cited at" }[settings.tableLocation]] : []];
     children.push(new Table({ width: { size: width, type: WidthType.DXA }, columnWidths: columns, layout: TableLayoutType.FIXED,
       margins: { top: 29, bottom: 29, left: 108, right: 108 },
       borders: { top: line, bottom: line, left: line, right: line, insideHorizontal: line, insideVertical: line },
@@ -336,8 +334,7 @@ async function tableArtifact(groups: Group[], filename: string, subtitle: string
         ...groups.length > 1 ? [new TableRow({ cantSplit: true, children: [cell([new TextRun({ text: group.label, bold: true })], 0,
           { span: columns.length })] })] : [],
         ...group.entries.map((entry) => new TableRow({ cantSplit: true, children: [
-          ...tabs ? [cell([new TextRun(entry.tab.startsWith(ruled.tabPrefix) ? entry.tab.slice(ruled.tabPrefix.length) : entry.tab)], 0,
-            { center: true })] : [],
+          ...tabs ? [cell([new TextRun(tabNumber(settings, entry.tab))], 0, { center: true })] : [],
           cell(citation(entry), tabs ? 1 : 0),
           ...citedAt ? [cell([new TextRun(entry.citedAt === "—" ? "" : entry.citedAt)], columns.length - 1)] : []] })),
       ])] }), new Paragraph(""));
@@ -390,7 +387,7 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
     throw new Error("The imported Word document changed before building.");
   }
   const seen = new Set<string>();
-  const tabs = new Map(authorityProcedure(draft, "book").map(({ id, tab }) => [id, tab]));
+  const tabs = new Map(groups.flatMap(({ entries }) => entries.map(({ authority, tab }) => [authority.id, tab])));
   const marks = draft.units.flatMap((unit) => unit.occurrenceIds.flatMap((id) => {
     const occurrence = draft.occurrences[id], authority = occurrence?.authorityId
       ? draft.authorities[occurrence.authorityId] : null;
@@ -414,12 +411,9 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
     }];
   }));
   // A ruled table gives each authority's tab when there is a book to find it in.
-  const prefix = draft.settings.tabPrefix ?? "Tab ";
-  const linked = groups.flatMap(({ label: group, entries }) => entries.map(({ authority, name, italic, sourceUrl }) => {
-    const tab = draft.outputMode === "table" ? undefined : tabs.get(authority.id);
-    return { label: name, italic, url: sourceUrl, authorityId: authority.id, group,
-      tab: tab?.startsWith(prefix) ? tab.slice(prefix.length) : tab };
-  }));
+  const linked = groups.flatMap(({ label: group, entries }) => entries.map(({ authority, name, italic, sourceUrl, tab }) =>
+    ({ label: name, italic, url: sourceUrl, authorityId: authority.id, group,
+      tab: draft.outputMode === "table" ? undefined : tabNumber(draft.settings, tab) })));
   const output = await applyTableOfAuthorities(Buffer.from(bytes), draft.units, marks,
     draft.insertIntoDocument ? finalLinks && draft.settings.tableDelivery === "native-append"
       ? "linked-append" : draft.settings.tableDelivery : "native-marks", linked);
@@ -886,9 +880,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
   input.progress?.(wanted.includes("book") ? "Preparing the book" : "Building the table");
   const built = (await Promise.all(wanted.map(async (role) => role === "table"
     ? [await tableArtifact(tableGroups, `${base}.table-of-authorities.docx`, subtitle,
-      input.draft.settings.tableDelivery === "linked-append", wanted.includes("book"),
-      input.draft.settings.tableDelivery === "ruled-append" ? { tabPrefix: input.draft.settings.tabPrefix ?? "Tab ",
-        location: input.draft.settings.tableLocation } : undefined)]
+      input.draft.settings, wanted.includes("book"))]
     : role === "book"
       ? bookArtifacts(await prepareAuthorityBook(input.draft, bookGroups, `${base}.${bookName}.pdf`, subtitle,
         sources, placed, input.signal, input.progress, input.statuteText).then((plan) => {

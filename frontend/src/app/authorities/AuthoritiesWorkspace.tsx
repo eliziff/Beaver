@@ -44,7 +44,7 @@ import { AUTHORITY_PROFILE_BY_ID, authoritiesProfile } from "./profiles";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettings, AuthoritiesProduct,
   AuthoritiesDiscrepancy, AuthoritiesDiscrepancyRequest, AuthoritiesProfileId,
   AuthorityIdentity, AuthorityKind, AuthoritySourceLanguage } from "./types";
-import { authorityProcedureInput, deriveAuthorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
+import { authorityProcedure, tabLabel } from "../../../../shared/authorities-order.mjs";
 import { attachedAuthoritySources, authoritiesInputPlan, authorityReproducedInBook } from "../../../../shared/authorities-sources.mjs";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
 import { folderWatch, type FolderWatchState } from "../../../../shared/folder-watch.mjs";
@@ -503,7 +503,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
   const selectedRef = useRef(selected?.id);
   selectedRef.current = selected?.id;
   useEffect(() => { if (!selected) onFocusChange?.(); }, [selected, onFocusChange]);
-  const authorityPlan = useMemo(() => draft ? planAuthorities(draft) : [], [draft]);
+  const authorityPlan = useMemo(() => draft ? authorityProcedure(draft.state) : [], [draft]);
   const authorities = useMemo(() => shown ? authorityPlan.map(({ id }) => shown.state.authorities[id]) : [],
     [shown, authorityPlan]);
   const authorityTabs = useMemo(() => new Map(authorityPlan.map(({ id, tab }) => [id, tab])), [authorityPlan]);
@@ -1896,7 +1896,7 @@ const NO_TABS: ReadonlyMap<string, string> = new Map();
 const pendingKey = (id: string) => `${PAGE_STORE}.authorities.pending.${id}`;
 const afterPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
 function missingSources(draft: AuthoritiesProduct,
-  sourceIssues: Record<string, AuthoritiesSourceIssue> = {}, plan = planAuthorities(draft)) {
+  sourceIssues: Record<string, AuthoritiesSourceIssue> = {}, plan = authorityProcedure(draft.state)) {
   const roles = authoritiesInputPlan(draft.state,
     authoritiesProfile(draft.state.settings.profileId).requirements).byteRoles;
   return plan.map(({ id }) => draft.state.authorities[id])
@@ -1958,10 +1958,6 @@ const sourcePageLabels = (draft: AuthoritiesProduct | undefined, role: string) =
     .find((source) => source.bindingRole === role)?.pageLabels;
 const sourceIssueKey = (draft?: AuthoritiesProduct) => draft
   ? canonicalJson([draft.id, draft.state.bindings]) : "";
-function planAuthorities({ state }: AuthoritiesProduct) {
-  return deriveAuthorityProcedure(authorityProcedureInput(state,
-    { purpose: state.outputMode === "table" ? "table" : "book" }));
-}
 const errorText = (error: unknown) => errorMessage(error, "Authorities could not be updated.");
 const lastDraftKey = (projectId: string | undefined, mode: AuthoritiesHost["mode"]) =>
   `${PAGE_STORE}.authorities.${mode === "standalone" ? "standalone." : ""}last.${projectId ?? "library"}`;

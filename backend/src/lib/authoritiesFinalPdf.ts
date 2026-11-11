@@ -2,7 +2,7 @@ import { quadBounds, rectToPdfQuad, validRect } from "mike/shared/pdf-annotation
 import { attachedAuthoritySources, authoritiesBriefPdf } from "mike/shared/authorities-sources.mjs";
 import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
-import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
+import { authorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator } from "./authoritiesAnnotations";
 import { structureNative } from "./structureNative";
@@ -72,8 +72,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput, 
     offset += output.pageCount ?? 0;
   }
   const warnings: Warnings = [], warned = new Set<string>();
-  const tabs = new Map(deriveAuthorityProcedure(authorityProcedureInput(draft, { purpose: "book" }))
-    .map(({ id, tab }) => [id, tab]));
+  const tabs = new Map(authorityProcedure(draft).map(({ id, tab }) => [id, tab]));
   const unitTexts = new Map(draft.units.map(({ id, text }) => [id, text]));
   const warn = (id: string, reason: Warnings[number]["reason"], pinpoint = false) => {
     const occurrence = draft.occurrences[id], key = `${id}\0${pinpoint}`;

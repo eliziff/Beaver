@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveAuthorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
+import { authorityProcedure, tabLabel } from "mike/shared/authorities-order.mjs";
 import { createAuthoritiesDraft, decodeAuthoritiesDraft, reduceAuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
@@ -7,13 +7,10 @@ import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
 const identity = (id: string): AuthorityIdentity => ({ id, key: id, kind: "case", citation: id,
   name: id, displayName: null, sourceIdentity: null, source: { kind: "unresolved" },
   excluded: false, locators: [], evidenceIds: [] });
-const state = () => ["Zulu", "Alpha", "Middle"].reduce((draft, id) => reduceAuthoritiesDraft(draft,
+const state = (ids = ["Zulu", "Alpha", "Middle"]) => ids.reduce((draft, id) => reduceAuthoritiesDraft(draft,
   { type: "add-authority", authority: identity(id) }), createAuthoritiesDraft({ kind: "manual" }));
-const procedure = (ids = ["Zulu", "Alpha", "Middle"]) => deriveAuthorityProcedure({
-  authorities: ids.map((id) => ({ id, citation: id, sortLabel: id, kind: "case" as const,
-    excluded: false, reproduced: id !== "Alpha" })), units: [], occurrences: {},
-  purpose: "book", manual: false, tableOrder: "custom", grouping: "none", tabStyle: "numeric",
-});
+const procedure = (ids?: string[]) => authorityProcedure(reduceAuthoritiesDraft(state(ids),
+  { type: "set-settings", settings: { tableOrder: "custom", grouping: "none" } }));
 
 describe("Authorities workflow contracts", () => {
   it("reserves a monotonically numbered slot even when its PDF is missing", () => {

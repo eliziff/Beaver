@@ -8,26 +8,6 @@ export type AuthorityTabFormat = {
   tabLabels?: string[];
 };
 
-export type ProceduralAuthority = {
-  id: string;
-  kind: "case" | "legislation" | "commentary" | "other";
-  citation: string;
-  sortLabel: string;
-  excluded: boolean;
-  reproduced: boolean;
-};
-
-export function deriveAuthorityProcedure(input: AuthorityTabFormat & {
-  authorities: ProceduralAuthority[];
-  units: Array<{ id: string; ordinal: number; occurrenceIds: string[] }>;
-  occurrences: Record<string, { authorityId: string | null }>;
-  manual: boolean;
-  purpose: "table" | "book";
-  tableOrder: AuthorityOrder;
-  grouping: AuthorityGrouping;
-  tabStyle: AuthorityTabStyle;
-}): Array<{ id: string; tab: string; group: string }>;
-
 /** Within each group: alphabetical, as the brief first cites them, or as the user arranged them. */
 export type AuthorityOrder = "first-reference" | "alphabetical" | "custom";
 /** Groups by kind, cases or legislation first, or one list. */
@@ -37,13 +17,14 @@ export type AuthorityGrouping = "none" | "cases-first" | "legislation-first";
 export type BookDraftState = {
   authorityOrder: readonly string[];
   authorities: Readonly<Record<string, {
-    kind: ProceduralAuthority["kind"];
+    id: string;
+    kind: "case" | "legislation" | "commentary" | "other";
     citation: string;
     displayName?: string | null;
     name?: string | null;
     excluded: boolean;
     source: AuthoritySourceDecision;
-    sourceIdentity?: { externalUrl?: string | null } | null;
+    historyOf?: string;
   }>>;
   units: ReadonlyArray<{ id: string; ordinal: number; occurrenceIds: string[] }>;
   occurrences: Readonly<Record<string, { authorityId: string | null }>>;
@@ -54,15 +35,11 @@ export type BookDraftState = {
     tableOrder: AuthorityOrder;
     grouping?: AuthorityGrouping;
     tabStyle: AuthorityTabStyle;
-    allowIncomplete?: boolean;
-    missingSourcePolicy: "placeholder" | "omit";
+    subsequentHistory?: "omit" | "include";
   };
 };
 
-export function authorityProcedureInput(
-  state: BookDraftState,
-  options: { purpose: "table" | "book" },
-): Parameters<typeof deriveAuthorityProcedure>[0];
+export function authorityProcedure(draft: BookDraftState): Array<{ id: string; tab: string; group: string }>;
 
 export function tabLabel(index: number, style?: AuthorityTabStyle, format?: AuthorityTabFormat): string;
 
@@ -72,6 +49,7 @@ export type TabReferenceSettings = Pick<AuthorityTabFormat, "tabPrefix"> & {
   citationSuffixLabel?: string;
 };
 export function tabReference(settings: TabReferenceSettings, tab: string): string | null;
+export function tabNumber(settings: Pick<AuthorityTabFormat, "tabPrefix">, tab: string): string;
 
 /** An authority as every output and the interface cite it: as the brief first cites it in full, led
  *  by its style of cause or title, then each other citation of it. `lead` is that lead's length, and

@@ -1,4 +1,4 @@
-import { authorityReproducedInBook, authorityTabbed } from "./authorities-sources.mjs";
+import { authorityTabbed } from "./authorities-sources.mjs";
 
 const GROUPS = { case: "Cases", legislation: "Legislation", commentary: "Secondary sources", other: "Other sources" };
 const KIND_ORDER = { "cases-first": ["case", "legislation", "commentary", "other"],
@@ -28,54 +28,35 @@ function tabLabel(index, style = "numeric", format = {}) {
   return `${format.tabPrefix ?? "Tab "}${label}`;
 }
 
-/** The one order of a filing's authorities, the book's tabs and the table's entries alike: grouped by
- *  kind (cases or legislation first) or not at all, and within each group alphabetical, in the order
- *  the brief first cites them (the rest after, as listed), or as the user arranged them (`custom`). */
-function deriveAuthorityProcedure(input) {
-  const collator = new Intl.Collator("en-CA"), folded = new Map(input.authorities.map((item) =>
-    [item, item.sortLabel.normalize("NFKD").toLocaleLowerCase("en-CA")]));
+/** The one order of a draft's authorities, the book's tabs and the table's entries alike, server and browser:
+ *  grouped by kind (cases or legislation first) or not at all, and within each group alphabetical, in the order
+ *  the brief first cites them (the rest after, as listed), or as the user arranged them (`custom`). A decision
+ *  printed with the case it follows has no tab or index line of its own. */
+function authorityProcedure(draft) {
+  const { settings } = draft, listed = draft.authorityOrder.map((id) => draft.authorities[id])
+    .filter((authority) => authority.excluded || authorityTabbed(draft, authority));
+  const collator = new Intl.Collator("en-CA"), folded = new Map(listed.map((item) =>
+    [item, (item.displayName || item.name || item.citation).normalize("NFKD").toLocaleLowerCase("en-CA")]));
   const cited = new Map();
-  for (const unit of [...input.units].sort((left, right) =>
+  for (const unit of [...draft.units].sort((left, right) =>
     left.ordinal - right.ordinal || left.id.localeCompare(right.id))) {
     for (const occurrenceId of unit.occurrenceIds) {
-      const id = input.occurrences[occurrenceId]?.authorityId;
+      const id = draft.occurrences[occurrenceId]?.authorityId;
       if (id && !cited.has(id)) cited.set(id, cited.size);
     }
   }
-  const kinds = KIND_ORDER[input.grouping], within = {
+  const kinds = KIND_ORDER[authorityGrouping(settings)], within = {
     alphabetical: (left, right) => collator.compare(folded.get(left), folded.get(right)) ||
       collator.compare(left.citation, right.citation),
     "first-reference": (left, right) => (cited.get(left.id) ?? Infinity) - (cited.get(right.id) ?? Infinity),
-  }[input.tableOrder];
+  }[settings.tableOrder];
   // A stable sort: what no rule tells apart stays as listed.
-  const ordered = [...input.authorities].sort((left, right) =>
+  const ordered = [...listed].sort((left, right) =>
     (kinds ? kinds.indexOf(left.kind) - kinds.indexOf(right.kind) : 0) || (within?.(left, right) ?? 0));
   let number = 0;
   return ordered.map((item) => ({ id: item.id,
-    tab: item.excluded ? "Not reproduced" : tabLabel(number += 1, input.tabStyle, input),
+    tab: item.excluded ? "Not reproduced" : tabLabel(number += 1, settings.tabStyle, settings),
     group: kinds ? GROUPS[item.kind] : "Authorities" }));
-}
-
-/** Shapes a draft's stored state into `deriveAuthorityProcedure` input; the caller
- *  supplies only the purpose, so server and browser plan the same book. */
-function authorityProcedureInput(state, { purpose }) {
-  // A decision printed with the case it follows has no tab or index line of its own.
-  const listed = state.authorityOrder.filter((id) => state.authorities[id].excluded || authorityTabbed(state, state.authorities[id]));
-  return {
-    authorities: listed.map((id) => {
-      const authority = state.authorities[id];
-      return { id, kind: authority.kind, citation: authority.citation,
-        sortLabel: authority.displayName || authority.name || authority.citation,
-        excluded: authority.excluded,
-        reproduced: authorityReproducedInBook(state, authority) };
-    }),
-    units: state.units, occurrences: state.occurrences,
-    manual: state.import.kind === "manual", purpose,
-    tableOrder: state.settings.tableOrder, grouping: authorityGrouping(state.settings),
-    tabStyle: state.settings.tabStyle,
-    tabStart: state.settings.tabStart, tabPrefix: state.settings.tabPrefix,
-    tabLabels: state.settings.tabLabels,
-  };
 }
 
 /** How a draft groups its authorities: as chosen, else (a draft saved before the choice) by kind
@@ -88,9 +69,13 @@ const authorityGrouping = (settings) =>
 function tabReference(settings, tab) {
   if (settings.citationSuffix === "tab") return `[${tab}]`;
   if (settings.citationSuffix !== "custom") return null;
-  const prefix = settings.tabPrefix ?? "Tab ";
-  return `[${settings.citationSuffixLabel} ${tab.startsWith(prefix) ? tab.slice(prefix.length) : tab}]`;
+  return `[${settings.citationSuffixLabel} ${tabNumber(settings, tab)}]`;
 }
+/** A tab without its prefix: "4" for "Tab 4". */
+const tabNumber = (settings, tab) => {
+  const prefix = settings.tabPrefix ?? "Tab ";
+  return tab.startsWith(prefix) ? tab.slice(prefix.length) : tab;
+};
 
 /** An authority as every output cites it (the index and its bookmarks, the tables, Word's citation
  *  fields): as the brief first cites it in full, led by the style of cause or title (the name its source
@@ -166,4 +151,4 @@ function authorityCitation(draft, authority) {
   return { text, italic: ["case", "legislation"].includes(authority.kind) ? led : 0, lead: led, cited };
 }
 
-export { authorityCitation, authorityProcedureInput, deriveAuthorityProcedure, tabLabel, tabReference };
+export { authorityCitation, authorityProcedure, tabLabel, tabNumber, tabReference };
