@@ -28,8 +28,8 @@ fn round4(share: f64) -> f64 {
     format!("{share:.4}").parse().unwrap()
 }
 
-/// PDFs read as the product reads them (`legalpdf::gold_structure_inputs`: the extraction, Indra recognition where
-/// LEGALPDF_INDRA_MODEL_PACK and LEGALPDF_ONNXRUNTIME name it, the PP-DocLayout layout model where LEGALPDF_PPDOC_MODEL_PACK does),
+/// PDFs read as the product reads them (`legalpdf::gold_structure_inputs`: the extraction, Indra recognition, which
+/// LEGALPDF_INDRA_MODEL_PACK and LEGALPDF_ONNXRUNTIME must name, the PP-DocLayout layout model where LEGALPDF_PPDOC_MODEL_PACK does),
 /// each written as OUT/<sha256>.json. One PDF at a time; a PDF already written is skipped, so a stopped run resumes, and
 /// recognition is cached under OUT/cache/<sha256>, so no page is read twice. LIST: one `<sha256>\t<path>` line per PDF.
 pub fn read_list(list: &Path, out: &Path) -> Result<(), String> {
