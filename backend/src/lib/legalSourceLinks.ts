@@ -40,15 +40,8 @@ export function legalSourceLocatorAnchor(rawUrl: string | null, kind: A2AJLocato
  * viewer needs; null for an address that is not http(s) or cannot be linked. A path on this host stays one.
  */
 export function sourceUrl(rawUrl: string, anchor?: string): string | null {
-  const local = rawUrl.startsWith("/") && !rawUrl.startsWith("//") && !rawUrl.includes("\\");
-  let address = rawUrl;
-  if (local) {
-    try { address = new URL(rawUrl, "http://mike.local").href; } catch { return null; }
-  }
-  const linked = engine<string | null>("sourceUrl", { url: address, ...anchor !== undefined && { anchor } });
-  if (!linked || !local) return linked;
-  const url = new URL(linked);
-  return url.origin === "http://mike.local" ? `${url.pathname}${url.search}${url.hash}` : null;
+  return fromEngine(engine<string | null>("sourceUrl", { url: toEngine(rawUrl), ...anchor !== undefined && { anchor } }),
+    isLocal(rawUrl));
 }
 
 /** A path on this host, as the absolute address the engine reads, and the engine's answer as a path again. */

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { AuthoritiesDraft, AuthorityOccurrence } from "./authoritiesDomain";
-import { authoritiesDiscrepancyCorrection, editorialQuote, findAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
+import { authoritiesDiscrepancyCorrection, findAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
+import { structureNative } from "./structureNative";
 
 const phrase = "The deadline is seven business days.";
 
@@ -86,13 +87,13 @@ describe("authorities discrepancy review", () => {
       found: { text: expect.stringContaining("not less than seven") } });
     expect(finding.found!.text.length).toBeLessThan(cited.length);
     expect(finding.found!.text).toBe("the landlord may deliver a written notice to terminate the lease not less than seven business days");
-    expect(editorialQuote("This and that", "This long passage and another"))
+    expect(structureNative().editorialQuote("This and that", "This long passage and another"))
       .toBe("This ... and [that]");
     expect([
-      editorialQuote("The test applies", "the test applies"),
-      editorialQuote("court", "courts"),
-      editorialQuote("alpha gamma", "alpha beta gamma"),
-      editorialQuote("A, B", "A B"),
+      structureNative().editorialQuote("The test applies", "the test applies"),
+      structureNative().editorialQuote("court", "courts"),
+      structureNative().editorialQuote("alpha gamma", "alpha beta gamma"),
+      structureNative().editorialQuote("A, B", "A B"),
     ]).toEqual(["[T]he test applies", "[court]", "alpha ... gamma", "A, B"]);
   });
 });

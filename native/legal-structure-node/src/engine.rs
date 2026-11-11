@@ -2,9 +2,9 @@
 //! surface the Node addon and the browser's WebAssembly module share, calls beside the readers themselves.
 
 use legal_structure::{
-    analyze_instrument, analyze_native_markup, document_fingerprint, docx_structure_lint,
+    analyze_instrument, analyze_native_markup, docx_structure_lint,
     journal_document_structure, journal_text_document_structure, provider_text_document_structure,
-    utf16_prefix_ceil, AuthoritativeTableCell, DocumentFingerprint, DocumentQuery,
+    utf16_prefix_ceil, AuthoritativeTableCell, DocumentQuery,
     DocumentStructure, FollowDirection, JournalPageLabel, NativeMarkupInput, NodeKind,
     ProviderTextInput,
 };
@@ -174,12 +174,6 @@ pub fn derive_document_structure(request: StructureRequest) -> CoreResult<Native
     Ok(NativeDocument::new(NativeProduct::Structure(structure)))
 }
 
-pub fn derive_document_fingerprint(request: StructureRequest) -> CoreResult<DocumentFingerprint> {
-    Ok(document_fingerprint(
-        derive_document_structure(request)?.structure(),
-    ))
-}
-
 pub fn docx_structure_lint_json(document: &NativeDocument) -> CoreResult<impl Serialize> {
     #[cfg(feature = "legalpdf")]
     {
@@ -193,14 +187,6 @@ pub fn docx_structure_lint_json(document: &NativeDocument) -> CoreResult<impl Se
 pub fn document_text(document: &NativeDocument, limit: Option<u32>) -> &str {
     let text = document.structure().query_text();
     limit.map_or(text, |limit| utf16_prefix_ceil(text, limit as usize))
-}
-
-pub fn document_fingerprint_of(document: &NativeDocument) -> DocumentFingerprint {
-    match &document.product {
-        NativeProduct::Structure(structure) => document_fingerprint(structure),
-        #[cfg(feature = "legalpdf")]
-        NativeProduct::Pdf(document) => document.fingerprint(),
-    }
 }
 
 /// The nodes the query serves, in its order, each as a reader takes it (`DocumentStructure::reading`); with `kind`, those

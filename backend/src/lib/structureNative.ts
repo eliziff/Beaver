@@ -231,7 +231,6 @@ export type ParsedSearchQuery = { node:SearchQueryNode; valid:boolean; operators
 type StructureAddon = {
   searchQuery(query:string,columns?:readonly string[]):ParsedSearchQuery;
   renderCitedBlocks(blocks:readonly {text:string;citations:string[]}[]):string;
-  renderReferenceBlocks(blocks:readonly {text:string;citations:readonly {label:string;url:string}[]}[]):string;
   /** Whether a document belongs to the engine now running: a WebAssembly engine started afresh
    *  (recycle) has lost the documents it made. */
   documentLive?(document: NativeDocument): boolean;
@@ -317,9 +316,6 @@ type StructureAddon = {
     startChar: number, limit: number): NativeDocumentTextWindow;
   readDocumentTextRange(document: NativeDocument, start: number, end: number,
     offset: number | undefined, limit: number, startChar?: number): NativeDocumentTextWindow;
-  documentFingerprint(document: NativeDocument): {
-    resultSha256: string; components: Record<string, string>;
-  };
   /** A call of the citation engine's API (legal-citations `api::call_value`): its method and its request as it reads it. */
   citationEngineCall(method: string, request: unknown): unknown;
   /** Each unit's items in reading order, as (unit, item): a note follows the body up to its call. */

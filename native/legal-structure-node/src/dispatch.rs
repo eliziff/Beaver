@@ -155,9 +155,6 @@ fn dispatch(
                 .map(Handle::new)
                 .and_then(value),
         ),
-        "deriveDocumentFingerprint" => {
-            done(engine::derive_document_fingerprint(call.get("request")?).and_then(value))
-        }
         #[cfg(feature = "docx")]
         "fixDocxSupraCrossReferences" => {
             let mut result = legalpdf::fix_docx_supra_cross_references(bytes)
@@ -268,9 +265,6 @@ fn dispatch(
                 call.get("limit")?,
                 call.get("startChar")?,
             ))
-        })),
-        "documentFingerprint" => done(with_document(doc()?, |d| {
-            value(engine::document_fingerprint_of(d))
         })),
         "documentAnchors" => done(with_document(doc()?, |d| {
             value(engine::document_anchors(
@@ -402,9 +396,6 @@ fn dispatch(
         ))),
         "renderCitedBlocks" => done(value(legal_structure_features::render_cited_blocks(
             &call.get::<Vec<legal_structure_features::CitedBlock>>("blocks")?,
-        ))),
-        "renderReferenceBlocks" => done(value(legal_structure_features::render_reference_blocks(
-            &call.get::<Vec<legal_structure_features::ReferenceBlock>>("blocks")?,
         ))),
         "markedQuoteSpans" => done(value(legal_structure_features::marked_quote_spans(
             &call.get::<String>("text")?,

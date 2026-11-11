@@ -55,8 +55,6 @@ function exactCount(text: string, quote: string) {
 }
 
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-/** The source passage an authored quotation's words closely align with, where it occurs once. */
-const verbatimRepair = (authored: string, source: string) => structureNative().verbatimRepair(authored, source);
 
 function quoteTarget(units: ReviewDraft["units"], footnoteId: number, quote: string) {
   const context = footnotePropositions(units).get(footnoteId);
@@ -161,7 +159,7 @@ export function findAuthoritiesDiscrepancies(
       } else if (!matchCount) {
         // Authorities raises obvious errors only: wording the cited passage holds otherwise. Words found nowhere
         // (scare quotes, a defined term, a heading) are no such error; ALR's own check lists every miss.
-        const repair = verbatimRepair(authoredQuote, source.cited.text);
+        const repair = structureNative().verbatimRepair(authoredQuote, source.cited.text);
         if (!repair) continue;
         const target = quoteTarget(draft.units, unit.footnoteId, authoredQuote);
         const kind = "quote_mismatch" as const;
@@ -174,17 +172,6 @@ export function findAuthoritiesDiscrepancies(
   return findings;
 }
 
-/** The source's words as the author quoted them: the author's changes bracketed, source words left out inside the
- *  quotation an ellipsis (the engine's port of the pinned Authorities oracle). */
-export function editorialQuote(authoredQuote: string, sourceQuote: string) {
-  return structureNative().editorialQuote(authoredQuote, sourceQuote);
-}
-
-/** Mechanical match locations and the same correction/diff used by Authorities review. */
-export function quoteTextComparison(authored: string, source: string) {
-  return structureNative().quoteComparison(authored, source);
-}
-
 export function authoritiesDiscrepancyCorrection(
   draft: ReviewDraft, finding: AuthoritiesDiscrepancy, action: AuthoritiesDiscrepancyAction,
 ): AuthoritiesDiscrepancyCorrection | null {
@@ -195,10 +182,10 @@ export function authoritiesDiscrepancyCorrection(
     return change ? { unitId: occurrence.unitId, ...change } : null;
   }
   if ((action === "quote_exact" || action === "quote_editorial") && finding.kind === "quote_mismatch" &&
-      finding.found && verbatimRepair(finding.authoredQuote, finding.found.text)) {
+      finding.found && structureNative().verbatimRepair(finding.authoredQuote, finding.found.text)) {
     const target = quoteTarget(draft.units, finding.footnoteId, finding.authoredQuote);
     return target ? { ...target, replacement: action === "quote_exact" ? finding.found.text
-      : editorialQuote(finding.authoredQuote, finding.found.text) } : null;
+      : structureNative().editorialQuote(finding.authoredQuote, finding.found.text) } : null;
   }
   return null;
 }

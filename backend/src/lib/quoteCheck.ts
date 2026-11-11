@@ -91,9 +91,6 @@ export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
   return rows;
 }
 
-/** Where a quotation is in the source read for it: the cited paragraph, page or provision first, then anywhere else,
- *  then the document as a whole (the engine's locate_quotes_in, ported from the ALR Quote Verifier). */
-export type QuoteLocation = NativeQuoteLocation;
 /** One cited source's check of a quotation: whether it holds the quotation as written ("verified") or with
  *  differences or not at all ("mismatch"), where, and what differs; or "no-source" where no source text could be
  *  obtained for its citation, as the Python app's "No source text found for this citation.": none is held on this
@@ -104,7 +101,7 @@ export type QuoteCheck = { candidateId: string | null; status: "verified" | "mis
   detail: string;
   receipt: null | { source: LegalSourceReference; sourceSha256: string; passageSha256: string;
     locator: LegalSourceLocator | null; text: string; errors: string[];
-    comparison: NativeQuoteComparison | null; match: QuoteLocation; link: string | null } };
+    comparison: NativeQuoteComparison | null; match: NativeQuoteLocation; link: string | null } };
 /** A quotation and the checks of the sources its note cites, each on its own. */
 export type QuoteResult = ReturnType<typeof splitQuoteChecks>[number] & { checks: QuoteCheck[] };
 /** PDFs the user attached, read, by authority. */

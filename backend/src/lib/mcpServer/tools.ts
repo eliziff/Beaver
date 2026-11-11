@@ -19,7 +19,6 @@ import { readLegalSourceResource } from "../researchReader";
 import { researchSourceFromResource, researchSourceResource } from "../researchFile";
 import { legalSourceOperations } from "../legalSourceApplication";
 import { structureNative } from "../structureNative";
-import { quoteTextComparison } from "../authoritiesDiscrepancy";
 
 /** The Beaver API the UI and the Authorities tools share, called as the local user. */
 export type BeaverApi = (path: string, init?: { method?: string; body?: unknown }) => Promise<unknown>;
@@ -249,7 +248,7 @@ const definitions: Array<Tool & { run: Handler }> = [{
       detail: "No passage of the source contains the quotation's opening or closing words; read the source to find it." });
     const source = passages.map(({ text }) => text).join("\n\n");
     const errors = structureNative().groundedProseErrors(`“${quote}”`, ["q"], [{ evidenceId: "q", text: source, labels: [] }]);
-    const comparison = quoteTextComparison(quote, source);
+    const comparison = structureNative().quoteComparison(quote, source);
     // The passages the quotation (or its closest source text) falls in.
     const found = comparison.candidate ? source.indexOf(comparison.candidate) : -1;
     let offset = 0;
