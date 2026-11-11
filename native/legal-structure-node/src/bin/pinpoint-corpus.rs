@@ -157,7 +157,7 @@ mod corpus {
     }
 
     fn parsed(bytes: &[u8], sha: &str, cache: &Path, ocr: Option<&Path>) -> Result<legalpdf::PdfDocument, String> {
-        legalpdf::read_pdf(Some(bytes), &request_of(sha, cache, ocr)?).map_err(|e| e.to_string())?
+        legalpdf::read_pdf(Some(bytes), &request_of(sha, cache, ocr)?, None).map_err(|e| e.to_string())?
             .ok_or_else(|| "PDF cache miss after parsing source bytes".to_owned())
     }
 
