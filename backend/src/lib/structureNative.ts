@@ -271,8 +271,11 @@ type StructureAddon = {
     pageCount: number; bytes: number; placements: Array<{ key: string; pageIndex: number; tabPageIndex: number; sourcePageIndices: number[] }> }> }>;
   /** A filing PDF (its first `filing` bytes) with its table of authorities, and the PDFs appended after it. */
   renderFilingPdf(bytes: Uint8Array, filing: number, entries: object[]): Promise<{ bytes: Buffer; pageCount: number }>;
-  /** Each page's shown size, [width, height]. */
-  pdfPageSizes(bytes: Uint8Array): Promise<Array<[number, number]>>;
+  /** The brief and its book as one PDF (assembly/book.rs FinalPlan). */
+  renderFinalPdf(bytes: Uint8Array, plan: object): Promise<{ bytes: Buffer; pageCount: number }>;
+  /** Each page's crop box ([x, y, width, height]), rotation, and links to web addresses ([index, uri, rect]). */
+  pdfPages(bytes: Uint8Array): Promise<Array<{ crop: [number, number, number, number]; rotation: number;
+    links: Array<[number, string, [number, number, number, number]]> }>>;
   /** The first two pages' native witnesses for source identification; no recognition or structure inference. */
   pdfOpening(bytes: Buffer): Promise<{ pageCount: number; pages: Array<NativePdfTextPage & { marginText: string }> }>;
   /** A stored source read as its document by its format's reader: the document the engine keeps for it, or, given its

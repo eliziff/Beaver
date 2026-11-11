@@ -214,7 +214,12 @@ fn dispatch(
             Ok((value(serde_json::json!({ "pageCount": page_count }))?, out))
         }
         #[cfg(feature = "legalpdf")]
-        "pdfPageSizes" => done(legalpdf::compose::page_sizes(bytes).map_err(|error| error.to_string()).and_then(value)),
+        "pdfPages" => done(legalpdf::compose::page_frames(bytes).map_err(|error| error.to_string()).and_then(value)),
+        #[cfg(feature = "legalpdf")]
+        "renderFinalPdf" => {
+            let (out, page_count) = crate::assembly::book::render_final(&call.get("plan")?, bytes)?;
+            Ok((value(serde_json::json!({ "pageCount": page_count }))?, out))
+        }
         // A PDF read and cached where another engine reopens it by its cache key (a page's parse workers): its summary.
         #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(value(

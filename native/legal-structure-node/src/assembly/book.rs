@@ -211,7 +211,7 @@ pub fn render_book(book: &PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBook>,
         let mut count = 0;
         for part in &source.parts {
             let (pdf, pages) = match part {
-                BookPart::Pdf { bytes, .. } => { let pdf = take(*bytes)?; let pages = legalpdf::compose::page_sizes(&pdf).map_err(|e| e.to_string())?.len(); (Some(pdf), pages) }
+                BookPart::Pdf { bytes, .. } => { let pdf = take(*bytes)?; let pages = legalpdf::compose::page_frames(&pdf).map_err(|e| e.to_string())?.len(); (Some(pdf), pages) }
                 BookPart::Missing { .. } => (None, 1),
             };
             parts.push((pdf, count));
@@ -794,5 +794,47 @@ pub fn render_filing(filing: usize, entries: &[FilingEntry], bytes: &[u8]) -> Re
     c.set_outline(outline, true);
     let pages = c.page_count();
     let out = c.save(&Meta { title: "Filing with Table of Authorities", subject: "", creator: "Beaver", producer: "Beaver", lang: None, xmp: false }, false).map_err(|e| e.to_string())?;
+    Ok((out, pages))
+}
+/// The final PDF: the brief (`brief` long, first in the bytes), a blank page after it where the book starts on a
+/// right-hand page, then each volume of the book under its title; the brief's own links to the book retargeted or taken
+/// out, links added over its citations, and bookmarks: the brief's own (else its headings) and each volume's.
+#[derive(Deserialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct FinalPlan { pub brief: usize, pub headings: Vec<BookHeading>, pub blank_page: bool, pub books: Vec<FinalBook>, pub relinks: Vec<FinalLink>, pub links: Vec<FinalLink> }
+
+#[derive(Deserialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+pub struct FinalBook { pub bytes: usize, pub title: String }
+
+/// A link on `page`: the brief's own to `uri` (none where it is new, over `rect`), to `to` (a page, at `top` where
+/// given), or taken out where `to` is none.
+#[derive(Deserialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+pub struct FinalLink { pub page: usize, #[serde(default)] pub uri: Option<String>, #[serde(default)] pub rect: Option<[f64; 4]>, pub to: Option<(usize, Option<f64>)> }
+
+pub fn render_final(plan: &FinalPlan, bytes: &[u8]) -> Result<(Vec<u8>, usize), String> {
+    let (brief, mut rest) = bytes.split_at_checked(plan.brief).ok_or("The final PDF's parts are shorter than it says.")?;
+    let mut c = Composer::open(brief).map_err(|_| "The brief PDF could not be opened for final export.".to_owned())?;
+    if c.page_count() == 0 { return Err("The brief PDF is empty.".into()); }
+    let own = read_outline(brief, 0).map_err(|e| e.to_string())?;
+    let brief_outline = if own.is_empty() { nested_outline(plan.headings.iter().map(|h| (h.title.clone(), h.level, h.page_index))) } else { own };
+    let mut outline = vec![Outline::page("Brief", 0, brief_outline)];
+    if plan.blank_page { let ([_, _, w, h], _) = c.frame(c.page_count() - 1); c.add_page(w, h); }
+    for book in &plan.books {
+        let (pdf, after) = rest.split_at_checked(book.bytes).ok_or("The final PDF's parts are shorter than it says.")?;
+        rest = after;
+        let offset = c.page_count();
+        outline.push(Outline::page(book.title.clone(), offset, read_outline(pdf, offset).map_err(|e| e.to_string())?));
+        c.append(pdf, None).map_err(|e| e.to_string())?;
+    }
+    let target = |to: (usize, Option<f64>)| match to.1 { Some(top) => Target::At(to.0, top), None => Target::Page(to.0) };
+    for link in &plan.relinks { if let Some(uri) = &link.uri { c.relink(link.page, uri, link.to.map(target)).map_err(|e| e.to_string())?; } }
+    for link in &plan.links { if let (Some(rect), Some(to)) = (link.rect, link.to) { c.link(link.page, rect, target(to)); } }
+    c.set_outline(outline, true);
+    let pages = c.page_count();
+    let out = c.save(&Meta { title: "Brief and Book of Authorities", subject: "Brief and its book of legal authorities", creator: "Beaver", producer: "Beaver", lang: None, xmp: true }, true)
+        .map_err(|e| e.to_string())?;
     Ok((out, pages))
 }

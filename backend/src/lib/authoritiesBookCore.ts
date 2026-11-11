@@ -46,7 +46,8 @@ export async function authorityAnnotations(state: AuthoritiesDraft, input: {
     item.bindingRole === input.bindingRole);
   if (!authority || !source) return reject(400, "The authority PDF is not attached");
   if (sha256(input.bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
-  const pages = await structureNative().pdfPageSizes(input.bytes);
+  const pages = (await structureNative().pdfPages(input.bytes)).map(({ crop: [, , width, height], rotation }) =>
+    (Math.abs(rotation % 180) === 90 ? [height, width] : [width, height]) as [number, number]);
   if (!pages.length || pages.length > 2_000) return reject(400, "Unsupported PDF page count");
   const reading = input.recognize ? state
     : { ...state, settings: { ...state.settings, scannedPdfPolicy: "page-margin" as const } };

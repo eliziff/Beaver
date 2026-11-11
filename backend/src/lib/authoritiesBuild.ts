@@ -473,7 +473,8 @@ const FEDERAL_APPEAL_PAPER_COVERS = {
 async function loadBookPdf(part: AuthoritiesBoundPdf, label: string, attached: NonNullable<AuthoritiesBuildInput["sources"]>) {
   const bytes = attached[part.bindingRole]?.bytes;
   if (!bytes?.byteLength || sha256(Buffer.from(bytes)) !== part.sourceSha256) throw new Error(`Attached PDF changed for ${label}.`);
-  const pages = await structureNative().pdfPageSizes(bytes).catch(() => {
+  const pages = await structureNative().pdfPages(bytes).then((frames) => frames.map(({ crop: [, , width, height], rotation }) =>
+    (Math.abs(rotation % 180) === 90 ? [height, width] : [width, height]) as [number, number])).catch(() => {
     throw new Error(`Attached PDF could not be opened for ${label}.`);
   });
   if (!pages.length) throw new Error(`Attached PDF is empty for ${label}.`);
