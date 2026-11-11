@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { attachedAuthoritySources, authorityExcerpt, authorityPassagesCited } from "../../../../shared/authorities-sources.mjs";
 import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
-import { getPdfJs, openPdfDocument, PDF_DOCUMENT_OPTIONS } from "@/app/lib/pdfJs";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
 
@@ -10,11 +9,6 @@ import type { AuthoritiesProduct } from "./types";
 export type SourceCopy = { choosable: boolean; excerpt?: boolean; cited?: boolean };
 
 type Read = { key: string; role: string };
-
-async function pageCount(file: Blob) {
-  const task = openPdfDocument(await getPdfJs(), { data: new Uint8Array(await file.arrayBuffer()) }, PDF_DOCUMENT_OPTIONS);
-  try { return (await task.promise).numPages; } finally { await task.destroy(); }
-}
 
 /** Lengths read for one draft, kept while it is open. A read that fails is not asked again. */
 type Store = { draftId: string; stop: AbortController; read: Map<string, number | null>; asked: Set<string> };
@@ -66,7 +60,7 @@ export function useSourceCopies(host: AuthoritiesHost, product: AuthoritiesProdu
       }
       const counts = authority.kind !== "legislation" ? undefined : sources.map(({ bindingRole, sourceSha256, pageCount }) => {
         const key = `count\0${sourceSha256}`, value = pageCount ?? read?.get(key);
-        if (value === undefined && host.readSource) wanted.push({ key, role: bindingRole });
+        if (value === undefined && host.sourcePages) wanted.push({ key, role: bindingRole });
         return typeof value === "number" ? value : undefined;
       });
       const whole = counted?.id === product.id && counted.pages[id] === null;
@@ -83,7 +77,7 @@ export function useSourceCopies(host: AuthoritiesHost, product: AuthoritiesProdu
     for (const { key, role } of wanted) {
       if (store.asked.has(key)) continue;
       store.asked.add(key);
-      void queue(async () => store.read.set(key, await pageCount(await host.readSource!(product, role, signal))), signal)
+      void queue(async () => store.read.set(key, (await host.sourcePages!(product, role, signal)).pageCount), signal)
         .catch(() => { if (!signal.aborted) store.read.set(key, null); })
         .finally(() => { if (!signal.aborted) setVersion((value) => value + 1); });
     }

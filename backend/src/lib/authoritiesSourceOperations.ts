@@ -53,6 +53,16 @@ export const sourceBytes = (file: AuthoritiesRuntimeFile) => Buffer.from(file.by
 export const value = (data: unknown): AuthoritiesRuntimeResult => ({ data });
 export const draftResult = (data: AuthoritiesDraft, attachments: PreparedAuthoritySource[]): AuthoritiesRuntimeResult => ({ data, attachments });
 export const fileResult = (data: unknown, files: Array<{ role: string; mimeType: string; bytes: Uint8Array; filename?: string }>): AuthoritiesRuntimeResult => ({ data, files });
+/** The attached authority PDF `input.role` names, its bytes checked against it, and the reference it is read under. */
+function authoritySource(input: AuthoritiesOperationInput) {
+  const state = draft(json(input?.draft, "draft"));
+  const role = String(input?.role), bytes = sourceBytes(requiredSource(input));
+  const source = Object.values(state.authorities).flatMap(authority =>
+    attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
+  if (!source || sha256(bytes) !== source.sourceSha256) reject(409, "The PDF no longer matches this authority source");
+  return { bytes, reference: { documentId: `standalone-authority:${source.sourceSha256}`,
+    versionId: source.sourceSha256, sourceSha256: source.sourceSha256 } };
+}
 export function requiredSource(input: AuthoritiesOperationInput): AuthoritiesRuntimeFile { return input.files?.[0] ?? reject(400, "file is required"); }
 export async function standaloneSource(input: AuthoritiesOperationInput): Promise<Parameters<typeof importStandaloneAuthoritiesFile>[0]> {
   const file = requiredSource(input), filename = file.filename, extension = filename.split(".").at(-1)?.toLowerCase();
@@ -127,19 +137,18 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
       return fileResult({ writes: written.writes, written: written.written }, [{ role: "docx",
         filename: state.import.kind === "document" ? state.import.filename : file.filename, mimeType: DOCX, bytes: written.bytes }]);
     },
+    // The PDF's pages as the engine reads them without recognition: how many, and which (from 1) need recognizing.
+    "source-pages": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
+      const { bytes, reference } = authoritySource(input);
+      const summary = await preparePdf({ ...reference, bytes, ocrProvider: null, layout: false, signal: context.signal });
+      return value({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr.map(page => page + 1) });
+    },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;
-    const state = draft(json(input?.draft, "draft"));
-    const role = String(input?.role), bytes = sourceBytes(requiredSource(input));
-    const source = Object.values(state.authorities).flatMap(authority =>
-      attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
-    if (!source || sha256(bytes) !== source.sourceSha256)
-      return reject(409, "The PDF no longer matches this authority source");
+    const { bytes, reference } = authoritySource(input);
     const pages = input?.pages === undefined ? undefined : json(input.pages, "pages");
     if (pages !== undefined && (!Array.isArray(pages) || !pages.length || pages.length > 1_000 ||
         pages.some(page => !Number.isSafeInteger(page) || page < 1))) reject(400, "Invalid PDF pages");
-    const reference = { documentId: `standalone-authority:${source.sourceSha256}`,
-      versionId: source.sourceSha256, sourceSha256: source.sourceSha256 };
     if (input?.prepareOnly === "true") {
       // One recognition pass, followed page by page as "recognized/total".
       const prepared = await preparePdf({ ...reference, bytes,

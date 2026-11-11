@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { inspectPdf, type PdfInspection } from "@/app/lib/inspectPdf";
+import type { PdfPages } from "@/app/lib/api/documents";
 import { authorityName } from "./authorityPresentation";
 import type { AuthoritiesHost } from "./host";
 import type { AuthoritiesProduct } from "./types";
@@ -104,8 +104,8 @@ export function useSourceOcr(host: AuthoritiesHost, draftId?: string) {
     reset: useCallback(() => { operations.current.clear(); setTracked({}); }, []) };
 }
 
-/** Each source's pages without text, read once per content. */
-type ScanCache = Map<string, Pick<PdfInspection, "textlessPages" | "pageCount">>;
+/** Each source's pages that need recognizing, as the engine reads them, read once per content. */
+type ScanCache = Map<string, PdfPages>;
 
 async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, cache: ScanCache,
   report: (message: string) => void, signal: AbortSignal) {
@@ -115,16 +115,14 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, 
     if (authority.excluded || authority.source.kind !== "attached") continue;
     for (const source of authority.source.sources) {
       signal.throwIfAborted();
-      if (source.origin === "reconstructed" || !host.readSource) continue;
+      if (source.origin === "reconstructed" || !host.sourcePages) continue;
       // A PDF is read once per content: binding another source does not rescan the book.
       const cacheKey = `${source.bindingRole}:${source.sourceSha256}`;
       let inspected = cache.get(cacheKey);
       if (inspected === undefined) {
         report(`Checking pages in ${authorityName(authority)}`);
         try {
-          const blob = await host.readSource(draft, source.bindingRole, signal);
-          inspected = await inspectPdf(new File([blob], source.filename,
-            { type: "application/pdf" }), undefined, signal);
+          inspected = await host.sourcePages(draft, source.bindingRole, signal);
           if (!inspected.pageCount) throw new Error(`Unlock the PDF for ${authorityName(authority)} before continuing.`);
           cache.set(cacheKey, inspected);
         } catch (error) {
@@ -134,7 +132,7 @@ async function inspectSources(host: AuthoritiesHost, draft: AuthoritiesProduct, 
           continue;
         }
       }
-      const textlessPages = inspected.textlessPages;
+      const textlessPages = inspected.pagesNeedingOcr;
       if (textlessPages.length) {
         const file = { role: source.bindingRole, sourceSha256: source.sourceSha256,
           name: authorityName(authority), textlessPages,

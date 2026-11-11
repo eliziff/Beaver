@@ -28,7 +28,7 @@ import {
   listWorkProducts,
   updateWorkProduct,
 } from "@/app/lib/api/workProducts";
-import { directoryResource, downloadDocument, getDocument, readDocumentFile, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
+import { directoryResource, downloadDocument, getDocument, readDocumentFile, getDocumentPdfPages, getDocumentPdfTextLayer } from "@/app/lib/api/documents";
 import { pdfProgress, waitForPdfPreparation } from "@/app/lib/pdfPreparation";
 import type { WorkProductStore } from "@/app/lib/workProducts";
 import { watchedFolder } from "@/app/lib/standaloneWorkProducts";
@@ -66,6 +66,17 @@ async function prepareSourcePdfs(draft: Parameters<AuthoritiesHost["build"]>[0],
     }
 }
 
+/** The document an attached source's role is bound to, as the document routes take it: its version (none for the
+ *  latest, which the route resolves) and the source's hash, which the route checks in the same request. */
+function attachedDocument(draft: Parameters<NonNullable<AuthoritiesHost["readSource"]>>[0], role: string) {
+  const binding = draft.state.bindings[role];
+  if (binding?.kind !== "document") throw new Error("This source is unavailable.");
+  const source = Object.values(draft.state.authorities).flatMap(authority => authority.source.kind === "attached"
+    ? authority.source.sources : []).find(source => source.bindingRole === role);
+  if (!source) throw new Error("This source is unavailable.");
+  return { documentId: binding.documentId, versionId: binding.version === "latest" ? undefined : binding.version.versionId,
+    sourceSha256: source.sourceSha256 };
+}
 async function sourceVersion(draft: Parameters<NonNullable<AuthoritiesHost["readSource"]>>[0], role: string) {
   const binding = draft.state.bindings[role];
   if (binding?.kind !== "document") throw new Error("This source is unavailable.");
@@ -128,14 +139,13 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     return response.blob();
   },
   async readSourceText(draft, role, signal, pages) {
-    const binding = draft.state.bindings[role];
-    if (binding?.kind !== "document") throw new Error("This source is unavailable.");
-    const source = Object.values(draft.state.authorities).flatMap(authority => authority.source.kind === "attached"
-      ? authority.source.sources : []).find(source => source.bindingRole === role);
-    if (!source) throw new Error("This source is unavailable.");
+    const { documentId, versionId, sourceSha256 } = attachedDocument(draft, role);
     // The text endpoint resolves latest + verifies the displayed hash in the same request.
-    return getDocumentPdfTextLayer(binding.documentId,
-      binding.version === "latest" ? undefined : binding.version.versionId, signal, pages, source.sourceSha256);
+    return getDocumentPdfTextLayer(documentId, versionId, signal, pages, sourceSha256);
+  },
+  async sourcePages(draft, role, signal) {
+    const { documentId, versionId, sourceSha256 } = attachedDocument(draft, role);
+    return getDocumentPdfPages(documentId, versionId, signal, sourceSha256);
   },
   sourceOcr: { progress: pdfProgress,
     start: (id, roles, pages) => authoritiesSourceOcr(id, roles, false, pages),

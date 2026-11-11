@@ -137,6 +137,18 @@ export function createDocumentsRouter(
     res.json({ pages });
   }));
 
+  // The PDF's pages as the engine reads them without recognition: how many, and which (from 1) need recognizing.
+  router.get("/:documentId/pdf-pages", asyncRoute(async (req, res) => {
+    const source = await documents.documentSource(scope(res), req.params.documentId, versionId(req))
+      ?? reject(404, "Document version not found");
+    if (source.fileType !== "pdf") reject(400, "Pages require a PDF");
+    if (req.query.source_sha256 !== undefined && req.query.source_sha256 !== source.sourceSha256)
+      reject(409, "This PDF changed. Relink the source before continuing.");
+    const summary = structureNative().pdfDocumentSummary(await openDocument(source, PLAIN_PDF));
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr.map(page => page + 1) });
+  }));
+
   router.get("/:documentId/pdf-page-labels", asyncRoute(async (req, res) => {
     const source = await documents.documentSource(scope(res), req.params.documentId, versionId(req))
       ?? reject(404, "Document version not found");

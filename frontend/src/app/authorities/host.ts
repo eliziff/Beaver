@@ -6,7 +6,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
 import type { FilingContact } from "../../../../shared/user-preferences.mjs";
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
-import type { PdfRecognizedText } from "@/app/lib/api/documents";
+import type { PdfPages, PdfRecognizedText } from "@/app/lib/api/documents";
 
 /** `autoFetched`: found by auto-fetch rather than chosen, so its citation is checked before it is attached. */
 export type AuthoritiesFile = { file: File; input?: WorkProductInput; autoFetched?: boolean };
@@ -103,6 +103,8 @@ export interface AuthoritiesHost {
   attachLibraryPdf?(id: string, revision: number, document: Document,
     target: AuthoritiesLibraryPdfTarget): Promise<AuthoritiesProduct>;
   readSource?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<Blob>;
+  /** A source PDF's pages as the engine reads them without recognition: how many, and which (from 1) need it. */
+  sourcePages?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<PdfPages>;
   readSourceText?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal, pages?: number[]): Promise<PdfRecognizedText>;
   /** The pinpoints a selection of a unit's text holds, with their kinds, as a save would read them. */
   readPinpoints?(text: string, start: number, end: number): Promise<Array<{ kind: string; start: number; end: number }>>;

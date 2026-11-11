@@ -22,6 +22,12 @@ export const getDocumentReaderText = (id: string, versionId: string, signal?: Ab
 export type PdfRecognizedText = { pages: Array<{ number: number; width: number; height: number;
   lines: Array<{ id: string; text: string; bbox: [number, number, number, number];
     words: Array<{ text: string; bbox: [number, number, number, number] }> }> }> };
+/** A PDF's pages as the engine reads them without recognition: how many, and which (from 1) need recognizing. */
+export type PdfPages = { pageCount: number; pagesNeedingOcr: number[] };
+export const getDocumentPdfPages = (id: string, versionId: string | undefined, signal?: AbortSignal,
+  sourceSha256?: string) =>
+  apiRequest<PdfPages>(pagePath(`/single-documents/${segment(id)}/pdf-pages`,
+    { version_id: versionId, source_sha256: sourceSha256 }), { signal });
 export const getDocumentPdfTextLayer = (id: string, versionId: string | undefined, signal?: AbortSignal,
   pages?: number[], sourceSha256?: string) =>
   apiRequest<PdfRecognizedText>(pagePath(`/single-documents/${segment(id)}/pdf-text-layer`,

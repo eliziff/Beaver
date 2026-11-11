@@ -1,5 +1,5 @@
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
-import type { PdfRecognizedText } from "@/app/lib/api/documents";
+import type { PdfPages, PdfRecognizedText } from "@/app/lib/api/documents";
 import { attachedAuthoritySources, authoritiesInputPlan, authorityExcerpt } from "../../../../shared/authorities-sources.mjs";
 import { oneAtATime } from "../../../../shared/one-at-a-time.mjs";
 import type { AuthoritiesProduct } from "./types";
@@ -446,6 +446,8 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
   },
   download: readStandaloneOutputFile,
   readSource: async (draft, role) => resolveExact(draft.state.bindings[role]),
+  sourcePages: async (draft, role, signal) => (await authoritiesOperation('source-pages', { draft: draft.state, role,
+    files: [await resolveExact(draft.state.bindings[role])] }, { signal })).data as PdfPages,
   readSourceText: sourceText,
   readPinpoints: async (text, start, end) =>
     (await runtimeResponse("pinpoints", { text, start, end })).data as Awaited<ReturnType<NonNullable<AuthoritiesHost["readPinpoints"]>>>,
