@@ -102,12 +102,22 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   model?: AlrModel, signal?: AbortSignal, attached: ReadonlyMap<string, NativeDocument> = new Map()): Promise<Row[]> {
   const propositions = footnotePropositions(draft.units, options.quoteContext);
   const wanted = footnoteFilter(options.footnotes);
-  // The article as one text and its notes as the citation engine reads them; each unit where it starts in it.
-  const { text, notes } = structureNative().briefText(draft.units);
-  let next = 0;
-  const placed = draft.units.map((unit) => ({ unit, start: next, end: (next += unit.text.length + 2) - 2 }));
+  // The article as one text; each note a note range, numbered as printed (unnumbered when the reader found
+  // no number), anchored where its marker stands in the body.
+  let text = "";
+  const anchors = new Map<number, number>();
+  const placed = draft.units.map((unit) => {
+    const start = text.length; text += `${unit.text}\n\n`;
+    for (const [id, offset] of unit.footnoteRefs) anchors.set(id, start + offset);
+    return { unit, start, end: start + unit.text.length };
+  });
   const ranges = placed.filter(({ unit }) => unit.kind === "footnote" && unit.footnoteId !== null)
     .map(({ unit: note, start, end }) => ({ note, start, end }));
+  const UNNUMBERED = 0xffff_ffff;
+  const notes = ranges.map(({ note, start, end }) => ({ start, end,
+    number: note.noteNumber === null ? UNNUMBERED : note.noteNumber ?? note.footnoteId!,
+    sequence: note.noteNumber === null ? UNNUMBERED : note.restartSequence ?? 0,
+    ...(anchors.has(note.footnoteId!) ? { anchor: anchors.get(note.footnoteId!) } : {}) }));
   const extracted = engine<{ citations: Citation[]; sourceParts: Part[] }>("extract", {
     text, offsetUnit: "utf16", options: { resolve: false, splitTier: draft.settings.supraLinking ?? "safe", notes } });
   const engineParts = extracted.sourceParts.map((part, source) => {

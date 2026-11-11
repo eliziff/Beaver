@@ -587,7 +587,7 @@ impl Pen {
                 self.c.rect(page, [470.5, H - 226.7, 118.1, 107.3], Some([1.0; 3]), Some(([0.35; 3], 0.7)), None);
                 self.text(page, regular, "Registrar's Stamp", 489.84, H - 132.72, 10.0, BLACK);
                 // More than two parties' rows (the court's three file rows and the document's beside them) are closer.
-                let step = if rows.len() > 8 { 22.0 } else { 27.84 };
+                let step: f64 = if rows.len() > 8 { 22.0 } else { 27.84 };
                 let mut y = H - 133.44;
                 for (label, value) in rows {
                     self.text(page, regular, label, 77.4, y, 12.0, BLACK);

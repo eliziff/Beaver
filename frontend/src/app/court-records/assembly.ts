@@ -213,8 +213,8 @@ function affidavit(profile: CourtProfile, entries: RecordEntry[], cover: CoverVa
 function record(profile: CourtProfile, entries: RecordEntry[], cover: CoverValues): Omit<RecordPlan, "technical" | "colour" | "fonts"> {
   const kinds = new Map(profile.documentKinds.map((kind) => [kind.id, kind]));
   const order = (kindId: string) => kinds.get(kindId)?.order ?? Number.MAX_SAFE_INTEGER;
-  const documents = [...entries, ...profile.documentKinds.filter((kind) => kind.generated &&
-    !entries.some((entry) => entry.kindId === kind.id)).map((kind) => ({ kindId: kind.id, title: kind.label }))]
+  const documents: Array<Pick<RecordEntry, "kindId" | "title"> & Partial<RecordEntry>> = [...entries, ...profile.documentKinds
+    .filter((kind) => kind.generated && !entries.some((entry) => entry.kindId === kind.id)).map((kind) => ({ kindId: kind.id, title: kind.label }))]
     .sort((left, right) => order(left.kindId) - order(right.kindId));
   return { layout: "record", filename: outputFilename(profile, cover), title: profile.label,
     cover: profile.cover.generated ? courtCover(profile, cover) : null,
@@ -222,9 +222,9 @@ function record(profile: CourtProfile, entries: RecordEntry[], cover: CoverValue
       contact: [cover.counselName, cover.counselAddress, cover.counselPhone && `Telephone: ${cover.counselPhone}`,
         cover.counselFax && `Fax: ${cover.counselFax}`].filter((value): value is string => !!value) },
     items: documents.map((document, index) => {
-      const kind = kinds.get(document.kindId)!, entry = "file" in document && !document.descriptionOnly ? document : undefined;
-      return { ...item(entry, document.title.trim() || kind.label), tab: index + 1, group: kind.group, date: "date" in document ? document.date : null,
-        described: "descriptionOnly" in document && !!document.descriptionOnly && !!kind.renderDescriptionPage,
+      const kind = kinds.get(document.kindId)!, entry = document.file && !document.descriptionOnly ? document as RecordEntry : undefined;
+      return { ...item(entry, document.title.trim() || kind.label), tab: index + 1, group: kind.group, date: document.date,
+        described: !!document.descriptionOnly && !!kind.renderDescriptionPage,
         form344: kind.generated === "federal-form-344-certificate" };
     }) };
 }
