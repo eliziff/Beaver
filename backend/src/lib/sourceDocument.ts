@@ -77,32 +77,39 @@ const recognitionTurn = <T>(run: () => Promise<T>, signal?: AbortSignal) => {
     ? run() : oneRecognitionAtATime(run, signal);
 };
 
+/** The engine's document of `request`: the one it keeps or has cached, else read from the bytes, read only then
+ *  (`convert`: a Word or PowerPoint binary to PDF first; recognizing, in its turn). A source is rechecked either side. */
+function read(source: Pick<Source, "documentId" | "readBytes" | "assertAvailable">, request: ReturnType<typeof sourceRequest>,
+  options: { convert?: boolean; recognize?: boolean; signal?: AbortSignal; extracting?: () => unknown;
+    progress?: (recognized: number, total: number) => void } = {}) {
+  const native = structureNative();
+  return abandonable((async () => {
+    await source.assertAvailable?.();
+    const document = await native.openSource(undefined, request) ?? await (async () => {
+      const bytes = await source.readBytes();
+      await options.extracting?.();
+      const open = () => pdfLifecyclePhase("prepare.native", source.documentId, async () =>
+        native.openSource(options.convert ? await docxToPdf(bytes) : bytes, request, options.signal, options.progress));
+      return options.recognize ? recognitionTurn(open, options.signal) : open();
+    })();
+    await source.assertAvailable?.();
+    return document;
+  })(), options.signal);
+}
+
 /** The engine's document of a source: the one it keeps, or, read from the source's bytes, a fresh one. A PDF is its
  *  prepared reading where it has one (its cache key), else read with the profile asked for. */
 export async function openDocument(source: Source, options: OpenOptions = {}): Promise<NativeDocument> {
   options.signal?.throwIfAborted();
-  const fileType = source.fileType ?? "pdf", native = structureNative();
+  const fileType = source.fileType ?? "pdf";
   const pdf = fileType === "pdf" || converted(fileType);
   const overridden = options.ocrProvider !== undefined || options.layout !== undefined;
   const cacheKey = fileType === "pdf" ? source.pdfProfile?.cacheKey : undefined;
   const pages = !cacheKey && options.pages?.length ? options.pages : undefined;
   const request = sourceRequest(source, fileType, options.mode, pdf ? pdfRequest(overridden || !source.pdfProfile
     ? profileFor(options.ocrProvider, options.layout) : source.pdfProfile.profile, pages, cacheKey) : undefined);
-  const pending = (async () => {
-    await source.assertAvailable?.();
-    let document = await native.openSource(undefined, request);
-    if (!document) {
-      const bytes = await source.readBytes();
-      if (pdf) await options.progress?.({ phase: "extracting", pages: pages ?? [] });
-      document = await pdfLifecyclePhase("prepare.native", source.documentId, async () =>
-        native.openSource(converted(fileType) ? await docxToPdf(bytes) : bytes, request));
-    }
-    await source.assertAvailable?.();
-    return document!;
-  })();
-  const document = await abandonable(pending, options.signal);
-  options.signal?.throwIfAborted();
-  return document;
+  return (await read(source, request, { convert: converted(fileType), signal: options.signal,
+    extracting: () => pdf && options.progress?.({ phase: "extracting", pages: pages ?? [] }) }))!;
 }
 
 /** The PDF reading its parser cached under `cacheKey`, or none: a reading no longer cached is not made again. */
@@ -154,19 +161,12 @@ export async function preparePdf(input: PdfPrepareInput) {
   const profile: LegalPdfProfile = input.pdfProfile?.profile ?? profileFor(input.ocrProvider, input.layout);
   const pages = input.pages?.length ? input.pages : undefined;
   await input.progress?.({ phase: "extracting", pages: pages ?? [] });
-  const native = structureNative();
-  const source = { ...input, sourceSha256: input.sourceSha256 ?? sha256(input.bytes) };
-  // A reading no longer kept is made again below, as it was first made.
-  let document = input.pdfProfile && !pages ? await cachedPdf(source, input.pdfProfile.cacheKey) : null;
-  if (!document) {
-    const request = sourceRequest(source, "pdf", "text", pdfRequest(profile, pages));
-    const open = () => pdfLifecyclePhase("prepare.native", input.documentId, () =>
-      native.openSource(input.bytes, request, input.signal, input.progress &&
-        ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total }))));
-    document = await abandonable(profile.ocr ? recognitionTurn(open, input.signal) : open(), input.signal);
-  }
-  input.signal?.throwIfAborted();
-  return { ...native.pdfDocumentSummary(document!), profile, document: document! };
+  const source = { ...input, sourceSha256: input.sourceSha256 ?? sha256(input.bytes), readBytes: () => input.bytes };
+  // A prepared reading no longer kept is made again, as it was first made.
+  const document = await read(source, sourceRequest(source, "pdf", "text",
+    pdfRequest(profile, pages, !pages ? input.pdfProfile?.cacheKey : undefined)), { recognize: !!profile.ocr, signal: input.signal,
+    progress: input.progress && ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total })) });
+  return { ...structureNative().pdfDocumentSummary(document!), profile, document: document! };
 }
 
 /** The recognized text of a PDF's pages (at most 16), each page from the reading that recognized it: the reading its
@@ -194,8 +194,7 @@ export async function pdfTextLayer(
     const pages = key === profile.cacheKey ? undefined
       : Object.entries(owners).filter(([, owner]) => owner === key).map(([page]) => Number(page));
     const request = sourceRequest(reference, "pdf", "text", pdfRequest(profile.profile, pages, key));
-    const document = await abandonable((async () => await native.openSource(undefined, request) ??
-      await recognitionTurn(async () => native.openSource(await readBytes(), request), options.signal))(), options.signal);
+    const document = await read({ ...reference, readBytes }, request, { recognize: true, signal: options.signal });
     options.signal?.throwIfAborted();
     const geometry = document && native.pdfRecognizedText(document, requested?.filter(page => owner(page) === key));
     if (!geometry) throw unavailable();
