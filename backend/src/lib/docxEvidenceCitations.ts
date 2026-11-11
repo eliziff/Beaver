@@ -76,7 +76,8 @@ function citationInputs(raw: unknown): CitationInput[] {
   });
 }
 
-function safeUrls(values: Array<string | null | undefined>) {
+/** The links given, once each. */
+function distinct(values: Array<string | null | undefined>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
@@ -146,8 +147,8 @@ export function resolveDocxEvidenceCitations(
         evidenceIds: input.evidenceIds,
         sourceSha256s: [...new Set(projected.map(({ sourceSha256 }) => sourceSha256))],
         locators: projected.flatMap(({ pinpoint }) => pinpoint ? [pinpoint.text] : []),
-        mainUrls: safeUrls(projected.map(({ mainUrl }) => mainUrl)),
-        pinpointUrls: safeUrls(projected.map(({ pinpoint }) => pinpoint?.url)),
+        mainUrls: distinct(projected.map(({ mainUrl }) => mainUrl)),
+        pinpointUrls: distinct(projected.map(({ pinpoint }) => pinpoint?.url)),
       },
     };
   });

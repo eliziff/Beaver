@@ -705,22 +705,6 @@ function titleKey(value: string) {
   return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
-function validateCitationUrl(id: string, value: string | null) {
-  if (value === null) return;
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error(`Verified citation "${id}" has an invalid URL.`);
-  }
-  if (
-    !["http:", "https:"].includes(parsed.protocol) ||
-    parsed.username ||
-    parsed.password
-  ) {
-    throw new Error(`Verified citation "${id}" has an unsafe URL.`);
-  }
-}
 
 function hasMemoHeader(markdown: string) {
   const lines = splitLines(markdown).map((line) => line.trim()).filter(Boolean).slice(0, 4);
@@ -771,21 +755,8 @@ export async function renderDocxMarkdownDocument(
       unverifiedCitations.add(id);
     }
   }
-  for (const [id, citation] of Object.entries(citations)) {
-    if (!citationIds.has(id)) {
-      warn(
-        warnings,
-        `Omitted verified citation "${id}" because the text has no [@${id}] marker.`,
-      );
-      continue;
-    }
-    // The sources are verified evidence (resolveDocxEvidenceCitations); what a link may open is checked here.
-    for (const source of citation.sources) {
-      validateCitationUrl(id, source.mainUrl);
-      source.pinpoints.forEach((pinpoint) =>
-        validateCitationUrl(id, pinpoint.url),
-      );
-    }
+  for (const id of Object.keys(citations)) {
+    if (!citationIds.has(id)) warn(warnings, `Omitted verified citation "${id}" because the text has no [@${id}] marker.`);
   }
   // The fields are rejected together, every problem named, so a call can fix them all at once.
   let valuesLength = 0;

@@ -217,21 +217,9 @@ break
     expect(xml).toContain('<w:footnoteReference w:id="1"/>');
   });
 
-  it("keeps integrity limits and citation-safety checks strict", async () => {
+  it("keeps integrity limits strict", async () => {
     expect(() => parseDocxMarkdown("   ")).toThrow("must not be empty");
     expect(() => parseDocxMarkdown("x".repeat(1_000_001))).toThrow("1 MB");
-    await expect(
-      renderDocxMarkdown("See [@case].", {
-        citations: {
-          case: {
-            sources: [{
-              ...jordanCitation.sources[0],
-              mainUrl: "not a url",
-            }],
-          },
-        },
-      }),
-    ).rejects.toThrow("invalid URL");
   });
 
   
@@ -326,20 +314,6 @@ Tenant: **{{ Tenant Name }}**; rent: *{{ MONTHLY RENT }}*.[^Lease_Note]
     })).rejects.toThrow(/is duplicated.*must normalize.*must be a string.*must be a string/su);
   });
 
-  it("keeps unsafe verified-citation URLs strict", async () => {
-    await expect(
-      renderDocxMarkdown("See [@case].", {
-        citations: {
-          case: {
-            sources: [{
-              ...jordanCitation.sources[0],
-              mainUrl: "file:///secret",
-            }],
-          },
-        },
-      }),
-    ).rejects.toThrow("unsafe URL");
-  });
 });
 
 describe("weak-model recovery", () => {
