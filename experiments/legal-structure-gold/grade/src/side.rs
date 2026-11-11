@@ -470,7 +470,8 @@ impl Side {
         let note_extent = |node: &StructureNode| {
             let mut ranges = membership(node);
             if let Some(label) = node.marker_range {
-                let opening = ranges.iter().map(|range| range.start).min().unwrap_or(label.end);
+                // The body opens at the first range after the label; the PDF's note holds its label as a range of its own.
+                let opening = ranges.iter().map(|range| range.start).filter(|start| *start >= label.end).min().unwrap_or(label.end);
                 ranges.push(ScalarRange { start: label.start, end: label.end.max(opening) });
             }
             ScalarRange::normalize_union(&mut ranges);
