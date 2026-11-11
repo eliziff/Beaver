@@ -72,10 +72,9 @@ export function presentLegalEvidence(
   // Each quotation keeps its own island; joining the search scope does not
   // authorize painting the text between disjoint receipts.
   const blockText = quotes.join("\n\n");
-  const paragraphCount = locatorKind === "paragraph" ? locatorLabels.reduce((count, label) => {
-    const range = locatorValue(label).match(/^(\d+)(?:\u2013(\d+))?$/u);
-    return count + (range ? Math.abs(Number(range[2] ?? range[1]) - Number(range[1])) + 1 : 1);
-  }, 0) : quotes.length;
+  // The paragraphs the members cite, each one node's label; the group's labels are their runs.
+  const paragraphCount = locatorKind === "paragraph" ? new Set(members.flatMap(({ receipt }) =>
+    receipt.locator.kind === "paragraph" ? [receipt.locator.label] : [])).size : quotes.length;
   const bounded = quotes.length <= 5 && paragraphCount <= 5 &&
     (blockText.match(/\S+/gu)?.length ?? 0) <= 1_500 &&
     members.every(({ receipt: member }) => member.source_sha256 === receipt.source_sha256);

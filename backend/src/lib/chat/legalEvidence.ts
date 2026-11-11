@@ -262,10 +262,7 @@ function passageEvidence({ sourceText, sourceSha256, spanText = sourceText, lang
   ...receipt }: PassageEvidence) {
   if (!spanText || (!sourceText && !sourceSha256))
     throw new Error("Passage evidence requires source identity and span text");
-  // A receipt names its place by the label the document prints ("12", "24(2)"), never a key ("par12", "sec24(2)").
-  const { locator } = receipt, label = ["paragraph", "section", "page", "footnote"].includes(locator.kind)
-    ? structureNative().bareLabels([locator.label], locator.kind)[0] || locator.label : locator.label;
-  return withEvidenceId({ ...receipt, locator: { ...locator, label },
+  return withEvidenceId({ ...receipt,
     source_sha256: sourceSha256 ?? sha256(sourceText!), scope: "passage",
     exact_span_sha256: sha256(spanText), span_sha256: sha256(normalizeWhitespace(spanText)),
     span_text: spanText, language });
@@ -926,15 +923,14 @@ export async function legalEvidenceProseIntegrityErrors(text: string,
     if (!paragraphs.length) continue;
     named.set(key, labels);
     // A cited range names every paragraph in it; a receipt read as a range covers each one (2026-09-10).
-    const written = paragraphs.map((point) => point.last
-      ? `${point.first ?? point.span.text}–${point.last}` : point.first ?? point.span.text);
+    const written = paragraphs.map((point) => point.last ? `${point.first}–${point.last}` : point.first);
     native.expandLabels(written, "paragraph", 59).forEach((numbers, at) =>
       (numbers ?? [written[at]]).forEach((label) => labels.add(label)));
   }
+  // A receipt's paragraph is one node's label, as the document prints it.
   const pinpoints = [...named].flatMap(([key, labels]) => {
     const actual = cited.filter((receipt) => native.citationLookupKeys([receipt.citation])[0] === key)
-      .flatMap(({ locator }) => locator.kind !== "paragraph" ? [""]
-        : native.expandLabels([locator.label], "paragraph", 59)[0] ?? [locator.label]);
+      .map(({ locator }) => locator.kind !== "paragraph" ? "" : locator.label);
     return [...labels].every((label) => actual.includes(label)) && actual.every((label) => labels.has(label))
       ? [] : [`${key} paragraphs ${[...labels].join(", ")} require their exact passage evidence_ids; Read those paragraphs and correct the claim's evidence_ids or split the claim`];
   });

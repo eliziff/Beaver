@@ -1762,10 +1762,10 @@ export function assistantTools<Context extends {
     }
     if (researchContext?.subjects && (reference?.kind === "source" || reference?.kind === "document") && !workspaceId) {
       const selected = researchContext.subjects?.filter(({ resource }) => resource === requested) ?? [];
-      const locatorKey = (label: string) => JSON.stringify(structureNative().collapseLabels([label], String(args.locator_kind)) ?? [label]),
-        saved = String(args.locator ?? "").split(/\s*,\s*/u).map((label) =>
-          selected.flatMap(({ savedEvidence }) => savedEvidence ?? []).find(({ locator }) =>
-            locator.kind === args.locator_kind && locatorKey(locator.label) === locatorKey(label)));
+      // A saved receipt's label is the one the document prints; the locator asked for may be typed with its words.
+      const saved = structureNative().bareLabels(String(args.locator ?? "").split(/\s*,\s*/u), String(args.locator_kind))
+        .map((label) => selected.flatMap(({ savedEvidence }) => savedEvidence ?? []).find(({ locator }) =>
+          locator.kind === args.locator_kind && locator.label === label));
       if (saved.every((receipt) => receipt !== undefined) && legalEvidenceState && !args.context_blocks && !args.pattern && !args.patterns && !args.section &&
         (!args.end_locator || args.end_locator === args.locator) && (!args.references || args.references === "none")) {
         saved.forEach((receipt) => registerLegalEvidence(legalEvidenceState, receipt));

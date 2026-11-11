@@ -227,8 +227,7 @@ export function assistantReadEvidenceActivityLabel(
   if (!first || !last) return title ? `${verb} ${title}` : null;
   const pattern = activityText(args.pattern, 80);
   if (pattern) return `Searching ${title} for “${pattern}”`;
-  const labels = [...new Set(passages.map(({ locator }) =>
-    activityLocatorLabel(locator.label, locator.kind)))];
+  const labels = [...new Set(passages.map(({ locator }) => locator.label))];
   const firstLabel = activityText(labels[0], 80);
   const lastLabel = activityText(labels.at(-1), 80);
   if (!firstLabel || !lastLabel) return `${verb} ${title}`;

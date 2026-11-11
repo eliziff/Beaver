@@ -100,14 +100,13 @@ export type AlrModel = {
  *  the import left unresolved takes the earlier part the model names. */
 export async function alrRows(draft: AuthoritiesDraft, check: Check, options: AlrWorkbookOptions = {},
   model?: AlrModel, signal?: AbortSignal, attached: ReadonlyMap<string, NativeDocument> = new Map()): Promise<Row[]> {
-  const units = [...draft.units].sort((a, b) => a.ordinal - b.ordinal);
   const propositions = footnotePropositions(draft.units, options.quoteContext);
   const wanted = footnoteFilter(options.footnotes);
   // The article as one text; each note a note range, numbered as printed (unnumbered when the reader found
   // no number), anchored where its marker stands in the body.
   let text = "";
   const anchors = new Map<number, number>();
-  const placed = units.map((unit) => {
+  const placed = draft.units.map((unit) => {
     const start = text.length; text += `${unit.text}\n\n`;
     for (const [id, offset] of unit.footnoteRefs) anchors.set(id, start + offset);
     return { unit, start, end: start + unit.text.length };
