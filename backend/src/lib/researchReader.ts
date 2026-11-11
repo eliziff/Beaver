@@ -5,7 +5,9 @@ import { z } from "mike/shared/runtime/schema.mjs";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
 import type { DocumentStore } from "./documentStore";
 import { parseResourceReference, resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
-import { structureNative, type NativeDocument, type NativeNode, type NativeGraphScopeOmission } from "./structureNative";
+import { structureNative, type NativeDocument } from "./structureNative";
+import type { GraphScopeOmission } from "mike/shared/engine-types/GraphScopeOmission";
+import type { StructureNode } from "mike/shared/engine-types/StructureNode";
 import { legalSourceOperations } from "./legalSourceApplication";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
 import type { A2AJCompiledDocument } from "./legalSources/a2aj";
@@ -429,7 +431,7 @@ export async function restoreResearchEvidence(documents: DocumentStore, scope: A
 
 function oneHopLegalScope(
   document: NativeDocument,
-  block: NativeNode,
+  block: StructureNode,
   direction: "inbound" | "outbound" | "both",
   includeUnits = false,
 ) {
@@ -919,8 +921,8 @@ async function readLegalSource(
   }
 }
 /** Diagnostics describe known omitted edges, not the completeness of the reference graph. */
-function referenceResolution(omissions: NativeGraphScopeOmission[]) {
-  const counts: Record<string, number> = {}, reported: NativeGraphScopeOmission[] = [];
+function referenceResolution(omissions: GraphScopeOmission[]) {
+  const counts: Record<string, number> = {}, reported: GraphScopeOmission[] = [];
   let chars = 0;
   for (const omission of omissions) {
     counts[omission.edge.status] = (counts[omission.edge.status] ?? 0) + 1;

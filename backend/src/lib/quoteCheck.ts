@@ -8,7 +8,9 @@ import { reject } from "./applicationError";
 import { splitQuoteCitationUnits, type QuoteCitationUnit } from "./quoteCitationSplit";
 import type { QuoteContext } from "./authoritiesQuotations";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
-import type { NativeDocument, NativeQuoteComparison, NativeQuoteLocation } from "./structureNative";
+import type { NativeDocument } from "./structureNative";
+import type { QuoteComparison } from "mike/shared/engine-types/QuoteComparison";
+import type { QuoteLocation } from "mike/shared/engine-types/QuoteLocation";
 import { buildLegalSourcePinpoint, legalSourceLocatorAnchor, planLegalSourcePinpoints } from "./legalSourceLinks";
 
 export type QuoteLink = { quoteId: string; occurrenceId: string };
@@ -93,7 +95,7 @@ export type QuoteCheck = { candidateId: string | null; status: "verified" | "mis
   detail: string;
   receipt: null | { source: LegalSourceReference; sourceSha256: string; passageSha256: string;
     locator: LegalSourceLocator | null; text: string; errors: string[];
-    comparison: NativeQuoteComparison | null; match: NativeQuoteLocation; link: string | null } };
+    comparison: QuoteComparison | null; match: QuoteLocation; link: string | null } };
 /** A quotation and the checks of the sources its note cites, each on its own. */
 export type QuoteResult = ReturnType<typeof splitQuoteChecks>[number] & { checks: QuoteCheck[] };
 /** PDFs the user attached, read, by authority. */
@@ -232,7 +234,7 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
   }));
   /** The passage a found quotation's link opens: the block that holds the quoted words, with the block's own anchor
    *  beside the fragment where the source's page has one (CanLII's #par12 or #sec4, Decisia's #par12). */
-  function linkedPassage({ row, source, document }: Pending, match: NativeQuoteLocation) {
+  function linkedPassage({ row, source, document }: Pending, match: QuoteLocation) {
     if (!source.url || !match.text) return null;
     const found = match.labels[0], kind = found?.kind === "pdfPage" ? undefined : found?.kind;
     const value = found?.label;

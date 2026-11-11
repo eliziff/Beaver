@@ -5,4 +5,4 @@ import type { Language } from "./Language";
  * The records answering a lookup of a statute's provision that one is read from: of the collection asked for, at the
  * address asked for, else the first.
  */
-export type ProvisionLookup = { language: Language | null, docType: string | null, dataset: string | null, sourceUrl: string | null, section: string, };
+export type ProvisionLookup = { language?: Language | null, docType?: string | null, dataset?: string | null, sourceUrl?: string | null, section: string, };

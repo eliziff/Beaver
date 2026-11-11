@@ -3,4 +3,4 @@
 /**
  * A PDF of the source a reader may be sent to instead of its page.
  */
-export type VerifiedPdf = { url: string, pdfOnly: boolean, };
+export type VerifiedPdf = { url: string, pdfOnly?: boolean, };

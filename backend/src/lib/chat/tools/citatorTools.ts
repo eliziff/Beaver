@@ -1,5 +1,6 @@
 import { a2ajStorePath } from "../../legalDataPath";
-import { structureNative, type CitatorPassage } from "../../structureNative";
+import { structureNative } from "../../structureNative";
+import type { StandsFor } from "mike/shared/engine-types/StandsFor";
 import type { Tool } from "../../llm";
 import { trimmedText } from "../../value";
 import { safeErrorLog } from "../../safeError";
@@ -66,7 +67,7 @@ export type CitatorToolExecution = {
 };
 
 const mapPassage = (
-  passage: CitatorPassage,
+  passage: StandsFor,
   evidence: LegalEvidenceReceipt,
 ) => ({
   source_citation: passage.citingCitation,

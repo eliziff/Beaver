@@ -6,8 +6,9 @@ import { guardedRemoteFetch, networkFailure, RETRY_WAITS_MS, wait } from "../rem
 import { a2ajStorePath, inSqliteRun, onSqliteRunEnd, storeExists, storeStat, useA2AJStore } from "../legalDataPath";
 import { normalizeWhitespace } from "../text";
 import { hasSearchOperators, searchFts5, searchLucene } from "../searchQuery";
-import { nativeDocumentLive, structureNative, type A2AJStoreDocument, type A2AJStoreLookup,
-  type NativeDocument } from "../structureNative";
+import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
+import type { Lookup } from "mike/shared/engine-types/Lookup";
+import type { StoreDocument } from "mike/shared/engine-types/StoreDocument";
 import { objectValue as object } from "./remoteProvider";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { indexedNumberedCase } from "./canlii";
@@ -269,9 +270,9 @@ const compiled = (metadata: Omit<A2AJCompiledDocument, "native" | "searchNative"
 // The store's documents an operation reads, held while it runs: the engine keeps a document only while it is held.
 const running = new Set<A2AJCompiledDocument>();
 // Its lookups too: each authority's forms ask the store for the same citations.
-const lookups = new Map<string, Promise<A2AJStoreDocument | null>>();
+const lookups = new Map<string, Promise<StoreDocument | null>>();
 onSqliteRunEnd(() => { running.clear(); lookups.clear(); });
-async function storeDocument(lookup: A2AJStoreLookup) {
+async function storeDocument(lookup: Lookup) {
   if (!storeExists(a2ajStorePath())) return null;
   if (!inSqliteRun()) return structureNative().a2ajDocument(a2ajStorePath(), lookup);
   const key = JSON.stringify([a2ajStorePath(), lookup]);
@@ -352,7 +353,7 @@ async function document(args: {
     // Distinct provider records with the same citation require an explicit URL.
     return matches.length === 1 ? matches[0] : null;
   };
-  let local: A2AJStoreDocument | null = null, source: A2AJStoreDocument | null = null;
+  let local: StoreDocument | null = null, source: StoreDocument | null = null;
   for (const form of forms) {
     local = await storeDocument({ citation: form, docType, language, dataset: args.dataset,
       sourceUrl: args.sourceUrl ?? undefined });

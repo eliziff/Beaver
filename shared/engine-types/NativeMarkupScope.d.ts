@@ -2,4 +2,4 @@
 import type { MarkupSerialization } from "./MarkupSerialization";
 import type { ScopeKind } from "./ScopeKind";
 
-export type NativeMarkupScope = { kind: ScopeKind, excerptOf: string | null, markupSerialization: MarkupSerialization, };
+export type NativeMarkupScope = { kind: ScopeKind, excerptOf?: string | null, markupSerialization?: MarkupSerialization, };

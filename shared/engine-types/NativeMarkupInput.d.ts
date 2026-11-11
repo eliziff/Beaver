@@ -3,4 +3,4 @@ import type { DocumentProvider } from "./DocumentProvider";
 import type { MarkupAncestor } from "./MarkupAncestor";
 import type { NativeMarkupScope } from "./NativeMarkupScope";
 
-export type NativeMarkupInput = { provider: DocumentProvider, id: string, url: string | null, text: string, markup: string | null, citation: string | null, pageCitations: Array<string>, markupAncestors: Array<MarkupAncestor>, scope: NativeMarkupScope, };
+export type NativeMarkupInput = { provider: DocumentProvider, id: string, url?: string | null, text: string, markup?: string | null, citation?: string | null, pageCitations?: Array<string>, markupAncestors?: Array<MarkupAncestor>, scope?: NativeMarkupScope, };

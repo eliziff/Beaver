@@ -2,7 +2,8 @@ import { profileFor } from "./pdfProfile";
 import { ApplicationError } from "./applicationError";
 import { sha256 } from "./hash";
 import { storeDirectory } from "./contentStore";
-import { structureNative, type NativeDocument, type NativePdfTextPage } from "./structureNative";
+import { structureNative, type NativeDocument } from "./structureNative";
+import type { Page } from "mike/shared/engine-types/Page";
 import { docxToPdf } from "./convert";
 import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 import { oneAtATime } from "mike/shared/one-at-a-time.mjs";
@@ -185,7 +186,7 @@ export async function pdfTextLayer(
   const keys = new Set(requested ? requested.map(owner).filter((key): key is string => !!key)
     : [...(profile.profile.ocr ? [profile.cacheKey] : []), ...Object.values(owners)]);
   if (!keys.size) return [];
-  const native = structureNative(), result = new Map<number, NativePdfTextPage>();
+  const native = structureNative(), result = new Map<number, Page>();
   const unavailable = () => new ApplicationError(409, "This PDF's recognized text could not be read.");
   for (const key of keys) {
     options.signal?.throwIfAborted();

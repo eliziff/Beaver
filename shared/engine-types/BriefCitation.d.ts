@@ -5,4 +5,4 @@ import type { BriefSpan } from "./BriefSpan";
 /**
  * A citation the engine extracted from the brief's text, the fields read of it.
  */
-export type BriefCitation = { index: number, form: string, span: BriefSpan, fullSpan: BriefSpan, style: BriefSpan | null, pinpoints: Array<BriefPinpoint>, };
+export type BriefCitation = { index: number, form: string, span: BriefSpan, fullSpan: BriefSpan, style?: BriefSpan | null, pinpoints?: Array<BriefPinpoint>, };

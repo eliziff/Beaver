@@ -4,11 +4,11 @@ import type { Language } from "./Language";
 /**
  * What a search asks of the store. The full-text index's query comes built (searchQuery.ts builds every search's).
  */
-export type Search = { query: string, docType: string | null, searchType: string | null, language: Language | null, 
+export type Search = { query: string, docType?: string | null, searchType?: string | null, language?: Language | null, 
 /**
  * How many are wanted: ten unless asked, at most fifty.
  */
-size: number | null, dataset: string | null, startDate: string | null, endDate: string | null, sortResults: string | null, 
+size?: number | null, dataset?: string | null, startDate?: string | null, endDate?: string | null, sortResults?: string | null, 
 /**
  * The query in the full-text index's syntax.
  */

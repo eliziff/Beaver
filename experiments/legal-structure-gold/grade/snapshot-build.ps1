@@ -11,10 +11,11 @@ param(
   [string]$Mirror = 'C:\Users\elias\build\snapshot',
   # A revision per repo ('.', 'legal-pdf-parser', ...) in place of the one -Before picks.
   [hashtable]$Revisions = @{},
-  # What to build and bring back: the addon by default, or a binary of -Package.
+  # What to build and bring back: the addon by default, or a binary of -Package: a measuring tool's is structure-tools'
+  # where the moment has that crate, the engine's before it did.
   [string]$Binary,
-  [string]$Package = 'legal-structure-node',
-  # A binary's features, in place of the package's defaults ('opinion' for courtlistener-structure).
+  [string]$Package,
+  # A binary's features, in place of the package's defaults (the engine's: 'opinion' for courtlistener-structure then).
   [string]$Features,
   # A folder of files laid over the moment's (a later measuring tool patched into an earlier grader).
   [string]$Overlay,
@@ -30,7 +31,7 @@ function Remote([string]$Script) {
 }
 
 $parts = @(
-  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'native/a2aj-gold', 'native/vendor', 'native/page-truth', 'experiments/legal-structure-gold/grade') },
+  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'native/structure-tools', 'native/a2aj-gold', 'native/vendor', 'native/page-truth', 'experiments/legal-structure-gold/grade') },
   @{ Repo = 'legal-pdf-parser'; Paths = @() },
   @{ Repo = 'legal-structure'; Paths = @() },
   @{ Repo = 'common-law-cite'; Paths = @() }
@@ -56,6 +57,9 @@ if (Test-Path "$stage\Cargo.toml") {
   [IO.File]::WriteAllLines("$stage\Cargo.toml", [string[]]$manifest, (New-Object Text.UTF8Encoding $false))
 }
 if ($Overlay) { Copy-Item -Recurse -Force "$Overlay\*" $stage }
+if (-not $Package) { $Package = if ($Binary -and $Binary -ne 'export-types' -and (Test-Path "$stage\native\structure-tools")) { 'structure-tools' } else { 'legal-structure-node' } }
+# The tools crate builds each tool with what it needs; features are the engine's.
+if ($Package -eq 'structure-tools') { $Features = $null }
 Push-Location $stage; tar -cf "$env:TEMP\snapshot.tar" --exclude='*/experiments/*' --exclude='*/benchmarks/*' *; Pop-Location
 "packed {0:N1} MB" -f ((Get-Item "$env:TEMP\snapshot.tar").Length / 1MB)
 scp -q "$env:TEMP\snapshot.tar" "${Desktop}:$($Mirror -replace '\\', '/').tar"

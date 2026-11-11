@@ -1,0 +1,23 @@
+[package]
+name = "structure-tools"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+# The measuring tools over the engine and its crates: the yardsticks (pinpoint-corpus, the CourtListener and A2AJ
+# censuses, note pairs) and the corpus checks. Kept out of the engine crate, so building the engine (the addon, the
+# browser engine) never builds a tool, and the engine carries none of their dependencies.
+[dependencies]
+legal-structure-node = { path = "../legal-structure-node" }
+legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup", "opinion"] }
+legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification", "a2aj-store"] }
+legalpdf = { package = "legal-pdf-parser", path = "../../legal-pdf-parser", features = ["full"] }
+# pinpoint-corpus: the gold store's readers and answer keys.
+a2aj-gold = { path = "../a2aj-gold" }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
+regex = "1.13"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+unicode-normalization = "0.1"

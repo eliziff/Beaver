@@ -1564,10 +1564,8 @@ dependencies = [
 name = "legal-structure-node"
 version = "0.1.0"
 dependencies = [
- "a2aj-gold",
  "calamine",
  "encoding_rs",
- "flate2",
  "legal-pdf-parser",
  "legal-structure",
  "legal-structure-features",
@@ -2780,6 +2778,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "structure-tools"
+version = "0.1.0"
+dependencies = [
+ "a2aj-gold",
+ "flate2",
+ "legal-pdf-parser",
+ "legal-structure",
+ "legal-structure-features",
+ "legal-structure-node",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "syn"
 version = "2.0.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2958,9 +2973,9 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 
 [[package]]
 name = "typed-path"
-version = "0.12.3"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e28f89b80c87b8fb0cf04ab448d5dd0dd0ade2f8891bae878de66a75a28600e"
+checksum = "54ec2755506471f54baf5e4bb5499d8e510cc1caf271270e778a736bd2d7336c"
 
 [[package]]
 name = "typed-path"
@@ -3463,7 +3478,7 @@ dependencies = [
  "flate2",
  "indexmap",
  "memchr",
- "typed-path 0.12.3",
+ "typed-path 0.12.4",
 ]
 
 [[package]]

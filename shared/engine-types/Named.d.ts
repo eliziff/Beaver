@@ -3,4 +3,4 @@
 /**
  * A decision asked for by its style of cause, its year and the courts that may have decided it (any where none).
  */
-export type Named = { name: string, year: string, courts: Array<string>, };
+export type Named = { name: string, year: string, courts?: Array<string>, };

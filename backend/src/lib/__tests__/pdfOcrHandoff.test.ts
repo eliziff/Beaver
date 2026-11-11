@@ -5,13 +5,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { sha256 } from '../hash';
-import type { NativePdfTextPage } from '../structureNative';
+import type { Page } from 'mike/shared/engine-types/Page';
 
 it('retains disjoint OCR passes through the worker, SQLite reopen and authorized text-layer route', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'ocr-handoff-'));
   vi.stubEnv('AUTH_MODE', 'local'); vi.stubEnv('MIKE_LOCAL_DATA_DIR', root);
   const scope = { userId: '00000000-0000-0000-0000-000000000001' };
-  const artifacts = new Map<string, { sha256: string; pages: NativePdfTextPage[]; summary: object }>();
+  const artifacts = new Map<string, { sha256: string; pages: Page[]; summary: object }>();
   const prepare = vi.fn(async (bytes: Buffer, input: { pages?: number[]; ocr?: unknown }) => {
     const pages = input.ocr ? input.pages ?? [1, 2, 3] : [];
     const key = sha256(JSON.stringify([sha256(bytes), pages]));
@@ -33,7 +33,7 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
   });
   vi.doMock('../structureNative', () => ({ nativeDocumentLive: () => true, structureNative: () => ({ openSource: restore,
     pdfDocumentSummary: (artifact: { summary: object }) => artifact.summary,
-    pdfRecognizedText: (artifact: { pages: NativePdfTextPage[] }, pages?: number[]) =>
+    pdfRecognizedText: (artifact: { pages: Page[] }, pages?: number[]) =>
       artifact.pages.filter(page => !pages || pages.includes(page.number)),
   }) }));
   const [{ createDocumentApplication }, { documentRepository }, { filesystemDocumentObjects },
@@ -82,11 +82,11 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     restore.mockClear();
     const selected = await Promise.all([request(api).get(`${url}&pages=2`).expect(200),
       request(api).get(`${url}&pages=2`).expect(200)]);
-    expect(selected.map(response => response.body.pages.map((page: NativePdfTextPage) => page.number))).toEqual([[2], [2]]);
+    expect(selected.map(response => response.body.pages.map((page: Page) => page.number))).toEqual([[2], [2]]);
     await request(api).get(`${url}&pages=0`).expect(400);
     await request(api).get(`${url}&pages=2&source_sha256=${'0'.repeat(64)}`).expect(409);
     const response = await read().expect(200);
-    expect(response.body.pages.map((page: NativePdfTextPage) => page.number)).toEqual([1, 2]);
+    expect(response.body.pages.map((page: Page) => page.number)).toEqual([1, 2]);
     expect(response.body.pages[1].lines[0].words[0].text).toBe('Recognized page 2');
     expect(prepare).toHaveBeenCalledTimes(readsBefore);
     // An evicted slice is rebuilt from its bound source; intact slices need no reread.
@@ -97,7 +97,7 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     allowSourceRead = true;
     const remade = await read().expect(200);
     // Reparsing without an OCR provider cannot recreate an evicted OCR artifact.
-    expect(remade.body.pages.map((page: NativePdfTextPage) => page.number)).toEqual([1]);
+    expect(remade.body.pages.map((page: Page) => page.number)).toEqual([1]);
     expect(remade.body.pages[0].lines[0].words[0].text).toBe('Recognized page 1');
     expect(prepare).toHaveBeenCalledTimes(readsBefore + 1);
     expect(prepare.mock.calls.at(-1)![1].pages).toEqual([2]);

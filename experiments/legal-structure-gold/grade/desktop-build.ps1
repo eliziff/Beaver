@@ -7,7 +7,7 @@
 #   .\desktop-build.ps1                          # structure-gold, note_pairs
 #   .\desktop-build.ps1 -Packages @('-p','structure-gold')
 param(
-  [string[]]$Packages = @('-p', 'structure-gold', '--bin', 'structure-gold', '-p', 'legal-structure-node', '--bin', 'note_pairs'),
+  [string[]]$Packages = @('-p', 'structure-gold', '--bin', 'structure-gold', '-p', 'structure-tools', '--bin', 'note_pairs'),
   [string]$Desktop = 'oajd-desktop',
   [string]$Mirror = 'C:\Users\elias\build\MikeOSS',
   [string]$Fable = 'C:\Users\elias\fable'
@@ -22,7 +22,7 @@ function Remote([string]$Script) {
 
 # What each repo contributes: its files git tracks or would track, within the paths the build reads.
 $parts = @(
-  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'experiments/legal-structure-gold/grade') },
+  @{ Repo = '.'; Paths = @('Cargo.toml', 'Cargo.lock', '.cargo', 'native/legal-structure-node', 'native/structure-tools', 'native/a2aj-gold', 'experiments/legal-structure-gold/grade') },
   @{ Repo = 'legal-pdf-parser'; Paths = @('.') },
   @{ Repo = 'legal-structure'; Paths = @('.') },
   @{ Repo = 'common-law-cite'; Paths = @('.') }

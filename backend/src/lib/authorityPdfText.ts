@@ -101,6 +101,8 @@ export async function authorityPdfReading(input: {
         ? { pages: [...recognizedPages].map((index) => index + 1).sort((a, b) => a - b) } : {}) });
   }
   input.signal?.throwIfAborted();
+  console.log("[probe] reading", JSON.stringify({ policy, retained: !!retained, nativeNeeding: native.pagesNeedingOcr, nativeRouted: native.ocrRoutedPages,
+    same: recognized === native, needing: recognized.pagesNeedingOcr, routed: recognized.ocrRoutedPages, key: recognized.cacheKey.slice(0, 8), nkey: native.cacheKey.slice(0, 8), recognizedPages: recognizedPages && [...recognizedPages] }));
   return { document: recognized.document, ...(recognizedPages && recognized !== native
     ? { native: native.document, recognizedPages: [...recognizedPages] } : {}) };
 }

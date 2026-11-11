@@ -4,22 +4,11 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
-# A library the tools in src/bin link, each building only what it needs. The addon and the browser engine are this library
-# as a cdylib, which their builds ask for themselves (`cargo rustc --lib --crate-type cdylib`, scripts/native-build.mjs):
-# set here, every tool's build would link an addon, and a plain `cargo build` would build every tool with it.
+# A library the measuring tools (native/structure-tools) link. The addon and the browser engine are this library as a
+# cdylib, which their builds ask for themselves (`cargo rustc --lib --crate-type cdylib`, scripts/native-build.mjs): set
+# here, every tool's build would link an addon.
 [lib]
 crate-type = ["rlib"]
-
-# Built on request (--features opinion): nothing else here needs the opinion layer.
-[[bin]]
-name = "pinpoint-corpus"
-path = "src/bin/pinpoint-corpus.rs"
-required-features = ["corpus"]
-
-[[bin]]
-name = "courtlistener-structure"
-path = "src/bin/courtlistener-structure.rs"
-required-features = ["opinion"]
 
 # The TypeScript declarations of the engine's wire types, written to shared/engine-types (src/bindings.rs).
 [[bin]]
@@ -29,9 +18,6 @@ required-features = ["binding-types"]
 
 [features]
 default = ["legalpdf", "a2aj"]
-opinion = ["legal-structure/opinion"]
-# pinpoint-corpus: the gold store's readers and answer keys are the a2aj-gold crate's. Built on request.
-corpus = ["a2aj", "legalpdf", "dep:a2aj-gold"]
 # A2AJ's documents, from its API's records or the local store (SQLite), and the citator graph built from the store.
 a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-features/citator-graph"]
 # Word documents: the parser's DOCX reading without its PDF pipeline (Authority Linker's engine, build-engine.mjs --word).
@@ -49,12 +35,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
 # The local A2AJ store, read by the engine itself; the browser build compiles SQLite with wasi-sdk (WASI_SDK_PATH).
 rusqlite = { version = "0.40.2", features = ["bundled"], optional = true }
-# The census bins (src/bin) match source text with the patterns the census was written in.
 regex = "1.13"
 sha2 = "0.10"
 ts-rs = { version = "12", optional = true, features = ["serde-json-impl"] }
-# pinpoint-corpus reads the gold store and compares words.
-flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 unicode-normalization = "0.1"
 # A workbook's grid (formats/sheet.rs): calamine reads xlsx, xlsm and xls, its zip bounds the package, ooxml-numfmt
 # writes a number in its number format, ryu-js writes a number as JavaScript prints it.
@@ -79,7 +62,6 @@ napi-derive = "3"
 # The addon's allocator, its freed memory returned at once (node.rs).
 mimalloc = { version = "0.1.52", default-features = false }
 libmimalloc-sys = { version = "0.1.49", features = ["extended"] }
-a2aj-gold = { path = "../a2aj-gold", optional = true }
 
 # The browser build (wasm32-wasip1) parses the same PDFs; recognition runs in the page.
 [target.'cfg(target_arch = "wasm32")'.dependencies]

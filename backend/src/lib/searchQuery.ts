@@ -1,5 +1,6 @@
 import { sql } from "./relational";
-import { structureNative, type SearchQueryNode } from "./structureNative";
+import { structureNative } from "./structureNative";
+import type { SearchNode } from "mike/shared/engine-types/SearchNode";
 
 type SqlFragment = ReturnType<typeof sql>;
 
@@ -17,7 +18,7 @@ export function searchMatcher(query: string) {
   if (!source.valid) return null;
   const test = (haystack: string) => {
     const value = haystack.toLowerCase();
-    const run = (node: SearchQueryNode): boolean => node.kind === "term" ? value.includes(node.value.toLowerCase())
+    const run = (node: SearchNode): boolean => node.kind === "term" ? value.includes(node.value.toLowerCase())
       : node.kind === "or" ? run(node.left) || run(node.right)
       : node.kind === "not" ? run(node.left) && !run(node.right) : run(node.left) && run(node.right);
     return run(source.node);
@@ -27,7 +28,7 @@ export function searchMatcher(query: string) {
 
 /** A parameterized, portable substring filter for relational fields. */
 export function searchFilter(haystack: SqlFragment, query: string): SqlFragment {
-  const compile = (node: SearchQueryNode): SqlFragment => {
+  const compile = (node: SearchNode): SqlFragment => {
     if (node.kind === "term") return sql`${haystack} LIKE ${`%${escapeLike(node.value.toLocaleLowerCase())}%`} ESCAPE '!'`;
     const left = compile(node.left), right = compile(node.right);
     return node.kind === "or" ? sql`(${left} OR ${right})`

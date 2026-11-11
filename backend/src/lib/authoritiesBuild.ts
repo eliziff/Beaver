@@ -26,7 +26,8 @@ import type { PaperCover } from "mike/shared/engine-types/PaperCover";
 import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, entryOrder, type DocxAuthorityMark } from "./docxOperations";
-import { structureNative, type NativeOutlineEntry } from "./structureNative";
+import { structureNative } from "./structureNative";
+import type { OutlineEntry } from "mike/shared/engine-types/OutlineEntry";
 import type { PassageTarget } from "mike/shared/engine-types/PassageTarget";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
   WorkProductInput } from "./workProduct";
@@ -60,7 +61,7 @@ export type AuthoritiesBuildInput = {
    *  filing's as its pages' text and the citations placed on them. */
   sources?: Record<string, { bytes?: Uint8Array; resolved?: ResolvedWorkProductInput;
     reading?: AuthorityPdfReading & { plain?: boolean }; pageTextByPage?: string[];
-    passageGeometry?: PassageGeometry; outline?: Array<NativeOutlineEntry & { title: string }> }>;
+    passageGeometry?: PassageGeometry; outline?: Array<OutlineEntry & { title: string }> }>;
   signal?: AbortSignal;
   finalPdfSource?: (bytes: Uint8Array, filename: string) => Promise<Uint8Array>;
   /** Told what the build is doing, as it starts each part. */

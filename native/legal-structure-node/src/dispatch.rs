@@ -129,8 +129,9 @@ impl Serialize for Bytes {
 impl ts_rs::TS for Bytes {
     type WithoutGenerics = Self;
     type OptionInnerType = Self;
+    /// Node's buffer, as structure-engine.mjs revives it there; an operation's argument takes any Uint8Array.
     fn name(_: &ts_rs::Config) -> String {
-        "Uint8Array".to_owned()
+        "Buffer".to_owned()
     }
     fn inline(config: &ts_rs::Config) -> String {
         Self::name(config)

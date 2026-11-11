@@ -3,4 +3,4 @@
 /**
  * What a document must answer to: a citation (by its key and the keys of its other forms), a collection, an address.
  */
-export type Query = { citation: string, dataset: string | null, sourceUrl: string | null, aliases: Array<string>, };
+export type Query = { citation: string, dataset?: string | null, sourceUrl?: string | null, aliases?: Array<string>, };

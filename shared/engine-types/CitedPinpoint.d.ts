@@ -4,4 +4,4 @@
  * A pinpoint of the citation a quotation is for, as the citation engine read it: its kind ("paragraph", "page",
  * "section") and its first locator and the last of a range.
  */
-export type CitedPinpoint = { kind: string, first: string | null, last: string | null, };
+export type CitedPinpoint = { kind: string, first?: string | null, last?: string | null, };

@@ -4,7 +4,7 @@ import type { ApplicationScope } from "./applicationError";
 import type { WorkProductBuildReceipt } from "./workProduct";
 import type { AuthorityCitationLedger } from "./authoritiesDomain";
 import { jsonRecord } from "./value";
-import type { PdfStatus } from "./structureNative";
+import type { PdfStatus } from "mike/shared/engine-types/PdfStatus";
 
 export type DocumentScope = ApplicationScope;
 export type LegalPdfOcrProvider = "indra";

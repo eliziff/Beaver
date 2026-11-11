@@ -4,4 +4,4 @@ export type NoteUpRequest = { citation: string,
 /**
  * The cited decision's keys: its alias group.
  */
-keys: Array<string>, citedParagraph: number | null, size: number | null, courtScope: string | null, courtCode: string | null, sort: string | null, };
+keys?: Array<string>, citedParagraph?: number | null, size?: number | null, courtScope?: string | null, courtCode?: string | null, sort?: string | null, };

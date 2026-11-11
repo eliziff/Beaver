@@ -9,7 +9,8 @@ import { nativeOccurrenceSpans, nativeReferenceSpans, pinpointValues } from "./a
 import { authorityPdfReading } from "./authorityPdfText";
 import { a2ajStorePath } from "./legalDataPath";
 import { canonicalJsonSha256, sha256 } from "./hash";
-import { structureNative, type NativeCitationOccurrence } from "./structureNative";
+import { structureNative } from "./structureNative";
+import type { CitationOccurrence } from "mike/shared/engine-types/CitationOccurrence";
 import type { WorkProductInput } from "./workProduct";
 import { authorityPdfRequired, type AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { headerIdentities, matchFolderPdf, verifyIdentity } from "mike/shared/folder-pdf-match.mjs";
@@ -225,7 +226,7 @@ sourceSha256: string) {
 
 const sameValue = (values: unknown[]) => values.length > 0 &&
   values.every((value) => JSON.stringify(value) === JSON.stringify(values[0]));
-const parsedKind = ({ kind }: NativeCitationOccurrence): AuthorityKind => kind === "statute"
+const parsedKind = ({ kind }: CitationOccurrence): AuthorityKind => kind === "statute"
   ? "legislation" : kind === "journal" || kind === "book" ? "commentary"
   : kind === "parliamentary" ? "other" : kind;
 const lookupKey = (sources: CitationServices, text: string) => {
@@ -254,7 +255,7 @@ const textAuthority = (citation: string): AuthorityIdentity => ({
   displayName: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
   source: { kind: "unresolved" }, scanOnly: true,
 });
-const parsedAuthority = (match: NativeCitationOccurrence, key: string): AuthorityIdentity => ({
+const parsedAuthority = (match: CitationOccurrence, key: string): AuthorityIdentity => ({
   id: key, key, kind: parsedKind(match), citation: match.coreCitation.text,
   ...(["database", "docket"].includes(match.format ?? "")
     ? { citationFormat: match.format as "database" | "docket" } : {}),
@@ -381,7 +382,7 @@ function correctionDonors(draft: AuthoritiesDraft,
     absorbedIds: siblings.map(({ id }) => id) };
 }
 
-function chosenAuthorityMatch(matches: NativeCitationOccurrence[], occurrence: AuthorityOccurrence,
+function chosenAuthorityMatch(matches: CitationOccurrence[], occurrence: AuthorityOccurrence,
   draft: AuthoritiesDraft, sources: CitationServices) {
   const routed = matches.filter(({ kind, reasons }) =>
     kind === "case" && reasons.includes("provider_routing"));

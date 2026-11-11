@@ -21,8 +21,11 @@ import { preparePdf } from "./sourceDocument";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
-import { pdfFailureKind, structureNative, type NativeAuthorityReferenceOccurrence, type NativeAuthorityTextUnit,
-  type NativeCitationOccurrence, type NativeReferencePart } from "./structureNative";
+import { pdfFailureKind, structureNative } from "./structureNative";
+import type { AuthorityReferenceOccurrence } from "mike/shared/engine-types/AuthorityReferenceOccurrence";
+import type { AuthorityTextUnit } from "mike/shared/engine-types/AuthorityTextUnit";
+import type { CitationTextSpan } from "mike/shared/engine-types/CitationTextSpan";
+import type { CitationOccurrence } from "mike/shared/engine-types/CitationOccurrence";
 import type { WorkProductInput } from "./workProduct";
 import { a2ajStorePath } from "./legalDataPath";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
@@ -42,8 +45,11 @@ export type AuthoritiesImportSource = { kind: "manual" } | DocumentInput |
   { kind: "receipts"; seeds: readonly GroundedReceiptSeed[] };
 
 type Span = { start: number; end: number };
+/** The citation engine's `noteReferences`: each split part that cites, with what it cites. */
+type ReferencePart = { part: SourcePart; references: Array<CitationTextSpan & { form: "citation" | "bare" | "link";
+  authority: Citation["authority"]; link?: string; citation?: number }> };
 
-async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<NativeAuthorityTextUnit[]>,
+async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<AuthorityTextUnit[]>,
   readBytes?: () => Buffer | Promise<Buffer>) {
   try { return await read(); }
   catch (error) {
@@ -81,10 +87,10 @@ export function pinpointValues<Kind extends string>(pinpoints: ReadonlyArray<{ k
     text: last ? `${first}-${last}` : first ?? text,
     ...first ? { first } : {}, ...last ? { last } : {}, start: offset + start, end: offset + end }));
 }
-export const nativeOccurrenceSpans = (match: NativeCitationOccurrence, text: string, offset = 0) =>
+export const nativeOccurrenceSpans = (match: CitationOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, match.pinpointPhrase, offset);
 /** Keep the written short name with the reference marker and its pinpoints separate. */
-export const nativeReferenceSpans = (reference: NativeAuthorityReferenceOccurrence, text: string, offset = 0) =>
+export const nativeReferenceSpans = (reference: AuthorityReferenceOccurrence, text: string, offset = 0) =>
   occurrenceSpans(text, { start: reference.start, end: reference.token.end }, reference.token,
     reference.pinpoints, reference.pinpointPhrase, offset);
 
@@ -184,7 +190,7 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
 async function scanReview(
   imported: AuthoritiesImport,
   bindings: Record<string, WorkProductInput>,
-  units: NativeAuthorityTextUnit[],
+  units: AuthorityTextUnit[],
   supraLinking: SupraLinking = "safe",
 ): Promise<AuthoritiesFreshReview> {
   const occurrences: Record<string, AuthorityOccurrence> = {};
@@ -221,7 +227,7 @@ async function scanReview(
   const closures = native.a2ajAliasGroups(a2ajStorePath(), cases.map(({ key }) => key!)).map(({ keys }) => keys);
   // The note parts that cite: only these can be an authority (a prose note is never one).
   const references = native.citationEngineCall("noteReferences", { parts: extracted.sourceParts,
-    citations: extracted.citations, offsetUnit: "utf16" }) as NativeReferencePart[];
+    citations: extracted.citations, offsetUnit: "utf16" }) as ReferencePart[];
   const enriched = await enrichStatuteSources(references.map(({ part }) => part), extracted.citations, native);
   // Every part reaches the resolver, prose included, so an ibid after a prose note continues from it (and stands for
   // no authority) rather than from the last part that cites.
@@ -468,7 +474,7 @@ async function scanReview(
     occurrences, authorities, authorityOrder };
 }
 
-function importedCover(units: NativeAuthorityTextUnit[]): AuthoritiesCover {
+function importedCover(units: AuthorityTextUnit[]): AuthoritiesCover {
   const body = units.filter(({ kind }) => kind === "body");
   const firstPage = body.filter(({ page_numbers }) => page_numbers.includes(1));
   const opening = (firstPage.length ? firstPage : body.slice(0, 80))

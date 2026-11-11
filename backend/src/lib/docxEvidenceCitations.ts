@@ -12,7 +12,8 @@ import type { DocxCitation, DocxCitationAppearance } from "./chat/tools/docxMark
 import { authoritySeedFromReceipts,
   type AuthorityCitationLedger } from "./authoritiesDomain";
 import { sha256 } from "./hash";
-import { structureNative, type NativeAuthorityTextUnit } from "./structureNative";
+import { structureNative } from "./structureNative";
+import type { AuthorityTextUnit } from "mike/shared/engine-types/AuthorityTextUnit";
 import { isJsonRecord } from "./value";
 
 const CITATION_ID = /^[a-z][a-z0-9_-]{0,63}$/u;
@@ -208,9 +209,9 @@ function ledgerInputs(state: LegalEvidenceTurnState,
   } catch { return null; }
 }
 
-function textPositions(units: NativeAuthorityTextUnit[], kind: "body" | "footnote",
+function textPositions(units: AuthorityTextUnit[], kind: "body" | "footnote",
   text: string, noteId?: number) {
-  const positions: Array<{ unit: NativeAuthorityTextUnit; start: number }> = [];
+  const positions: Array<{ unit: AuthorityTextUnit; start: number }> = [];
   // An empty rendered citation has no position to bind, and searching for one never
   // advances past the end of the unit: the ledger abstains instead of spinning.
   if (!text) return positions;
@@ -240,7 +241,7 @@ export async function createDocxAuthorityLedger(state: LegalEvidenceTurnState | 
   }
   const positions = new Map<string, ReturnType<typeof textPositions>>();
   // Reserve complete groups before counting their constituent citation strings.
-  const claimed: Array<{ unit: NativeAuthorityTextUnit; start: number; end: number }> = [];
+  const claimed: Array<{ unit: AuthorityTextUnit; start: number; end: number }> = [];
   for (const [key, count] of [...expected].sort(([a], [b]) => b.length - a.length)) {
     const [kind, noteId, text] = key.split("\0") as ["body" | "footnote", string, string];
     const found = textPositions(units, kind, text, noteId ? Number(noteId) : undefined)

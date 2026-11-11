@@ -104,7 +104,7 @@ export interface EngineOperations {
    * `marks` (as decodeAnnotationSet returns them) appended to the PDF as an incremental update: the original bytes
    * unchanged, then the annotations; with `disarm` (default true) also what removeActiveContent takes out.
    */
-  pdfWriteAnnotations(bytes: Uint8Array, marks: Array<AnnotationMark>, namespace: string, disarm?: boolean | null): WrittenPdf;
+  pdfWriteAnnotations(bytes: Uint8Array, marks: ReadonlyArray<AnnotationMark>, namespace: string, disarm?: boolean | null): WrittenPdf;
   /**
    * A source's own PDF set from its provider's text (assembly/statute.rs): a statute by its provisions, a judgment by
    * its paragraphs.
@@ -118,7 +118,7 @@ export interface EngineOperations {
   /**
    * A filing PDF (its first `filing` bytes) with its table of authorities, and the PDFs appended after it.
    */
-  renderFilingPdf(bytes: Uint8Array, filing: number, entries: Array<FilingEntry>): Promise<RenderedPdf>;
+  renderFilingPdf(bytes: Uint8Array, filing: number, entries: ReadonlyArray<FilingEntry>): Promise<RenderedPdf>;
   /**
    * Each page's crop box ([x, y, width, height]), rotation, and links to web addresses ([index, uri, rect]).
    */
@@ -146,20 +146,20 @@ export interface EngineOperations {
    */
   sourceText(bytes: Uint8Array, request: SourceTextRequest): Promise<string>;
   pdfDocumentSummary(document: NativeDocument): PdfSummary;
-  pdfRecognizedText(document: NativeDocument, pages?: Array<number> | null): Array<Page> | null;
+  pdfRecognizedText(document: NativeDocument, pages?: ReadonlyArray<number> | null): Array<Page> | null;
   /**
    * Each page's printed number: the structure's, anchored on the first pages of the reports `citations` cite.
    */
-  pdfPageMap(document: NativeDocument, citations: Array<string>): Array<PdfPageBinding>;
+  pdfPageMap(document: NativeDocument, citations: ReadonlyArray<string>): Array<PdfPageBinding>;
   /**
    * The PDF pages (from 1) each printed page label names by the page map anchored on the reports `citations` cite;
    * none for a label the map does not resolve.
    */
-  pdfPrintedPages(document: NativeDocument, citations: Array<string>, labels: Array<string>): Array<Array<number>>;
+  pdfPrintedPages(document: NativeDocument, citations: ReadonlyArray<string>, labels: ReadonlyArray<string>): Array<Array<number>>;
   /**
    * The first pages of the reports `citations` cite.
    */
-  reporterStartPages(citations: Array<string>): Array<number>;
+  reporterStartPages(citations: ReadonlyArray<string>): Array<number>;
   /**
    * Every page's text in page order, empty where a page has no exact text.
    */
@@ -170,18 +170,18 @@ export interface EngineOperations {
    * reading (else its count of pages, its text unread), with its marks where reviewed; null, the page the book holds
    * in place of a PDF not there.
    */
-  authorityReading(parts: Array<Part | null>, request: SourceRequest): Promise<AuthorityReading>;
+  authorityReading(parts: ReadonlyArray<Part | null>, request: SourceRequest): Promise<AuthorityReading>;
   /**
    * Each passage's pages, its lines' rectangles on each, and its quotations placed on them; a passage with no page it
    * can be read on unavailable. With `citations`, a page locator naming no physical pages is a printed page, the PDF
    * pages the page map anchored on the reports they cite gives it.
    */
-  pdfPassageGeometry(document: NativeDocument, targets: Array<PassageTarget>, citations?: Array<string> | null): Promise<PassageGeometry>;
+  pdfPassageGeometry(document: NativeDocument, targets: ReadonlyArray<PassageTarget>, citations?: ReadonlyArray<string> | null): Promise<PassageGeometry>;
   /**
    * The page (from 1) of each citation of a Word brief in a PDF saved from it (`pages`, each page's text), by its id:
    * each unit's citations found among the pages' words in order, body and notes each onward from their last match.
    */
-  briefOccurrencePages(pages: Array<string>, units: Array<BriefUnit>, occurrences: { [key in string]: BriefOccurrence }): { [key in string]: number };
+  briefOccurrencePages(pages: ReadonlyArray<string>, units: ReadonlyArray<BriefUnit>, occurrences: { [key in string]: BriefOccurrence }): { [key in string]: number };
   queryPdfDocument(document: NativeDocument, request: PdfLookupRequest): PdfStructureLookup;
   docxStructureLint(document: NativeDocument): DocxLintReport;
   documentText(document: NativeDocument, limit?: number | null): string;
@@ -203,22 +203,22 @@ export interface EngineOperations {
    * Where a statute's text holds each cited provision, part ("16(3)(a)") or range ("49-51"), by its outline: each span
    * (UTF-16) with everything under it, in the text's order; a label it does not hold has none.
    */
-  statuteProvisionSpans(text: string, labels: Array<string>): Array<[number, number]>;
+  statuteProvisionSpans(text: string, labels: ReadonlyArray<string>): Array<[number, number]>;
   /**
    * A reader's labels of one kind as few as they can be written: runs of numbers ("12–14"), provisions' spans
    * ("5(2)(a)–(c)"); null where a label is not of the kind's shape.
    */
-  collapseLabels(labels: Array<string>, kind: string): Array<string> | null;
+  collapseLabels(labels: ReadonlyArray<string>, kind: string): Array<string> | null;
   /**
    * Each typed locator of a kind as the label it names, the words it may open on taken off: "para. 12" and "par12"
    * are "12", "s. 5(2)" and "sec5(2)" are "5(2)", "fn 3" is "3".
    */
-  bareLabels(labels: Array<string>, kind: string): Array<string>;
+  bareLabels(labels: ReadonlyArray<string>, kind: string): Array<string>;
   /**
    * Each numbered label of a kind as the numbers it names, a run written out ("12–14": 12, 13, 14): null for one
    * naming no number or run, or a run reversed or spanning more than `limit` past its first number.
    */
-  expandLabels(labels: Array<string>, kind: string, limit: number): Array<Array<string> | null>;
+  expandLabels(labels: ReadonlyArray<string>, kind: string, limit: number): Array<Array<string> | null>;
   /**
    * A filing's cover from its opening page's text: the parties its BETWEEN block names in their roles, and whose
    * document it is, from `title` (its record title) where given, else its DOCUMENT line.
@@ -239,18 +239,18 @@ export interface EngineOperations {
    * in; each with the parts of the units (by their place in `units`) it holds. Also where each body unit starts in
    * that text and every call of a note in it by where it stands. Offsets in UTF-16 units.
    */
-  footnotePropositions(units: Array<PropositionUnit>, context?: QuoteContext | null): FootnotePropositions;
+  footnotePropositions(units: ReadonlyArray<PropositionUnit>, context?: QuoteContext | null): FootnotePropositions;
   /**
    * A brief's text, its units joined by a blank line, and its notes in reading order as the citation engine reads
    * them (number u32::MAX where unprinted, the span, the sequence, the call).
    */
-  briefText(units: Array<AuthorityTextUnit>): BriefText;
+  briefText(units: ReadonlyArray<AuthorityTextUnit>): BriefText;
   /**
    * The units as joined (with `joinBodies`, the body units a citation runs across are one), where each starts in the
    * brief's text, and the citations' indexes in reading order (a note's after the body up to its call).
    */
-  briefCitationOrder(units: Array<AuthorityTextUnit>, citations: Array<BriefCitation>, joinBodies: boolean): BriefCitationOrder;
-  citationLookupKeys(texts: Array<string>): Array<string>;
+  briefCitationOrder(units: ReadonlyArray<AuthorityTextUnit>, citations: ReadonlyArray<BriefCitation>, joinBodies: boolean): BriefCitationOrder;
+  citationLookupKeys(texts: ReadonlyArray<string>): Array<string>;
   /**
    * What the lookup keys are made by: the key version and the alias table ("4:1a2b3c4d5e6f").
    */
@@ -260,7 +260,7 @@ export interface EngineOperations {
    * The CanLII page of the first decision the citations name by a neutral or CanLII citation with its court written,
    * of `court` where given and routed; null where none.
    */
-  canliiCaseUrl(citations: Array<string>, language?: string | null, court?: string | null): string | null;
+  canliiCaseUrl(citations: ReadonlyArray<string>, language?: string | null, court?: string | null): string | null;
   /**
    * The CanLII page, in `language` (English by default), of the first statute or regulation the text cites; null
    * where none. `consolidated` where it is a statute in force as consolidated (an A2AJ legislation record).
@@ -274,7 +274,7 @@ export interface EngineOperations {
   /**
    * The link citing a passage by its anchor, with its paragraph's or provision's fragments where they plan whole.
    */
-  citedPassageLink(document: NativeDocument, url: string, pinpoints: Array<string>): string | null;
+  citedPassageLink(document: NativeDocument, url: string, pinpoints: ReadonlyArray<string>): string | null;
   /**
    * The link a passage of an A2AJ document is routed to: the publisher's where its page prints an anchor for the
    * pinpoint, else CanLII's, else A2AJ Law Web's.
@@ -287,10 +287,10 @@ export interface EngineOperations {
   citationOccurrencesInText(text: string): Array<CitationOccurrence>;
   authorityReferencesInText(text: string): Array<AuthorityReferenceOccurrence>;
   hasCitationInText(text: string): boolean;
-  groundedProseErrors(text: string, citedEvidenceIds: Array<string>, visibleEvidence: Array<VisibleEvidenceText>): Array<string>;
-  quoteRepairSuggestion(claim: string, spans: Array<string>): string | null;
-  searchQuery(query: string, columns?: Array<string> | null): SearchQuery;
-  renderCitedBlocks(blocks: Array<CitedBlock>): string;
+  groundedProseErrors(text: string, citedEvidenceIds: ReadonlyArray<string>, visibleEvidence: ReadonlyArray<VisibleEvidenceText>): Array<string>;
+  quoteRepairSuggestion(claim: string, spans: ReadonlyArray<string>): string | null;
+  searchQuery(query: string, columns?: ReadonlyArray<string> | null): SearchQuery;
+  renderCitedBlocks(blocks: ReadonlyArray<CitedBlock>): string;
   markedQuoteSpans(text: string): Array<MarkedQuoteSpan>;
   /**
    * A document's citable units as UTF-16 [start, end) spans of its text: every line, and with sentences every
@@ -304,7 +304,7 @@ export interface EngineOperations {
   /**
    * The article whose found name is closest to the title searched for it, when close enough.
    */
-  journalTitleChoice(hits: Array<JournalTitleHit>): number | null;
+  journalTitleChoice(hits: ReadonlyArray<JournalTitleHit>): number | null;
   /**
    * Where a quotation's words are in a source passage, the passage it is compared with, and what differs.
    */
@@ -326,7 +326,7 @@ export interface EngineOperations {
    * The one sequence diff (difflib's matching blocks, no junk): each run of `left` and `right` as equal, replaced,
    * deleted or inserted, by index into each.
    */
-  sequenceOpcodes(left: Array<string>, right: Array<string>): Array<[string, number, number, number, number]>;
+  sequenceOpcodes(left: ReadonlyArray<string>, right: ReadonlyArray<string>): Array<[string, number, number, number, number]>;
   /**
    * The fewest changed characters that turn `text` into `target`, as [start, length, replacement] edits in UTF-16
    * (the ALR macro's plan; past its 200-character cutoff, the sequence diff's characters).
@@ -335,7 +335,7 @@ export interface EngineOperations {
   /**
    * `text` (at `base`) as [start, end, edited] runs marking what a character plan changes.
    */
-  highlightRuns(text: string, plan: Array<[number, number, string]>, base?: number | null): Array<[number, number, boolean]>;
+  highlightRuns(text: string, plan: ReadonlyArray<[number, number, string]>, base?: number | null): Array<[number, number, boolean]>;
   /**
    * The source passage an authored quotation's words closely align with, where it occurs once.
    */
@@ -347,7 +347,7 @@ export interface EngineOperations {
    * only. `source`: a provider's text, a PDF read by the locators it prints, or a statute's PDF read by its
    * provisions. With `keep`, what was read of the document is kept for the quotations located in it after.
    */
-  quoteLocateDocument(document: NativeDocument, source: QuoteSource, quotes: Array<QuoteToLocate>, compare?: boolean | null, keep?: boolean | null): Promise<Array<LocatedQuotation>>;
+  quoteLocateDocument(document: NativeDocument, source: QuoteSource, quotes: ReadonlyArray<QuoteToLocate>, compare?: boolean | null, keep?: boolean | null): Promise<Array<LocatedQuotation>>;
   /**
    * The one document the local A2AJ store at `store` holds under a citation's key, with its provisions' document and
    * its full text's; null where the store, or the document, is missing.
@@ -362,7 +362,7 @@ export interface EngineOperations {
    * One provision of a statute, from the records A2AJ's API answered a lookup of it with, as an excerpt of the
    * document `excerpt` describes; null where no record of the collection and address asked for holds its text.
    */
-  a2ajRecordProvision(records: Array<unknown>, lookup: ProvisionLookup, excerpt: Excerpt): Promise<NativeDocument | null>;
+  a2ajRecordProvision(records: ReadonlyArray<unknown>, lookup: ProvisionLookup, excerpt: Excerpt): Promise<NativeDocument | null>;
   /**
    * A record A2AJ's API answered with, as a search lists it; null for one without a citation.
    */
@@ -371,7 +371,7 @@ export interface EngineOperations {
    * The places, among records A2AJ's API answered with, of those answering a citation (by its key or one of
    * `aliases`), of the collection and at the address asked for.
    */
-  a2ajRecordMatches(records: Array<unknown>, query: Query): Array<number>;
+  a2ajRecordMatches(records: ReadonlyArray<unknown>, query: Query): Array<number>;
   /**
    * One provision of a statute the store holds, as an excerpt of the document `excerpt` describes, or that the store
    * lacks the provision or the statute.
@@ -381,7 +381,7 @@ export interface EngineOperations {
    * Each citation's exact aliases and authored forms in the store's inventory; its own key alone where there is
    * no store.
    */
-  a2ajAliasGroups(store: string, keys: Array<string>): Array<AliasGroup>;
+  a2ajAliasGroups(store: string, keys: ReadonlyArray<string>): Array<AliasGroup>;
   /**
    * The citation of the one decision the store holds under a style of cause, in a year, of one of `courts` (any
    * where none): a decision cited by an identifier A2AJ does not carry. Null where none answers, or several.
@@ -390,11 +390,11 @@ export interface EngineOperations {
   /**
    * The same of the records A2AJ's API answered a search of the name with.
    */
-  a2ajNamedRecord(records: Array<unknown>, named: Named, language?: Language | null): string | null;
+  a2ajNamedRecord(records: ReadonlyArray<unknown>, named: Named, language?: Language | null): string | null;
   /**
    * Each style of cause compared as its words: the key of the store's names and of CanLII's titles.
    */
-  a2ajNameKeys(names: Array<string>): Array<string>;
+  a2ajNameKeys(names: ReadonlyArray<string>): Array<string>;
   /**
    * The store's documents answering a search, as a search lists them (never their text); null where there is no
    * store or it has no full-text indexes.
@@ -413,11 +413,11 @@ export interface EngineOperations {
    * The store's documents with these ids, of a kind, each in the language asked for where it has text in it, else
    * the other, derived as a2ajDocument derives one: what experiments sample the store by.
    */
-  a2ajStoreDocuments(store: string, ids: Array<number>, docType?: string | null, language?: Language | null): Promise<Array<StoreDocument> | null>;
+  a2ajStoreDocuments(store: string, ids: ReadonlyArray<number>, docType?: string | null, language?: Language | null): Promise<Array<StoreDocument> | null>;
   /**
    * The same documents' text and provisions as the store holds them, for experiments that read the text itself.
    */
-  a2ajReads(store: string, ids: Array<number>, docType?: string | null, language?: Language | null): Array<StoreRead> | null;
+  a2ajReads(store: string, ids: ReadonlyArray<number>, docType?: string | null, language?: Language | null): Array<StoreRead> | null;
   /**
    * The decisions citing a decision and what they and journal authors say it stands for, from the graph beside
    * the A2AJ store at `store` (which gives the decision's keys); null where no graph is built.
@@ -426,7 +426,7 @@ export interface EngineOperations {
   /**
    * How much each citation is cited, by the graph beside the store at `store`; null where none is built.
    */
-  citatorMetrics(store: string, citations: Array<string>): Array<AuthorityMetric | null> | null;
+  citatorMetrics(store: string, citations: ReadonlyArray<string>): Array<AuthorityMetric | null> | null;
   readDocumentRange(document: NativeDocument, kind: NodeKind, from: string, to: string, contextBlocks: number): DocumentRangeLookup | null;
   smallestContainingDocumentBlock(document: NativeDocument, start: number, end: number): Passage | null;
   /**

@@ -9,22 +9,22 @@ export type SourceLinkRequest = {
 /**
  * The publisher's page A2AJ names for the document, where it names one.
  */
-url: string | null, 
+url?: string | null, 
 /**
  * The A2AJ dataset (`SCC`, `LEGISLATION-ON`), the document's citation and its other one.
  */
-dataset: string, citation: string, alternateCitation: string | null, language: string, 
+dataset: string, citation: string, alternateCitation?: string | null, language?: string, 
 /**
  * `cases` or `laws`.
  */
-docType: string, 
+docType?: string, 
 /**
  * The passage's locator where the citation pinpoints one: its kind (`paragraph`, `section`, `page`) and the label
  * the document prints (`12`, `5(2)`, `3`).
  */
-locator: SourceLocator | null, blockText: string, quotes: Array<string>, 
+locator?: SourceLocator | null, blockText: string, quotes?: Array<string>, 
 /**
  * The citation's pinpoints (`par12`, `sec6subsec1`, `sec6(1)(c)`): a passage cited without a quotation is
  * linked at them, as a citation's pinpoint is (`cited_passage_link`).
  */
-pinpoints: Array<string>, verifiedPdf: VerifiedPdf | null, };
+pinpoints?: Array<string>, verifiedPdf?: VerifiedPdf | null, };

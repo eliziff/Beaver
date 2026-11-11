@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { sha256 } from "./hash";
-import { structureNative, type NativeDocument, type NativePdfLookupRequest,
-  type PdfStructureLookup } from "./structureNative";
+import { structureNative, type NativeDocument } from "./structureNative";
+import type { PdfLookupRequest } from "mike/shared/engine-types/PdfLookupRequest";
+import type { PdfStructureLookup } from "mike/shared/engine-types/PdfStructureLookup";
 import { immutableReceiptPath, writeImmutableReceipt } from "./contentStore";
 import { cachedPdf, openDocument, type PdfPreparationProgress } from "./sourceDocument";
 import type { PdfProfileSelection } from "./documentStore";
@@ -12,7 +13,7 @@ import { RESOURCE_LOCATOR_KINDS } from "mike/shared/runtime/resourceReferences.m
 
 export type PdfLocatorKind = (typeof RESOURCE_LOCATOR_KINDS)[number];
 
-export type PdfLookupInput = NativePdfLookupRequest & { locator_kind: PdfLocatorKind };
+export type PdfLookupInput = PdfLookupRequest & { locator_kind: PdfLocatorKind };
 
 const EVIDENCE_SCHEMA = "mike.pdf_evidence.v1";
 const EVIDENCE_HANDLE = /^mike-evidence:v1:([0-9a-f]{64})$/u;
