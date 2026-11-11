@@ -66,6 +66,11 @@ function engineReply(reply, revive) {
  *   `toBuffer` wraps result bytes as the host's Buffer; `recognizePdf` recognizes scanned pages in the
  *   host; `parser` prepares PDFs this engine has no cache of elsewhere, writing the parse cache where it reads it.
  */
+/** A wait an abandoned asker leaves, without cancelling the work it shares with others. */
+export const abandonable = (pending, signal) => !signal ? pending : Promise.race([pending, new Promise((_, reject) => {
+  signal.throwIfAborted(); signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+})]);
+
 export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, recognizePdf, parser } = {}) {
   // A trapped engine restarts; documents belong to the engine that made them.
   let generation = 1;
@@ -122,10 +127,6 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     catch (error) { throw trapped(error, name); }
     return reply;
   }
-  // A wait an abandoned asker leaves, without cancelling the work it shares with others.
-  const abandonable = (pending, signal) => !signal ? pending : Promise.race([pending, new Promise((_, reject) => {
-    signal.throwIfAborted(); signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-  })]);
   // Readings being made for this engine by its host, by cache key: a second asker waits for the first's.
   const preparing = new Map();
   // A PDF the host reads for this engine: parsed in its parse workers (`parser`), its scanned pages recognized by its

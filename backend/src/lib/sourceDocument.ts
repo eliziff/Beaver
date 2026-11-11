@@ -7,6 +7,7 @@ import type { Page } from "mike/shared/engine-types/Page";
 import { docxToPdf } from "./convert";
 import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 import { oneAtATime } from "mike/shared/one-at-a-time.mjs";
+import { abandonable } from "mike/shared/structure-engine.mjs";
 import type { DocumentSource, LegalPdfOcrProvider, LegalPdfProfile,
   PdfProfileSelection } from "./documentStore";
 
@@ -50,23 +51,6 @@ const pdfRequest = (profile: LegalPdfProfile, pages?: number[], cacheKey?: strin
 const sourceRequest = ({ documentId, versionId, sourceSha256 }: Pick<Source, "documentId" | "versionId" | "sourceSha256">,
   fileType: string, mode: OpenOptions["mode"], pdf?: ReturnType<typeof pdfRequest>) =>
   ({ documentId, versionId, sourceSha256, fileType, mode: mode ?? "text", ...(pdf && { pdf }) });
-
-// An abandoned reader must neither wait for a shared read nor cancel it for another reader.
-function abandonable<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return pending;
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => { signal.removeEventListener("abort", abort); reject(signal.reason); };
-    if (signal.aborted) abort();
-    else signal.addEventListener("abort", abort, { once: true });
-    void pending.then(value => {
-      signal.removeEventListener("abort", abort);
-      resolve(value);
-    }, error => {
-      signal.removeEventListener("abort", abort);
-      reject(error);
-    });
-  });
-}
 
 // One recognition pass already schedules every core, and each pass loads its own model
 // sessions: a second concurrent pass only multiplies memory, so passes wait their turn,

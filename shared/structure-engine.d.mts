@@ -5,6 +5,7 @@ export type StructureEngineTransport = {
   restart?(): string;
   memoryBytes?(): number;
 };
+export function abandonable<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T>;
 export function structureEngineAddon(transport: StructureEngineTransport, host?: {
   toBuffer?: (bytes: Uint8Array) => Uint8Array;
   recognizePdf?: (...args: unknown[]) => Promise<unknown>;
