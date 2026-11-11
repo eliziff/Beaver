@@ -272,6 +272,23 @@ Follow-up, November 9:
   rebuilt binary confirms personal source paths are absent. Packaged extension
   binaries remain untouched.
 
+Follow-up, November 11 (architecture; corpus gates pending on the desktop):
+
+- A PDF is read one way: legalpdf `read_pdf` (parse cache, or parse and cache, failing where the cache cannot be
+  written). The engine's `openSource` is the one open: it reports recognition progress and, without bytes, finds a
+  reading cached under the key its request names. `preparePdf` (sourceDocument.ts) opens through it and returns the
+  document with its summary, so callers no longer reopen a reading from the disk cache.
+- `preparePdfDocument` exists only for engines that parse for another engine (a page's parse workers). Browser
+  hosts go through one composition, `hostPdf` in shared/structure-engine.mjs: reopen by the key `pdfCacheKey`
+  computes without bytes, else one host parse per key, the host's recognizers supplying OCR. The parse pool keeps
+  no request memo of its own.
+- The A2AJ store builds the engine's own document (`make`); there is no second document type for it.
+- Authorities asks the engine for a source PDF's page count and the pages needing recognition (document route
+  `pdf-pages`, runtime operation `source-pages`) instead of reading the PDF again with pdf.js.
+- A structure's revision is the digest of its JSON written without one; the old splitter that kept an earlier
+  digest is gone, so revisions computed before November 11 differ.
+- legal-pdf-parser's structure stage is one crate (`legal-pdf-structure`): its 17 crates were one dependency chain.
+
 ## Profile-preserving refactor contract
 
 Revised 2026-09-05. This section replaces earlier guidance to resolve structure
