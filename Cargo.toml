@@ -15,8 +15,7 @@ members = [
 # The workspaces these depend on stay their own (cargo would otherwise take any path dependency in
 # this folder as a member); Rust packages of other products and the benchmark owners' copies build
 # on their own.
-exclude = ["legal-pdf-parser", "legal-structure", "common-law-cite", "AuthoritiesHelper", "benchmarks", "legal-pinpointer",
-    "native/vendor/calamine"]
+exclude = ["legal-pdf-parser", "legal-structure", "common-law-cite", "AuthoritiesHelper", "benchmarks", "legal-pinpointer"]
 
 [patch.crates-io]
 hayro-jpeg2000 = { git = "https://github.com/LaurenzV/hayro.git", rev = "ff7e2e407f6b9c429b44dc29a851180727892b6c" }

@@ -12,7 +12,7 @@ export type PreparedBook = { filename: string, subtitle: string, documentTitle: 
 /**
  * What the index gives beside each citation: its tab ("tabs"), or its tab and pages ("tabs-and-pages").
  */
-indexShows?: string | null, indexLinks?: boolean, tabPages?: boolean, customCover?: number | null, customIndex?: number | null, limits?: Limits | null, rightHandStarts?: boolean, 
+indexShows?: string | null, indexLinks?: boolean, tabPages?: boolean, customCover?: Uint8Array | null, customIndex?: Uint8Array | null, limits?: Limits | null, rightHandStarts?: boolean, 
 /**
  * Only the cover and the index, for a preview: each source's pages are counted, none is copied.
  */

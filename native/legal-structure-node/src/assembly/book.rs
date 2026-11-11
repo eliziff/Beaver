@@ -5,6 +5,7 @@ use super::{citation_lines, fit, pdf_normalized, pdf_text, wrapped, Run};
 use legal_structure::PartyGroup;
 use legalpdf::compose::{map_outline, nested_outline, read_outline, source_outline, Composer, Face, Label, Meta, Outline, Position, Rgb, Target};
 use serde::{Deserialize, Serialize};
+use crate::dispatch::{Buffer, Bytes};
 use std::collections::HashMap;
 
 #[derive(Deserialize, Clone)]
@@ -23,14 +24,14 @@ pub struct BookRow {
     pub source_url: Option<String>,
 }
 
-/// One of an authority's PDFs, in the order they are joined: `bytes` long in the request's bytes, with the headings
-/// read from its text; or a page naming what is missing ("French version").
+/// One of an authority's PDFs, in the order they are joined, with the headings read from its text; or a page naming
+/// what is missing ("French version").
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum BookPart {
-    Pdf { bytes: usize, #[serde(default)] headings: Vec<BookHeading> },
+    Pdf { bytes: Bytes, #[serde(default)] headings: Vec<BookHeading> },
     /// In Times for the Federal Court, else in Arial.
     Missing { detail: Option<String>, #[serde(default)] federal: bool },
 }
@@ -60,7 +61,7 @@ pub struct BookSource {
     #[serde(flatten)]
     pub row: BookRow,
     pub parts: Vec<BookPart>,
-    /// The pages kept, of its parts joined.
+    /// The pages kept, of its parts joined; none listed, all of them.
     pub page_indices: Vec<usize>,
     #[serde(default)]
     pub ocr_text_by_page: Option<Vec<String>>,
@@ -118,7 +119,7 @@ pub struct Limits { pub max_pages: Option<usize>, pub max_bytes: Option<usize>, 
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub struct BookGroup { pub label: String, pub entries: Vec<BookRow> }
 
-/// A book as the builder prepared it. `customCover`/`customIndex`: the filer's own PDFs, that long in the bytes.
+/// A book as the builder prepared it. `customCover`/`customIndex`: the filer's own PDFs.
 #[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
@@ -147,9 +148,9 @@ pub struct PreparedBook {
     #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub tab_pages: bool,
     #[serde(default)]
-    pub custom_cover: Option<usize>,
+    pub custom_cover: Option<Bytes>,
     #[serde(default)]
-    pub custom_index: Option<usize>,
+    pub custom_index: Option<Bytes>,
     /// The cover's pages and the filer's index's, as counted of their PDFs (a drawn cover is one page).
     #[serde(skip)]
     pub cover_page_count: usize,
@@ -174,11 +175,11 @@ pub struct PreparedBook {
 #[serde(rename_all = "camelCase")]
 pub struct Placement { pub key: String, pub page_index: usize, pub tab_page_index: usize, pub source_page_indices: Vec<usize> }
 
-/// A volume of the book: `bytes` long in the reply's bytes, in order.
+/// A volume of the book.
 #[derive(Serialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
-pub struct BuiltBook { pub role: String, pub filename: String, pub page_count: usize, pub placements: Vec<Placement>, pub bytes: usize }
+pub struct BuiltBook { pub role: String, pub filename: String, pub page_count: usize, pub placements: Vec<Placement>, pub bytes: Buffer }
 
 #[derive(Clone)]
 struct Slice { source: usize, pages: Vec<usize> }
@@ -211,50 +212,30 @@ fn split_at_tabs(items: &[Slice], size: f64, added: usize, per_page: &dyn Fn(&Sl
 }
 
 /// Each source's PDFs by part, and where each part's pages begin in the source's joined pages.
-struct SourcePdfs { parts: Vec<(Option<Vec<u8>>, usize)>, count: usize }
+struct SourcePdfs<'a> { parts: Vec<(Option<&'a [u8]>, usize)>, count: usize }
 
-pub fn render_book(mut book: PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBook>, Vec<u8>), String> {
-    let mut cursor = 0;
-    let mut take = |length: usize| -> Result<Vec<u8>, String> {
-        let slice = bytes.get(cursor..cursor + length).ok_or("The book's PDFs are shorter than it says.")?.to_vec();
-        cursor += length;
-        Ok(slice)
-    };
-    let custom_cover = book.custom_cover.map(&mut take).transpose()?;
-    let custom_index = book.custom_index.map(&mut take).transpose()?;
+pub fn render_book(mut book: PreparedBook) -> Result<Vec<BuiltBook>, String> {
     let pages = |pdf: &[u8]| legalpdf::compose::page_frames(pdf).map(|frames| frames.len()).map_err(|e| e.to_string());
-    book.cover_page_count = custom_cover.as_deref().map_or(Ok(1), pages)?;
-    book.custom_index_pages = custom_index.as_deref().map_or(Ok(0), pages)?;
-    let book = &book;
-    let mut pdfs = Vec::new();
-    for source in &book.sources {
-        let mut parts = Vec::new();
-        let mut count = 0;
+    book.cover_page_count = book.custom_cover.as_deref().map_or(Ok(1), pages)?;
+    book.custom_index_pages = book.custom_index.as_deref().map_or(Ok(0), pages)?;
+    let mut starts = Vec::new();
+    for source in &mut book.sources {
+        let (mut first, mut count) = (Vec::new(), 0);
         for part in &source.parts {
-            let (pdf, pages) = match part {
-                BookPart::Pdf { bytes, .. } => { let pdf = take(*bytes)?; let count = pages(&pdf)?; (Some(pdf), count) }
-                BookPart::Missing { .. } => (None, 1),
-            };
-            parts.push((pdf, count));
-            count += pages;
+            first.push(count);
+            count += match part { BookPart::Pdf { bytes, .. } => pages(bytes)?, BookPart::Missing { .. } => 1 };
         }
-        pdfs.push(SourcePdfs { parts, count });
+        if source.page_indices.is_empty() { source.page_indices = (0..count).collect(); }
+        starts.push((first, count));
     }
-    let federal = book.federal;
-    let show_pages = book.index_shows.as_deref() == Some("tabs-and-pages");
+    let book = &book;
+    let (custom_cover, custom_index) = (book.custom_cover.as_deref(), book.custom_index.as_deref());
+    let pdfs: Vec<SourcePdfs> = book.sources.iter().zip(starts).map(|(source, (first, count))| SourcePdfs { count,
+        parts: source.parts.iter().zip(first).map(|(part, at)| (match part { BookPart::Pdf { bytes, .. } => Some(&bytes[..]), _ => None }, at)).collect() }).collect();
+    let layout = Layout::of(book);
+    let Layout { federal, show_pages, grouped, body, leading, title_x, page_right, pages_column, source_x, top, bottom, .. } = layout;
     let (tab_pages, right_hand, front_only) = (book.tab_pages, book.right_hand_starts, book.front_only);
     let limits = book.limits.clone().unwrap_or_default();
-    // Under headings where the authorities are grouped; one list, bookmarked tab by tab, where not.
-    let grouped = grouped_book(book);
-    let margin = book_margin(federal);
-    let body = if federal { 12.0 } else { 11.0 };
-    let leading = body + 3.0;
-    let title_x = if federal { margin + 52.0 } else { margin };
-    let page_right = 612.0 - margin;
-    let (tab_column, pages_column) = (58.0, if show_pages { 66.0 } else { 0.0 });
-    // The Federal Court's source link stands clear of the page numbers when the index gives them.
-    let source_width = Face::Times.width("source", 12.0);
-    let source_x = if show_pages { page_right - pages_column - source_width } else { 447.0 };
     // The index lists each citation in full, wrapped onto as many lines as it takes.
     let mut tokens = Vec::new();
     for group in &book.groups {
@@ -262,13 +243,12 @@ pub fn render_book(mut book: PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBoo
         for entry in &group.entries {
             let width = if federal {
                 if entry.source_url.is_some() { source_x - title_x - 8.0 } else { page_right - title_x - if show_pages { pages_column } else { 8.0 } }
-            } else { page_right - title_x - tab_column - pages_column - 24.0 };
+            } else { page_right - title_x - 58.0 - pages_column - 24.0 };
             let lines = citation_lines(Face::Times, Face::TimesItalic, &entry.name, entry.italic, body, width);
             let height = if federal { 25.0 } else { 12.0 } + (lines.len() as f64 - if federal { 1.0 } else { 0.0 }) * leading;
             tokens.push(Token { label: String::new(), entry: Some(entry.clone()), lines, height });
         }
     }
-    let (top, bottom) = if federal { (670.0, 100.0) } else { (680.0, 84.0) };
     let mut chunks: Vec<Vec<usize>> = vec![Vec::new()];
     let mut room = top - bottom;
     for (index, token) in tokens.iter().enumerate() {
@@ -278,8 +258,8 @@ pub fn render_book(mut book: PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBoo
         chunks.last_mut().expect("chunk").push(index);
         room -= token.height;
     }
-    let cover_outline = match &custom_cover { Some(pdf) => read_outline(pdf, 0).map_err(|e| e.to_string())?, None => Vec::new() };
-    let index_outline = match &custom_index { Some(pdf) => read_outline(pdf, 0).map_err(|e| e.to_string())?, None => Vec::new() };
+    let cover_outline = match custom_cover { Some(pdf) => read_outline(pdf, 0).map_err(|e| e.to_string())?, None => Vec::new() };
+    let index_outline = match custom_index { Some(pdf) => read_outline(pdf, 0).map_err(|e| e.to_string())?, None => Vec::new() };
     // Each source's own outline: each part's bookmarks with the headings read from it, on the joined pages.
     let mut outlines = Vec::new();
     for (source, pdf) in book.sources.iter().zip(&pdfs) {
@@ -305,22 +285,19 @@ pub fn render_book(mut book: PreparedBook, bytes: &[u8]) -> Result<(Vec<BuiltBoo
     // A volume's bytes, each authority weighed by its own PDFs'.
     let per_page = |slice: &Slice| {
         let source = &book.sources[slice.source];
-        let size: usize = source.parts.iter().map(|p| if let BookPart::Pdf { bytes, .. } = p { *bytes } else { 0 }).sum();
+        let size: usize = source.parts.iter().map(|p| if let BookPart::Pdf { bytes, .. } = p { bytes.len() } else { 0 }).sum();
         size as f64 / source.page_indices.len().max(1) as f64
     };
+    let parts = Parts { layout, pdfs, outlines, tokens, chunks, cover_outline, index_outline, custom_cover, custom_index };
     loop {
-        let (built, placements) = assemble(book, &pdfs, &outlines, &volumes, &tokens, &chunks, &cover_outline, &index_outline,
-            custom_cover.as_deref(), custom_index.as_deref())?;
+        let (built, placements) = assemble(book, &parts, &volumes)?;
         let oversized = built.iter().position(|(bytes, pages)| limits.max_pages.is_some_and(|m| *pages > m) || limits.max_bytes.is_some_and(|m| bytes.len() > m));
         let Some(oversized) = oversized else {
             let count = built.len();
-            let mut out = Vec::new();
-            let books = built.into_iter().zip(placements).enumerate().map(|(index, ((bytes, page_count), placements))| {
-                out.extend_from_slice(&bytes);
-                BuiltBook { role: if index > 0 { format!("book-{}", index + 1) } else { "book".into() }, page_count, placements, bytes: bytes.len(),
+            return Ok(built.into_iter().zip(placements).enumerate().map(|(index, ((bytes, page_count), placements))| {
+                BuiltBook { role: if index > 0 { format!("book-{}", index + 1) } else { "book".into() }, page_count, placements, bytes: Buffer(bytes),
                     filename: if count > 1 { volume_filename(&book.filename, index + 1, count) } else { book.filename.clone() } }
-            }).collect();
-            return Ok((books, out));
+            }).collect());
         };
         let volume = &volumes[oversized];
         if volume.iter().map(|s| s.pages.len()).sum::<usize>() < 2 { return Err("One PDF page exceeds the court's electronic filing size limit.".into()); }
@@ -339,11 +316,36 @@ fn volume_filename(filename: &str, number: usize, count: usize) -> String {
     match lower.strip_suffix(".pdf") { Some(_) => format!("{}.volume-{number}-of-{count}.pdf", &filename[..filename.len() - 4]), None => filename.to_owned() }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn assemble(book: &PreparedBook, pdfs: &[SourcePdfs], outlines: &[Vec<Outline>], volumes: &[Vec<Slice>], tokens: &[Token], chunks: &[Vec<usize>],
-    cover_outline: &[Outline], index_outline: &[Outline], custom_cover: Option<&[u8]>, custom_index: Option<&[u8]>) -> Result<(Vec<(Vec<u8>, usize)>, Vec<Vec<Placement>>), String> {
-    let federal = book.federal;
-    let show_pages = book.index_shows.as_deref() == Some("tabs-and-pages");
+/// The index's page geometry and type, as the court sets it: measured once, for the index's pages and its drawing alike.
+#[derive(Clone, Copy)]
+struct Layout { federal: bool, show_pages: bool, grouped: bool, margin: f64, body: f64, leading: f64, title_x: f64, page_right: f64,
+    pages_column: f64, source_width: f64, source_x: f64, top: f64, bottom: f64 }
+
+impl Layout {
+    fn of(book: &PreparedBook) -> Self {
+        let (federal, show_pages) = (book.federal, book.index_shows.as_deref() == Some("tabs-and-pages"));
+        let margin = margin(federal);
+        let body = if federal { 12.0 } else { 11.0 };
+        let (page_right, pages_column, source_width) = (612.0 - margin, if show_pages { 66.0 } else { 0.0 }, Face::Times.width("source", 12.0));
+        Layout { federal, show_pages, margin, body, leading: body + 3.0, title_x: if federal { margin + 52.0 } else { margin }, page_right,
+            pages_column, source_width,
+            // The Federal Court's source link stands clear of the page numbers when the index gives them.
+            source_x: if show_pages { page_right - pages_column - source_width } else { 447.0 },
+            top: if federal { 670.0 } else { 680.0 }, bottom: if federal { 100.0 } else { 84.0 },
+            // Under headings where the authorities are grouped; one list, bookmarked tab by tab, where not.
+            grouped: book.groups.len() > 1 || book.groups.first().is_some_and(|g| g.label != "Authorities") }
+    }
+}
+
+/// What every volume is assembled from: the layout, each source's PDFs and outline, the index's entries and their pages,
+/// and the filer's own cover and index.
+struct Parts<'a> { layout: Layout, pdfs: Vec<SourcePdfs<'a>>, outlines: Vec<Vec<Outline>>, tokens: Vec<Token>, chunks: Vec<Vec<usize>>,
+    cover_outline: Vec<Outline>, index_outline: Vec<Outline>, custom_cover: Option<&'a [u8]>, custom_index: Option<&'a [u8]> }
+
+fn assemble(book: &PreparedBook, parts: &Parts, volumes: &[Vec<Slice>]) -> Result<(Vec<(Vec<u8>, usize)>, Vec<Vec<Placement>>), String> {
+    let Parts { layout, pdfs, outlines, tokens, chunks, cover_outline, index_outline, custom_cover, custom_index } = parts;
+    let (custom_cover, custom_index) = (*custom_cover, *custom_index);
+    let Layout { federal, show_pages, grouped, margin, body, leading, title_x, page_right, source_width, source_x, top, .. } = *layout;
     let (tab_pages, right_hand, front_only) = (book.tab_pages, book.right_hand_starts, book.front_only);
     let limits = book.limits.clone().unwrap_or_default();
     let multi = volumes.len() > 1;
@@ -391,12 +393,10 @@ fn assemble(book: &PreparedBook, pdfs: &[SourcePdfs], outlines: &[Vec<Outline>],
         let serif_bold = c.font(Face::TimesBold);
         let regular = c.font(if federal { Face::Times } else { Face::Arial });
         let bold = c.font(if federal { Face::TimesBold } else { Face::ArialBold });
-        let content_width = 612.0 - 2.0 * book_margin(federal);
-        let margin = book_margin(federal);
+        let content_width = 612.0 - 2.0 * margin;
         let volume_label = format!("Volume {} of {}", volume + 1, volumes.len());
-        let mut tab_starts: HashMap<&str, usize> = HashMap::new();
-        for p in &plan.slices { let s = &book.sources[p.slice.source]; if p.slice.pages.first() == s.page_indices.first() { tab_starts.insert(&s.row.key, p.tab_start); } }
-        for p in &plan.slices { tab_starts.entry(&book.sources[p.slice.source].row.key).or_insert(p.local_start); }
+        // Where each authority begins in this volume: its tab page, or its first page without one.
+        let tab_starts: HashMap<&str, usize> = plan.slices.iter().map(|p| (book.sources[p.slice.source].row.key.as_str(), p.tab_start)).collect();
         let index_start = book.cover_page_count + if generated_toc { book.custom_index_pages } else { 0 };
         let index_chunks: &[Vec<usize>] = if indexed(volume) { chunks } else { &[] };
         let index_title = if federal { "Table of Contents" } else { "Index" };
@@ -424,13 +424,6 @@ fn assemble(book: &PreparedBook, pdfs: &[SourcePdfs], outlines: &[Vec<Outline>],
         }
         if multi && limits.cover_labels { c.text(0, bold, &volume_label, margin, cover_bottom.min(400.0), 12.0, BLACK); }
         if let Some(pdf) = custom_index { c.append(pdf, None).map_err(|e| e.to_string())?; }
-        let body = if federal { 12.0 } else { 11.0 };
-        let leading = body + 3.0;
-        let title_x = if federal { margin + 52.0 } else { margin };
-        let page_right = 612.0 - margin;
-        let source_width = Face::Times.width("source", 12.0);
-        let source_x = if show_pages { page_right - 66.0 - source_width } else { 447.0 };
-        let top = if federal { 670.0 } else { 680.0 };
         for (chunk_index, chunk) in index_chunks.iter().enumerate() {
             let page = c.add_page(612.0, 792.0);
             let heading = if chunk_index > 0 { format!("{index_title} — continued") } else { index_title.to_owned() };
@@ -509,11 +502,9 @@ fn assemble(book: &PreparedBook, pdfs: &[SourcePdfs], outlines: &[Vec<Outline>],
                 c.stamp(page, &number.to_string(), Some(number as i64), regular, Position::BottomCentre, if federal { 12.0 } else { 9.0 }, 72.0, if federal { 75.0 } else { 36.0 });
             }
         }
-        let mut local_starts: HashMap<&str, usize> = HashMap::new();
         if !front_only {
             for placed in &plan.slices {
                 let source = &book.sources[placed.slice.source];
-                local_starts.insert(&source.row.key, placed.local_start);
                 if placed.blank_before { c.add_page(612.0, 792.0); }
                 if placed.tabbed { let page = c.add_page(612.0, 792.0); tab_page(&mut c, page, &source.row.tab, bold); }
                 if placed.blank_after { c.add_page(612.0, 792.0); }
@@ -600,15 +591,14 @@ fn assemble(book: &PreparedBook, pdfs: &[SourcePdfs], outlines: &[Vec<Outline>],
                 let tabs: Vec<Outline> = group.entries.iter().filter(|e| tab_starts.contains_key(e.key.as_str())).filter_map(|entry| {
                     let placed = plan.slices.iter().find(|p| book.sources[p.slice.source].row.key == entry.key)?;
                     let source = &book.sources[placed.slice.source];
-                    let start = local_starts.get(entry.key.as_str()).copied().unwrap_or(placed.local_start);
-                    let page = |p: usize| placed.slice.pages.iter().position(|q| *q == p).map(|offset| start + offset);
+                    let page = |p: usize| placed.slice.pages.iter().position(|q| *q == p).map(|offset| placed.local_start + offset);
                     let marks: Vec<Outline> = source.bookmarks.iter().map(|b| Outline::page(b.title.clone(), b.page_index, Vec::new())).collect();
                     let mut children = map_outline(&outlines[placed.slice.source], &page);
                     children.extend(map_outline(&marks, &page));
                     Some(Outline::page(format!("{} – {}", entry.tab, entry.name), tab_starts[entry.key.as_str()], children))
                 }).collect();
                 if tabs.is_empty() { continue; }
-                if grouped_book(book) { outline.push(Outline::page(group.label.clone(), tabs[0].page_index.unwrap_or(0), tabs)); } else { outline.extend(tabs); }
+                if grouped { outline.push(Outline::page(group.label.clone(), tabs[0].page_index.unwrap_or(0), tabs)); } else { outline.extend(tabs); }
             }
             c.set_outline(outline, true);
         }
@@ -620,8 +610,7 @@ fn assemble(book: &PreparedBook, pdfs: &[SourcePdfs], outlines: &[Vec<Outline>],
     Ok((built, placements))
 }
 
-fn book_margin(federal: bool) -> f64 { if federal { 99.21 } else { 72.0 } }
-fn grouped_book(book: &PreparedBook) -> bool { book.groups.len() > 1 || book.groups.first().is_some_and(|g| g.label != "Authorities") }
+fn margin(federal: bool) -> f64 { if federal { 99.21 } else { 72.0 } }
 
 #[allow(clippy::too_many_arguments)]
 fn draw_runs(c: &mut Composer, page: usize, runs: &[Run], mut x: f64, y: f64, size: f64, roman: usize, italic: usize, rgb: Rgb) {
@@ -649,7 +638,7 @@ fn decorate_reference(c: &mut Composer, page: usize, source: &BookSource, bold: 
 fn missing_page(c: &mut Composer, page: usize, row: &BookRow, detail: Option<&str>, federal: bool) {
     let faces = if federal { [Face::TimesBold, Face::TimesBoldItalic, Face::Times] } else { [Face::ArialBold, Face::ArialBoldItalic, Face::Arial] };
     let [bold, bold_italic, regular] = faces.map(|face| c.font(face));
-    let (margin, size) = (book_margin(federal), if federal { 12.0 } else { 14.0 });
+    let (margin, size) = (margin(federal), if federal { 12.0 } else { 14.0 });
     let mut y = 620.0;
     for line in citation_lines(c.face(bold), c.face(bold_italic), &row.name, row.italic, size, 612.0 - 2.0 * margin) {
         draw_runs(c, page, &line, margin, y, size, bold, bold_italic, BLACK);
@@ -761,10 +750,9 @@ fn alberta_cover(c: &mut Composer, page: usize, regular: usize, bold: usize, boo
 #[serde(rename_all = "camelCase")]
 pub struct FilingEntry { #[serde(flatten)] pub row: BookRow, #[serde(default)] #[cfg_attr(feature = "binding-types", ts(as = "Option<Vec<BookPart>>", optional))] pub parts: Vec<BookPart> }
 
-/// A filing PDF (`filing` long in the bytes, first) with its table of authorities after it: each authority in full, its
-/// link printed beneath it for a reader on paper, linked to its PDF appended after the table or else to its address.
-pub fn render_filing(filing: usize, entries: &[FilingEntry], bytes: &[u8]) -> Result<(Vec<u8>, usize), String> {
-    let (filing, mut rest) = bytes.split_at_checked(filing).ok_or("The filing's PDFs are shorter than it says.")?;
+/// A filing PDF with its table of authorities after it: each authority in full, its link printed beneath it for a
+/// reader on paper, linked to its PDF appended after the table or else to its address.
+pub fn render_filing(filing: &[u8], entries: &[FilingEntry]) -> Result<(Vec<u8>, usize), String> {
     let mut c = Composer::new();
     let (regular, italic, bold) = (c.font(Face::Times), c.font(Face::TimesItalic), c.font(Face::TimesBold));
     c.append(filing, None).map_err(|_| "The imported filing PDF could not be opened.".to_owned())?;
@@ -796,11 +784,7 @@ pub fn render_filing(filing: usize, entries: &[FilingEntry], bytes: &[u8]) -> Re
         for part in &entry.parts {
             let first = c.page_count();
             match part {
-                BookPart::Pdf { bytes, .. } => {
-                    let (pdf, after) = rest.split_at_checked(*bytes).ok_or("The filing's PDFs are shorter than it says.")?;
-                    rest = after;
-                    c.append(pdf, None).map_err(|e| e.to_string())?;
-                }
+                BookPart::Pdf { bytes, .. } => { c.append(bytes, None).map_err(|e| e.to_string())?; }
                 BookPart::Missing { detail, federal } => { let page = c.add_page(612.0, 792.0); missing_page(&mut c, page, &entry.row, detail.as_deref(), *federal); }
             }
             starts[index].get_or_insert(first);

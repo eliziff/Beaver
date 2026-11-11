@@ -258,13 +258,6 @@ pub(crate) struct SourcePdf {
     outline: Vec<legalpdf::compose::Outline>,
 }
 
-#[cfg(feature = "legalpdf")]
-#[derive(Serialize)]
-#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
-pub(crate) struct RenderedBook {
-    books: Vec<crate::assembly::book::BuiltBook>,
-    bytes: Buffer,
-}
 
 #[cfg(feature = "docx")]
 #[derive(Serialize)]
@@ -370,14 +363,13 @@ operations! { progress;
     /// A book of authorities' volumes from its plan and its PDFs' bytes, in the order it names them (assembly/book.rs):
     /// each volume `bytes` long in the reply's bytes.
     #[cfg(feature = "legalpdf")]
-    off "renderAuthoritiesBook" (bytes: Bytes, book: crate::assembly::book::PreparedBook) -> RenderedBook {
-        let (books, bytes) = crate::assembly::book::render_book(book, &bytes)?;
-        RenderedBook { books, bytes: Buffer(bytes) }
+    off "renderAuthoritiesBook" (book: crate::assembly::book::PreparedBook) -> Vec<crate::assembly::book::BuiltBook> {
+        crate::assembly::book::render_book(book)?
     }
-    /// A filing PDF (its first `filing` bytes) with its table of authorities, and the PDFs appended after it.
+    /// A filing PDF with its table of authorities, and the PDFs appended after it.
     #[cfg(feature = "legalpdf")]
-    off "renderFilingPdf" (bytes: Bytes, filing: usize, entries: Vec<crate::assembly::book::FilingEntry>) -> RenderedPdf {
-        let (bytes, page_count) = crate::assembly::book::render_filing(filing, &entries, &bytes)?;
+    off "renderFilingPdf" (filing: Bytes, entries: Vec<crate::assembly::book::FilingEntry>) -> RenderedPdf {
+        let (bytes, page_count) = crate::assembly::book::render_filing(&filing, &entries)?;
         RenderedPdf { bytes: Buffer(bytes), page_count }
     }
     /// Each page's crop box ([x, y, width, height]), rotation, and links to web addresses ([index, uri, rect]).

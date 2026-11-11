@@ -5,9 +5,9 @@
 //! number in its format; ryu-js writes a number as JavaScript prints it.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 
-use calamine::{open_workbook_from_rs, CellErrorType, Data, Dimensions, Reader, Style, Xls, XlsError, Xlsx, XlsxError};
+use calamine::{open_workbook_from_rs, CellErrorType, Data, Dimensions, Reader, Xls, XlsError, Xlsx, XlsxError};
 use legal_structure::{trim_javascript_whitespace, utf16_len, AuthoritativeTableCell, ScalarRange};
 use ooxml_numfmt::{DateSystem, FormatOptions, NumberFormat};
 
@@ -188,7 +188,8 @@ fn read_xlsx(bytes: &[u8]) -> Result<Workbook, String> {
             let mut reader = book.worksheet_cells_reader(&name).map_err(unreadable)?;
             while let Some((row, column, style)) = reader.next_style_id().map_err(unreadable)? {
                 if let Some(cell) = cells.get_mut(&(row, column)) {
-                    cell.format = reader.styles().get(style).and_then(number_format);
+                    let format = reader.styles().get(style).and_then(|style| style.number_format.as_ref());
+                    cell.format = format.and_then(|f| number_format(f.format_id.unwrap_or(0), &f.format_code));
                 }
             }
         }
@@ -199,12 +200,10 @@ fn read_xlsx(bytes: &[u8]) -> Result<Workbook, String> {
     Ok(Workbook { date_system: date_system(book.has_1904_epoch()), sheets })
 }
 
-/// A cell style's number format as SheetJS resolves its id: the workbook's own code for it, else the built-in one,
+/// A cell's number format as SheetJS resolves its id: the workbook's own code for it, else the built-in one,
 /// else the format Excel shows for a built-in id it does not define.
-fn number_format(style: &Style) -> Option<String> {
-    let format = style.number_format.as_ref()?;
-    let id = format.format_id.unwrap_or(0);
-    match format.format_code.as_str() {
+fn number_format(id: u32, code: &str) -> Option<String> {
+    match code {
         "General" if id != 0 => implicit_format(id).map(str::to_owned),
         "General" => None,
         // calamine writes id 14 as the standard's code; Excel and SheetJS show it as m/d/yy.
@@ -243,30 +242,107 @@ fn implicit_format(id: u32) -> Option<&'static str> {
     })
 }
 
+/// Each sheet's number formats by cell, in the workbook's order of sheets, read from its BIFF records: each cell's XF
+/// names a format, the workbook's own code for it (FORMAT) or a built-in one. calamine reads the values but keeps
+/// no XLS format.
+fn xls_formats(bytes: &[u8]) -> Result<Vec<HashMap<(u32, u32), Option<String>>>, std::io::Error> {
+    let (mut stream, mut file) = (Vec::new(), cfb::CompoundFile::open(Cursor::new(bytes))?);
+    file.open_stream(if file.exists("/Workbook") { "/Workbook" } else { "/Book" })?.read_to_end(&mut stream)?;
+    let stream = &stream;
+    let records = |from: usize| {
+        let mut at = from;
+        std::iter::from_fn(move || {
+            let head = stream.get(at..at + 4)?;
+            let (kind, length) = (u16::from_le_bytes([head[0], head[1]]), usize::from(u16::from_le_bytes([head[2], head[3]])));
+            let data = stream.get(at + 4..at + 4 + length)?;
+            at += 4 + length;
+            Some((kind, data))
+        })
+    };
+    let u16_at = |data: &[u8], at: usize| data.get(at..at + 2).map_or(0, |b| u16::from_le_bytes([b[0], b[1]]));
+    let (mut codes, mut xfs, mut sheets, mut biff8) = (HashMap::new(), Vec::new(), Vec::new(), true);
+    for (kind, data) in records(0) {
+        match kind {
+            0x0809 => biff8 = u16_at(data, 0) == 0x0600,
+            // FORMAT: its id and its code, an XLUnicodeString in BIFF8, else a byte string.
+            0x041E => {
+                let code = if biff8 {
+                    let (count, wide) = (usize::from(u16_at(data, 2)), data.get(4).is_some_and(|f| f & 1 == 1));
+                    if wide { String::from_utf16_lossy(&data[5..].chunks_exact(2).take(count).map(|b| u16::from_le_bytes([b[0], b[1]])).collect::<Vec<_>>()) }
+                    else { data[5..].iter().take(count).map(|b| char::from(*b)).collect() }
+                } else { data.get(3..).unwrap_or_default().iter().take(usize::from(*data.get(2).unwrap_or(&0))).map(|b| char::from(*b)).collect() };
+                codes.insert(u16_at(data, 0), code);
+            }
+            0x00E0 => xfs.push(u16_at(data, 2)),
+            0x0085 => sheets.push(data.get(0..4).map_or(0, |b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])) as usize),
+            0x000A => break,
+            _ => {}
+        }
+    }
+    let format = |xf: u16| xfs.get(usize::from(xf)).and_then(|id| {
+        let code = codes.get(id).map(String::as_str).or_else(|| builtin_format(u32::from(*id))).unwrap_or("General");
+        number_format(u32::from(*id), code)
+    });
+    Ok(sheets.into_iter().map(|start| {
+        let mut cells = HashMap::new();
+        // The sheet's own BOF, then its cells; a nested substream (an embedded chart) is skipped.
+        let mut depth = 0usize;
+        for (kind, data) in records(start) {
+            match kind {
+                0x0809 => { depth += 1; continue; }
+                0x000A if depth > 1 => { depth -= 1; continue; }
+                0x000A => break,
+                _ if depth > 1 => continue,
+                // FORMULA, NUMBER, LABEL, RSTRING, BOOLERR, RK, LABELSST: row, column, XF.
+                0x0006 | 0x0203 | 0x0204 | 0x00D6 | 0x0205 | 0x027E | 0x00FD => {
+                    cells.insert((u32::from(u16_at(data, 0)), u32::from(u16_at(data, 2))), format(u16_at(data, 4)));
+                }
+                // MULRK: a row, its first column, then an XF and a number for each cell.
+                0x00BD => for (offset, rk) in data.get(4..data.len().saturating_sub(2)).unwrap_or_default().chunks_exact(6).enumerate() {
+                    cells.insert((u32::from(u16_at(data, 0)), u32::from(u16_at(data, 2)) + offset as u32), format(u16_at(rk, 0)));
+                },
+                _ => {}
+            }
+        }
+        cells
+    }).collect())
+}
+
+/// The standard's built-in number formats (ECMA-376 18.8.30), by id.
+fn builtin_format(id: u32) -> Option<&'static str> {
+    Some(match id {
+        0 => "General", 1 => "0", 2 => "0.00", 3 => "#,##0", 4 => "#,##0.00", 9 => "0%", 10 => "0.00%", 11 => "0.00E+00",
+        12 => "# ?/?", 13 => "# ??/??", 14 => "mm-dd-yy", 15 => "d-mmm-yy", 16 => "d-mmm", 17 => "mmm-yy", 18 => "h:mm AM/PM",
+        19 => "h:mm:ss AM/PM", 20 => "h:mm", 21 => "h:mm:ss", 22 => "m/d/yy h:mm", 37 => "#,##0 ;(#,##0)", 38 => "#,##0 ;[Red](#,##0)",
+        39 => "#,##0.00;(#,##0.00)", 40 => "#,##0.00;[Red](#,##0.00)", 41 => r#"_(* #,##0_);_(* (#,##0);_(* "-"_);_(@_)"#,
+        42 => r#"_($* #,##0_);_($* (#,##0);_($* "-"_);_(@_)"#, 43 => r#"_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)"#,
+        44 => r#"_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)"#, 45 => "mm:ss", 46 => "[h]:mm:ss", 47 => "mmss.0",
+        48 => "##0.0E+0", 49 => "@",
+        _ => return None,
+    })
+}
+
 fn read_xls(bytes: &[u8]) -> Result<Workbook, String> {
     let mut book: Xls<_> = open_workbook_from_rs(Cursor::new(bytes)).map_err(unreadable)?;
     let names = sheet_names(book.sheet_names())?;
+    let styles = xls_formats(bytes).map_err(unreadable)?;
     let mut budget = Budget::default();
     let mut sheets = Vec::with_capacity(names.len());
-    for name in names {
+    for (index, name) in names.into_iter().enumerate() {
         // A chart or macro sheet has no cells.
         let merges = match book.merge_cells_by_sheet_name(&name) {
             Ok(merges) => merges,
             Err(XlsError::WorksheetNotFound(_)) => Vec::new(),
             Err(error) => return Err(unreadable(error)),
         };
-        let styles = match book.worksheet_style(&name) {
-            Ok(styles) => styles,
-            Err(XlsError::WorksheetNotFound(_)) => calamine::StyleRange::empty(),
-            Err(error) => return Err(unreadable(error)),
-        };
+        let styles = styles.get(index);
         let mut cells = HashMap::new();
         match book.worksheet_range(&name) {
             Ok(range) => {
                 let (top, left) = range.start().unwrap_or_default();
                 for (row, column, data) in range.used_cells() {
                     let position = (top + row as u32, left + column as u32);
-                    let format = styles.get(position).and_then(number_format).or_else(|| match data {
+                    let format = styles.and_then(|s| s.get(&position)).cloned().flatten().or_else(|| match data {
                         Data::DateTime(value) if value.is_duration() => Some("[h]:mm:ss".to_owned()),
                         Data::DateTime(_) => Some("m/d/yy".to_owned()),
                         _ => None,

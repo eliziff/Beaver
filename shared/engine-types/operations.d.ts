@@ -58,6 +58,7 @@ import type { PdfOpening } from "./PdfOpening";
 import type { PdfPageBinding } from "./PdfPageBinding";
 import type { PdfStructureLookup } from "./PdfStructureLookup";
 import type { PdfSummary } from "./PdfSummary";
+import type { BuiltBook } from "./BuiltBook";
 import type { PreparedBook } from "./PreparedBook";
 import type { PropositionUnit } from "./PropositionUnit";
 import type { ProviderCitationMatch } from "./ProviderCitationMatch";
@@ -71,7 +72,6 @@ import type { QuoteComparison } from "./QuoteComparison";
 import type { QuoteContext } from "./QuoteContext";
 import type { QuoteSource } from "./QuoteSource";
 import type { QuoteToLocate } from "./QuoteToLocate";
-import type { RenderedBook } from "./RenderedBook";
 import type { RenderedPdf } from "./RenderedPdf";
 import type { Search } from "./Search";
 import type { SearchQuery } from "./SearchQuery";
@@ -114,11 +114,11 @@ export interface EngineOperations {
    * A book of authorities' volumes from its plan and its PDFs' bytes, in the order it names them (assembly/book.rs):
    * each volume `bytes` long in the reply's bytes.
    */
-  renderAuthoritiesBook(bytes: Uint8Array, book: PreparedBook): Promise<RenderedBook>;
+  renderAuthoritiesBook(book: PreparedBook): Promise<Array<BuiltBook>>;
   /**
    * A filing PDF (its first `filing` bytes) with its table of authorities, and the PDFs appended after it.
    */
-  renderFilingPdf(bytes: Uint8Array, filing: number, entries: ReadonlyArray<FilingEntry>): Promise<RenderedPdf>;
+  renderFilingPdf(filing: Uint8Array, entries: ReadonlyArray<FilingEntry>): Promise<RenderedPdf>;
   /**
    * Each page's crop box ([x, y, width, height]), rotation, and links to web addresses ([index, uri, rect]).
    */

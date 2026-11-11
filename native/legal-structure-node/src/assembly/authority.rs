@@ -31,13 +31,15 @@ pub struct SourceRequest {
     /// The pages the book adds after its PDFs (a missing language's).
     pub extra_pages: usize,
 }
-/// How an excerpt is cut: a statute's, the Federal Court's extract of a decision, or another source's with `pages`
-/// either side of each cited one and each PDF's first page where `first_page`.
+/// How an excerpt is cut: a statute's (where `longer_than`, only one whose longest PDF runs past that many pages), the
+/// Federal Court's extract of a decision, or another source's with `pages` either side of each cited one and each PDF's
+/// first page where `first_page`.
 #[derive(Deserialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(tag = "rule", rename_all = "camelCase")]
 pub enum Excerpt {
-    Statute,
+    #[serde(rename_all = "camelCase")]
+    Statute { #[cfg_attr(feature = "binding-types", ts(optional))] longer_than: Option<usize> },
     Extract,
     #[serde(rename_all = "camelCase")]
     Source { pages: usize, first_page: bool },
@@ -324,7 +326,8 @@ pub fn authority_reading(parts: &[Option<Part>], request: &SourceRequest) -> eng
     let mut statute: (Vec<String>, Vec<(String, String)>, bool) = (Vec::new(), Vec::new(), false);
     let pages: Option<Vec<usize>> = match &request.excerpt {
         None => None,
-        Some(Excerpt::Statute) => {
+        Some(Excerpt::Statute { longer_than }) if longer_than.is_some_and(|n| readings.iter().flatten().all(|r| r.page_count <= n)) => None,
+        Some(Excerpt::Statute { .. }) => {
             let mut kept = marked.iter().copied().chain(placed.values().flatten().copied()).collect::<BTreeSet<_>>();
             kept.extend(starts.iter().copied());
             trailing(&mut kept);
@@ -356,7 +359,7 @@ pub fn authority_reading(parts: &[Option<Part>], request: &SourceRequest) -> eng
     };
     bookmarks.sort_by_key(|mark| mark.page_index);
     // A statute's excerpt that leaves out the page saying how current it is says it atop its first page.
-    let header = matches!(request.excerpt, Some(Excerpt::Statute)).then_some(()).and(pages.as_ref())
+    let header = matches!(request.excerpt, Some(Excerpt::Statute { .. })).then_some(()).and(pages.as_ref())
         .and_then(|kept| legal_structure_features::statute_currency(&texts).filter(|currency| {
             let currency = currency.to_lowercase();
             !kept.iter().any(|&page| texts.get(page).is_some_and(|text| normalize_javascript_whitespace(text).to_lowercase().contains(&currency)))

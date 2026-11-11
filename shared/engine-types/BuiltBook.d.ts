@@ -2,6 +2,6 @@
 import type { Placement } from "./Placement";
 
 /**
- * A volume of the book: `bytes` long in the reply's bytes, in order.
+ * A volume of the book.
  */
-export type BuiltBook = { role: string, filename: string, pageCount: number, placements: Array<Placement>, bytes: number, };
+export type BuiltBook = { role: string, filename: string, pageCount: number, placements: Array<Placement>, bytes: Buffer, };

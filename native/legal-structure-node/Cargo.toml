@@ -41,7 +41,8 @@ ts-rs = { version = "12", optional = true, features = ["serde-json-impl"] }
 unicode-normalization = "0.1"
 # A workbook's grid (formats/sheet.rs): calamine reads xlsx, xlsm and xls, its zip bounds the package, ooxml-numfmt
 # writes a number in its number format, ryu-js writes a number as JavaScript prints it.
-calamine = { path = "../vendor/calamine", version = "0.38" }
+calamine = "0.38"
+cfb = "0.16"
 zip = { version = "9", default-features = false }
 ooxml-numfmt = { version = "0.2.3", default-features = false }
 ryu-js = "1.0.3"

@@ -21,6 +21,7 @@ import {
 import { ANNOTATION_SCHEMA, annotationSetForSource, decodeAnnotationSet } from "mike/shared/pdf-annotations.mjs";
 import { locatorLabel } from "./authoritiesAnnotations";
 import type { AuthorityPdfReading } from "./authorityPdfText";
+import type { BookPart } from "mike/shared/engine-types/BookPart";
 import type { BookRow } from "mike/shared/engine-types/BookRow";
 import type { PaperCover } from "mike/shared/engine-types/PaperCover";
 import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
@@ -37,7 +38,7 @@ import { urlHostname } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { assembleFinalAuthoritiesPdf, assertBriefPdfMatches, briefOccurrencePages, filingLinkUrl,
   filingTabText } from "./authoritiesFinalPdf";
 import { authoritiesBriefPdf, authorityExcerpt, authorityTabbed, courtExtract, excerptContext,
-  freeDatabaseCase } from "mike/shared/authorities-sources.mjs";
+  freeDatabaseCase, STATUTE_EXCERPT_PAGES } from "mike/shared/authorities-sources.mjs";
 
 export type { AuthoritiesBuildReceipt, AuthoritiesOutputRole };
 export type AuthoritiesBuildArtifact = {
@@ -48,7 +49,7 @@ export type AuthoritiesBuildArtifact = {
   sha256: string;
   pageCount: number | null;
   receipt: WorkProductBuildReceipt;
-  bookPlacements?: Awaited<ReturnType<ReturnType<typeof structureNative>["renderAuthoritiesBook"]>>["books"][number]["placements"];
+  bookPlacements?: Awaited<ReturnType<ReturnType<typeof structureNative>["renderAuthoritiesBook"]>>[number]["placements"];
 };
 export type AuthoritiesBuildResult = {
   artifacts: Partial<Record<AuthoritiesOutputRole, AuthoritiesBuildArtifact>>;
@@ -436,23 +437,16 @@ async function filingPdfArtifact(groups: Group[], filename: string,
   if (!bytes.byteLength || sha256(Buffer.from(bytes)) !== sourceSha256) {
     throw new Error("The imported filing PDF changed before building.");
   }
-  const chunks: Uint8Array[] = [bytes];
   const entries = await Promise.all(groups.flatMap(({ entries: items }) => items).map(async (entry) => {
     const source = entry.authority.source;
     const parts = !entry.sourceUrl && source.kind === "attached"
       ? (await loadAuthorityPdf(source.sources, entry, attached, undefined, allowIncomplete)).parts : [];
     return { key: entry.authority.id, name: entry.name, italic: entry.italic, tab: entry.tab, sourceUrl: entry.sourceUrl, parts };
   }));
-  const output = await structureNative().renderFilingPdf(Buffer.concat([...chunks, ...entries.flatMap(({ parts }) =>
-    parts.flatMap((part) => part.kind === "pdf" ? [part.bytes] : []))]), bytes.byteLength, entries.map((entry) => ({ ...entry,
-    parts: entry.parts.map((part) => part.kind === "pdf" ? { ...part, bytes: part.bytes.byteLength } : part) })));
+  const output = await structureNative().renderFilingPdf(bytes, entries);
   return artifact("annotated-document", filename, "application/pdf", output.bytes, output.pageCount);
 }
 
-/** One of an authority's PDFs as the book joins them, with the headings read from it; or the page naming what is
- *  missing (assembly/book.rs BookPart). */
-type BookPart = { kind: "pdf"; bytes: Uint8Array; headings: Array<{ title: string; level: number; pageIndex?: number }> }
-  | { kind: "missing"; detail?: string; federal: boolean };
 /** `parts` null: an authority without a PDF, whose page the book draws naming it. `read`: what the engine read of its
  *  source; `pageCount`, all its pages. */
 type LoadedBookPdf = BookRow & { parts: BookPart[] | null; read?: Awaited<ReturnType<typeof readAuthoritySource>>;
@@ -470,22 +464,19 @@ const FEDERAL_APPEAL_PAPER_COVERS: Record<string, PaperCover> = {
   intervener: { rgb: [159 / 255, 197 / 255, 220 / 255], dark: false },
 };
 
-/** An attached PDF's bytes and its count of pages, as the engine reads them. */
-async function loadBookPdf(part: AuthoritiesBoundPdf, label: string, attached: NonNullable<AuthoritiesBuildInput["sources"]>) {
+/** An attached PDF's bytes, as attached; the engine counts its pages where it joins it. */
+function boundPdf(part: AuthoritiesBoundPdf, label: string, attached: NonNullable<AuthoritiesBuildInput["sources"]>) {
   const bytes = attached[part.bindingRole]?.bytes;
   if (!bytes?.byteLength || sha256(Buffer.from(bytes)) !== part.sourceSha256) throw new Error(`Attached PDF changed for ${label}.`);
-  const pages = await structureNative().pdfPages(bytes).then((frames) => frames.length).catch(() => {
-    throw new Error(`Attached PDF could not be opened for ${label}.`);
-  });
-  if (!pages) throw new Error(`Attached PDF is empty for ${label}.`);
-  return { bytes, pages };
+  return bytes;
 }
 
 /** What the engine reads an authority's source for (assembly/authority.rs): the passages to place in its PDFs (a
  *  source whose passages are neither marked, linked nor excerpted has its cited pages alone placed), how they are
- *  marked, and how its excerpt is cut (`counts`: its PDFs' pages). */
+ *  marked, and how its excerpt is cut (a statute by its length, which the engine counts, where nothing else decides). */
 function authoritySourceRequest(draft: AuthoritiesDraft, authority: AuthorityIdentity, sources: AttachedAuthoritySource[],
-  counts: Array<number | undefined>, extraPages = 0) {
+  extraPages = 0) {
+  const copy = draft.settings.legislationCopy ?? "length", statute = authority.excerpt ?? (copy === "length" || copy === "excerpt");
   const targets = authorityPassageTargets(draft, authority.id), { pages, firstPage } = excerptContext(draft.settings);
   const placed = draft.settings.finalPdf && draft.settings.linkPinpoints || draft.settings.passageMarking !== "none" ||
     authority.kind === "legislation" || authorityExcerpt(draft, authority);
@@ -493,8 +484,9 @@ function authoritySourceRequest(draft: AuthoritiesDraft, authority: AuthorityIde
     ...excerptContextTargets(draft, authority)], citations: authorityCitationForms(draft, authority.id),
     style: draft.settings.passageMarking, requirePrinted: sources.some(({ origin }) => origin === "manual"),
     exclusions: (authority.highlightExclusions ?? []).map(({ kind, label }) => [kind, label] as [string, string]),
-    excerpt: !authorityExcerpt(draft, authority, counts) ? null
-      : authority.kind === "legislation" ? { rule: "statute" as const } : courtExtract(draft, authority) ? { rule: "extract" as const }
+    excerpt: authority.kind === "legislation" ? statute ? { rule: "statute" as const,
+      ...authority.excerpt === undefined && copy === "length" && { longerThan: STATUTE_EXCERPT_PAGES } } : null
+      : !authorityExcerpt(draft, authority) ? null : courtExtract(draft, authority) ? { rule: "extract" as const }
         : { rule: "source" as const, pages, firstPage },
     ocr: bookScanPolicy(draft) !== "page-margin", extraPages };
 }
@@ -513,8 +505,7 @@ function readAuthoritySource(draft: AuthoritiesDraft, authority: AuthorityIdenti
       pagesOnly: !!reading.plain } : { pages: pages[index] ?? source.pageCount ?? 1 },
       requirePrinted: source.origin === "manual", ...saved && { saved: saved.marks } };
   });
-  const counts = parts.map((part) => !part ? 1 : "document" in part ? structureNative().pdfDocumentSummary(part.document).pageCount : part.pages);
-  return structureNative().authorityReading(parts, authoritySourceRequest(draft, authority, sources, counts, extraPages));
+  return structureNative().authorityReading(parts, authoritySourceRequest(draft, authority, sources, extraPages));
 }
 
 /** A source's highlights as a build marks it: as reviewed, else (and `regenerate`) as the engine first places them. */
@@ -539,9 +530,10 @@ async function loadAuthorityPdf(
   const loaded = await Promise.all(sources.map(async (source) => {
     const given = attached[source.bindingRole];
     if (allowIncomplete && given?.bytes === undefined) return null;
-    // A PDF read is one that opens; one whose text was not read is opened here, and counted.
-    return given?.reading && given.bytes && sha256(Buffer.from(given.bytes)) === source.sourceSha256
-      ? { bytes: given.bytes, pages: undefined } : loadBookPdf(source, label.name, attached);
+    // A PDF read is one that opens; one whose text was not read is counted here, where its attaching did not.
+    if (given?.reading && given.bytes && sha256(Buffer.from(given.bytes)) === source.sourceSha256) return { bytes: given.bytes, pages: undefined };
+    const bytes = boundPdf(source, label.name, attached);
+    return { bytes, pages: source.pageCount ?? (await structureNative().pdfPages(bytes)).length };
   }));
   const read = editing && await readAuthoritySource(editing.draft, editing.authority, sources, attached,
     { placeholders: allowIncomplete, extraPages: editing.extraPages, pages: loaded.map((item) => item?.pages) });
@@ -623,10 +615,10 @@ export async function authoritiesBookFront(draft: AuthoritiesDraft, title: strin
   };
   const authorities = new Map(groups.flatMap(({ entries }) => entries).map(({ key }) => [key, draft.authorities[key]]));
   // Only the cover and the index are drawn: the authorities' pages are counted, not copied.
-  const { books: [book], bytes } = await structureNative().renderAuthoritiesBook(new Uint8Array(), { filename: "front.pdf", ...drawn,
+  const [book] = await structureNative().renderAuthoritiesBook({ filename: "front.pdf", ...drawn,
     frontOnly: true, groups, sources: groups.flatMap(({ entries }) => entries).map((row) =>
       ({ ...row, parts: [], pageIndices: [...Array(pagesOf(authorities.get(row.key)!)).keys()] })) });
-  return bytes.subarray(0, book.bytes);
+  return book.bytes;
 }
 
 /** The book's plan, its sources read by the engine; each source's cited passages placed go to `placed`, by role. */
@@ -685,13 +677,11 @@ async function prepareAuthorityBook(
         pageCount: (loaded?.read?.parts.reduce((sum, part) => sum + (part?.pageCount ?? 1), 0) ?? 0) + (missingLanguage ? 1 : 0) };
     })),
     Promise.all(draft.bookParts.supplements.map(async (item, index): Promise<LoadedBookPdf> => {
-      const { bytes, pages } = await loadBookPdf(item, item.filename, attached);
-      return { ...supplementRows[index], authority: null, parts: [{ kind: "pdf", bytes, headings: [] }], pageCount: pages };
+      return { ...supplementRows[index], authority: null, parts: [{ kind: "pdf", bytes: boundPdf(item, item.filename, attached),
+        headings: [] }], pageCount: 0 };
     })),
-    draft.bookParts.cover
-      ? loadBookPdf(draft.bookParts.cover, "the custom cover", attached) : null,
-    draft.bookParts.index
-      ? loadBookPdf(draft.bookParts.index, "the custom index", attached) : null,
+    draft.bookParts.cover && boundPdf(draft.bookParts.cover, "the custom cover", attached),
+    draft.bookParts.index && boundPdf(draft.bookParts.index, "the custom index", attached),
   ]);
   const sources = await Promise.all([...authoritySources, ...supplementalSources].map(async (source) => {
     const read = source.read, excerpt = read?.pages ? [...read.pages] : null;
@@ -715,8 +705,8 @@ async function prepareAuthorityBook(
     // With no placed or manually marked passage and no provider reconstruction, retain the whole Act.
     const pages = read?.wholeUnlessRebuilt && !rebuilt ? null : excerpt;
     // The court's extract names the database holding the decision in full on each page.
-    // An authority without a PDF has the one page the book draws naming it.
-    return { ...source, pageIndices: pages ?? (source.parts ? [...Array(source.pageCount).keys()] : [0]),
+    // An authority without a PDF has the one page the book draws naming it; a supplement goes in whole (none listed).
+    return { ...source, pageIndices: pages ?? (!source.parts ? [0] : source.authority ? [...Array(source.pageCount).keys()] : []),
       databaseReference: pages && courtExtract(draft, source.authority!) ? freePublicDatabaseReference(source.authority!) : null,
       excerpt: !!pages, rebuiltBookmarks };
   }));
@@ -730,7 +720,7 @@ async function prepareAuthorityBook(
   progress?.("Preparing the book");
   return {
     filename, ...front,
-    customCover: customCover?.bytes, customIndex: customIndex?.bytes,
+    customCover: customCover || undefined, customIndex: customIndex || undefined,
     limits: draft.settings.filingMedium !== "paper" ? profile.requirements?.electronicVolumes : undefined,
     groups: rowGroups,
     sources: sources.map((source) => {
@@ -751,19 +741,10 @@ async function prepareAuthorityBook(
   };
 }
 
-/** The book's volumes as the engine assembles them from its prepared plan: its PDFs travel as one run of bytes, each
- *  named by its length where the plan holds it. */
+/** The book's volumes as the engine assembles them from its prepared plan. */
 async function bookArtifacts(plan: Awaited<ReturnType<typeof prepareAuthorityBook>>) {
-  const chunks: Uint8Array[] = [];
-  const length = (bytes: Uint8Array) => { chunks.push(bytes); return bytes.byteLength; };
-  const book = { ...plan, customCover: plan.customCover && length(plan.customCover),
-    customIndex: plan.customIndex && length(plan.customIndex),
-    sources: plan.sources.map((source) => ({ ...source,
-      parts: source.parts.map((part) => part.kind === "pdf" ? { ...part, bytes: length(part.bytes) } : part) })) };
-  const { books, bytes } = await structureNative().renderAuthoritiesBook(Buffer.concat(chunks), book);
-  let at = 0;
-  return books.map((item) => ({ ...artifact(item.role as AuthoritiesOutputRole, item.filename, "application/pdf",
-    bytes.subarray(at, at += item.bytes), item.pageCount), bookPlacements: item.placements }));
+  return (await structureNative().renderAuthoritiesBook(plan)).map((item) => ({ ...artifact(item.role as AuthoritiesOutputRole,
+    item.filename, "application/pdf", item.bytes, item.pageCount), bookPlacements: item.placements }));
 }
 
 /** The cited provisions a statute's PDF does not place, rebuilt from its provider's text: each cut

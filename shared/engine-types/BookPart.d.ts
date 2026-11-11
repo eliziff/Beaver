@@ -2,7 +2,7 @@
 import type { BookHeading } from "./BookHeading";
 
 /**
- * One of an authority's PDFs, in the order they are joined: `bytes` long in the request's bytes, with the headings
- * read from its text; or a page naming what is missing ("French version").
+ * One of an authority's PDFs, in the order they are joined, with the headings read from its text; or a page naming
+ * what is missing ("French version").
  */
-export type BookPart = { "kind": "pdf", bytes: number, headings: Array<BookHeading>, } | { "kind": "missing", detail?: string | null, federal: boolean, };
+export type BookPart = { "kind": "pdf", bytes: Uint8Array, headings: Array<BookHeading>, } | { "kind": "missing", detail?: string | null, federal: boolean, };
