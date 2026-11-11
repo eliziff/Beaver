@@ -21,7 +21,6 @@ AUTHORITIES_PATHS = (
     'backend/src/authorities*',
     'shared/authorities*',
     'shared/pdf-annotations*',
-    'shared/sequence-diff*',
     'scripts/*authorities*',
     'scripts/authorities-package/**',
     'native/legal-structure-node/**',

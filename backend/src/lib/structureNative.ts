@@ -386,6 +386,14 @@ type StructureAddon = {
   quoteOccurrences(text: string, quote: string): number;
   /** An authored quotation and the source's words side by side, in pieces, those the other lacks changed. */
   quotationDiff(authored: string, source: string): import("mike/shared/authorities-contract.d.ts").QuotationDiff;
+  /** The one sequence diff (difflib's matching blocks, no junk): each run of `left` and `right` as equal, replaced,
+   *  deleted or inserted, by index into each. */
+  sequenceOpcodes(left: string[], right: string[]): Array<["equal" | "replace" | "delete" | "insert", number, number, number, number]>;
+  /** The fewest changed characters that turn `text` into `target`, as [start, length, replacement] edits in UTF-16
+   *  (the ALR macro's plan; past its 200-character cutoff, the sequence diff's characters). */
+  characterPlan(text: string, target: string): Array<[number, number, string]>;
+  /** `text` (at `base`) as [start, end, edited] runs marking what a character plan changes. */
+  highlightRuns(text: string, plan: Array<[number, number, string]>, base?: number): Array<[number, number, boolean]>;
   /** The one document the local A2AJ store at `store` holds under a citation's key, with its provisions' document and
    *  its full text's; null where the store, or the document, is missing. */
   a2ajDocument(store: string, lookup: A2AJStoreLookup): Promise<A2AJStoreDocument | null>;

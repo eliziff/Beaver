@@ -447,6 +447,19 @@ fn dispatch(
             &call.get::<String>("authored")?,
             &call.get::<String>("source")?,
         ))),
+        "sequenceOpcodes" => done(value(legal_structure_features::sequence_opcodes(
+            &call.get::<Vec<String>>("left")?,
+            &call.get::<Vec<String>>("right")?,
+        ))),
+        "characterPlan" => done(value(legal_structure_features::character_plan(
+            &call.get::<String>("text")?,
+            &call.get::<String>("target")?,
+        ))),
+        "highlightRuns" => done(value(legal_structure_features::highlight_runs(
+            &call.get::<String>("text")?,
+            &call.get::<Vec<(usize, usize, String)>>("plan")?,
+            call.get::<Option<usize>>("base")?.unwrap_or(0),
+        ))),
         "verbatimRepair" => done(value(legal_structure_features::verbatim_repair(
             &call.get::<String>("authored")?,
             &call.get::<String>("source")?,

@@ -43,7 +43,10 @@ export const SIGNATURES = {
   quoteRepairSuggestion: ["claim", "spans"], markedQuoteSpans: ["text"], documentTextUnits: ["document", "sentences"],
   quoteComparison: ["authored", "source"],
   quoteLocateDocument: ["document", "source", "quotes", "compare", "keep"], editorialQuote: ["authored", "source"],
-  verbatimRepair: ["authored", "source"], quoteOccurrences: ["text", "quote"], quotationDiff: ["authored", "source"], journalTitleSearches: ["citation"], journalTitleChoice: ["hits"],
+  verbatimRepair: ["authored", "source"], quoteOccurrences: ["text", "quote"], quotationDiff: ["authored", "source"],
+  // The one sequence diff (difflib's blocks), a quotation's fewest-character plan and the runs it highlights.
+  sequenceOpcodes: ["left", "right"], characterPlan: ["text", "target"], highlightRuns: ["text", "plan", "base"],
+  journalTitleSearches: ["citation"], journalTitleChoice: ["hits"],
   readDocumentRange: ["document", "kind", "from", "to", "contextBlocks"],
   canliiCaseUrl: ["citations", "language", "court"], canliiLawUrl: ["text", "language", "consolidated"], canliiCourtRoute: ["court"],
   passageLink: ["document", "request"], citedPassageLink: ["document", "url", "pinpoints"],

@@ -4,7 +4,7 @@
 // the source's own words ("source"). Only mapping: links, references, corrections and statuses are the primitives'.
 import { pinpointText } from "../authoritiesDiscrepancy";
 import type { AuthoritiesDraft } from "../authoritiesDomain";
-import { characterPlan, highlightRuns, sequenceOpcodes } from "mike/shared/sequence-diff.mjs";
+import { structureNative } from "../structureNative";
 import type { DocxSpanWrite } from "../docxOperations";
 import type { checkQuotes, QuoteCheck } from "../quoteCheck";
 import type { alrRows } from "./checkedWorkbook";
@@ -49,12 +49,12 @@ const quoted = (authored: string, words: string) =>
 /** A correction keeps more of the authored characters than it changes; one that would replace the quotation with other
  *  text (a match the check made on too wide a passage) is not written. */
 function corrects(authored: string, target: string) {
-  const kept = sequenceOpcodes([...authored], [...target]).reduce((sum, [kind, a0, a1]) => kind === "equal" ? sum + a1 - a0 : sum, 0);
+  const kept = structureNative().sequenceOpcodes([...authored], [...target]).reduce((sum, [kind, a0, a1]) => kind === "equal" ? sum + a1 - a0 : sum, 0);
   return kept > authored.length - kept + target.length - kept;
 }
 /** When in doubt, a quotation is left as written: a correction any of whose changes only adds or removes spaces (the
  *  source's text read with a space too many, say "T.’ s") is none. */
-const spacesOnly = (authored: string, target: string) => sequenceOpcodes([...authored], [...target])
+const spacesOnly = (authored: string, target: string) => structureNative().sequenceOpcodes([...authored], [...target])
   .some(([kind, a0, a1, b0, b1]) => kind !== "equal" && /^\s*$/u.test(authored.slice(a0, a1) + target.slice(b0, b1)));
 /** The workbook's corrected quotation in the authored quotation's own quotation marks. */
 function markedWords(authored: string, corrected: string) {
@@ -166,13 +166,13 @@ export function documentWrites(result: WordResult, { quotations, links, correcti
   for (const span of result.spans) {
     if (quotations === "tracked" || quotations === "both") {
       const target = span[correction];
-      if (target && target !== span.expected) for (const [start, length, replacement] of characterPlan(span.expected, target))
+      if (target && target !== span.expected) for (const [start, length, replacement] of structureNative().characterPlan(span.expected, target))
         writes.push({ kind: "replace", unitId: span.unitId, start: span.start + start, end: span.start + start + length,
           expected: span.expected.slice(start, start + length), replacement });
     }
     if ((quotations === "highlight" || quotations === "both") && span.kind === "quote") {
       const target = span[correction] ?? span.source ?? span.marked;
-      if (target) for (const [from, to, changed] of highlightRuns(span.expected, characterPlan(span.expected, target)))
+      if (target) for (const [from, to, changed] of structureNative().highlightRuns(span.expected, structureNative().characterPlan(span.expected, target)))
         writes.push({ kind: "highlight", unitId: span.unitId, start: span.start + from, end: span.start + to,
           expected: span.expected.slice(from, to), color: changed ? "red" : "green" });
     }

@@ -1,5 +1,4 @@
 import { openDocxSession } from "./docx/session";
-import { sequenceOpcodes } from "mike/shared/sequence-diff.mjs";
 import { structureNative } from "./structureNative";
 import {
   ATTR_KEY,
@@ -235,7 +234,7 @@ function changedWords(before: string, after: string) {
   const tokens = (value: string) => value.match(/[\p{L}\p{N}]+|\s+|[^\p{L}\p{N}\s]/gu) ?? [];
   const left = tokens(before), right = tokens(after), offsets = [0];
   for (const token of left) offsets.push(offsets.at(-1)! + token.length);
-  return sequenceOpcodes(left, right).filter(([tag]) => tag !== "equal").map(([, a0, a1, b0, b1]) =>
+  return structureNative().sequenceOpcodes(left, right).filter(([tag]) => tag !== "equal").map(([, a0, a1, b0, b1]) =>
     ({ start: offsets[a0], end: offsets[a1], replacement: right.slice(b0, b1).join("") }));
 }
 
