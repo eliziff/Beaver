@@ -6,8 +6,8 @@ const ASYNC = new Set(["deriveDocumentStructure",
   "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "pdfOpening", "renderSourcePdf",
   "renderAuthoritiesBook", "renderFilingPdf", "renderFinalPdf", "pdfPages", "preparePdfDocument", "openSource", "sourceText",
   "pdfPassageGeometry", "authorityReading", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments"]);
-// Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes, and a reply's bytes are its
-// value's `bytes`; "document" is a document's handle, and a reply's `{ $document: handle }` its document.
+// Positional arguments, named as the dispatch reads them. "document" is a document's handle, and a reply's
+// `{ $document: handle }` its document.
 export const SIGNATURES = {
   nativeBuildFeatures: [],
   deriveDocumentStructure: ["request"],
@@ -96,22 +96,31 @@ class NativeDocumentHandle {
 }
 
 const encoder = new TextEncoder(), decoder = new TextDecoder();
-/** `[u32 json length][json {op, args}][bytes]` */
-function engineRequest(op, args, bytes) {
-  const json = encoder.encode(JSON.stringify({ op, args }));
-  const request = new Uint8Array(4 + json.length + bytes.length);
+/** `[u32 json length][json {op, args}][bytes]`: with `lift`, each Uint8Array the arguments hold is
+ *  `{ $bytes: [offset, length] }` in the bytes after the JSON. */
+function engineRequest(op, args, lift) {
+  const chunks = []; let length = 0;
+  const json = encoder.encode(JSON.stringify({ op, args }, lift && function (key, value) {
+    const bytes = this[key];
+    if (!(bytes instanceof Uint8Array)) return value;
+    chunks.push(bytes); length += bytes.byteLength;
+    return { $bytes: [length - bytes.byteLength, bytes.byteLength] };
+  }));
+  const request = new Uint8Array(4 + json.length + length);
   new DataView(request.buffer).setUint32(0, json.length, true);
   request.set(json, 4);
-  request.set(bytes, 4 + json.length);
+  let at = 4 + json.length;
+  for (const chunk of chunks) { request.set(chunk, at); at += chunk.byteLength; }
   return request;
 }
-/** `[u8 ok][u32 json length][json][bytes]`, the json read by `revive`. */
+/** `[u8 ok][u32 json length][json][bytes]`, the json read by `revive(key, value, bytes)`. */
 function engineReply(reply, revive) {
   const view = new DataView(reply.buffer, reply.byteOffset, reply.byteLength);
   const jsonLength = view.getUint32(1, true);
   const text = decoder.decode(reply.subarray(5, 5 + jsonLength));
   if (!view.getUint8(0)) throw new EngineError(JSON.parse(text));
-  return { value: JSON.parse(text, revive), bytes: reply.subarray(5 + jsonLength) };
+  const bytes = reply.subarray(5 + jsonLength);
+  return JSON.parse(text, revive && ((key, value) => revive(key, value, bytes)));
 }
 
 /**
@@ -131,7 +140,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
   // A released document is freed off this thread where the host can: freeing a large one holds up whatever runs here.
   const released = new FinalizationRegistry(({ handle, generation: owner }) => {
     if (owner !== generation) return;
-    const request = engineRequest("releaseDocument", { document: handle }, new Uint8Array());
+    const request = engineRequest("releaseDocument", { document: handle });
     if (transport.callAsync) void transport.callAsync(request).catch(() => { /* engine already reset */ });
     else try { engineReply(transport.call(request)); } catch { /* engine already reset */ }
   });
@@ -144,29 +153,28 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     return new Error(transport.restart?.() || `The legal-structure engine failed during ${op}.`);
   }
   function request(name, positional) {
-    const args = {}; let bytes = new Uint8Array();
+    const args = {};
     SIGNATURES[name].forEach((key, index) => {
       const value = positional[index];
-      if (key === "bytes") bytes = value ? new Uint8Array(value.buffer, value.byteOffset, value.byteLength) : bytes;
-      else if (key === "document" && !(value instanceof NativeDocumentHandle))
+      if (key === "document" && !(value instanceof NativeDocumentHandle))
         throw new Error("This document was lost when the engine restarted. Reopen it and try again.");
-      else args[key] = value ?? null;
+      args[key] = value ?? null;
     });
-    return engineRequest(name, args, bytes);
+    return engineRequest(name, args, SIGNATURES[name].includes("bytes"));
   }
-  // A document a reply holds, as JavaScript holds it.
-  function revive(_key, value) {
+  // A document a reply holds, as JavaScript holds it, and its bytes as the host's buffer.
+  function revive(_key, value, bytes) {
+    if (Array.isArray(value?.$bytes)) return toBuffer(bytes.slice(value.$bytes[0], value.$bytes[0] + value.$bytes[1]));
     if (typeof value?.$document !== "number") return value;
     const document = new NativeDocumentHandle(value.$document, generation, () => generation);
     released.register(document, { handle: value.$document, generation });
     return document;
   }
-  const result = ({ value, bytes }) => bytes.length ? { ...value, bytes: toBuffer(bytes.slice()) } : value;
   const replies = new Map();
   function invoke(name, positional) {
     const key = PURE.has(name) ? `${name}${JSON.stringify(positional)}` : null;
     const kept = key && replies.get(key);
-    if (kept) { replies.delete(key); replies.set(key, kept); return result(engineReply(kept, revive)); }
+    if (kept) { replies.delete(key); replies.set(key, kept); return engineReply(kept, revive); }
     const framed = request(name, positional);
     let reply, read;
     try { reply = transport.call(framed); read = engineReply(reply, revive); }
@@ -175,7 +183,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
       replies.set(key, reply);
       if (replies.size > PURE_KEPT) replies.delete(replies.keys().next().value);
     }
-    return result(read);
+    return read;
   }
   async function invokeOff(name, positional, progress) {
     if (transport.prepare) await transport.prepare();
@@ -184,7 +192,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     let reply;
     try { reply = engineReply(await transport.callAsync(framed, progress), revive); }
     catch (error) { throw trapped(error, name); }
-    return result(reply);
+    return reply;
   }
   // A wait an abandoned asker leaves, without cancelling the work it shares with others.
   const abandonable = (pending, signal) => !signal ? pending : Promise.race([pending, new Promise((_, reject) => {

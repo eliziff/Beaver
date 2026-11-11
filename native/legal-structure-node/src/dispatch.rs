@@ -9,9 +9,11 @@
 use legal_structure_features::a2aj_store as a2aj;
 use crate::engine::{self, CoreResult, Failure, NativeDocument};
 use crate::source;
+use serde::de::{DeserializeOwned, Error as _};
 use serde::ser::SerializeMap;
-use serde::{de::DeserializeOwned, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 #[cfg(feature = "a2aj")]
 use std::path::PathBuf;
@@ -35,9 +37,9 @@ fn documents() -> std::sync::MutexGuard<'static, (u32, BTreeMap<u32, Arc<NativeD
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// A document as JavaScript is given it: a handle of its own (`{"$document": handle}`), which JavaScript revives as its
-/// document wherever a reply holds one, and releases when it no longer holds it. The engine may keep the document
-/// elsewhere too.
+/// A document as JavaScript holds it: in a reply, a handle of its own (`{"$document": handle}`), which JavaScript revives
+/// as its document and releases when it no longer holds it; in a request, that handle, wherever the request holds it.
+/// The engine may keep the document elsewhere too.
 pub struct Handle(pub Arc<NativeDocument>);
 
 impl Handle {
@@ -46,13 +48,89 @@ impl Handle {
     }
 }
 
-/// A handle as TypeScript reads it: `{ "$document": number }`, which structure-engine.mjs revives as a NativeDocument.
+impl std::ops::Deref for Handle {
+    type Target = NativeDocument;
+    fn deref(&self) -> &NativeDocument {
+        &self.0
+    }
+}
+
+/// A document as TypeScript holds it: an opaque `NativeDocument`.
 #[cfg(feature = "binding-types")]
 impl ts_rs::TS for Handle {
     type WithoutGenerics = Self;
     type OptionInnerType = Self;
+    fn ident(_: &ts_rs::Config) -> String {
+        "NativeDocument".to_owned()
+    }
+    fn name(config: &ts_rs::Config) -> String {
+        Self::ident(config)
+    }
+    fn inline(_: &ts_rs::Config) -> String {
+        "{ readonly $nativeDocument: never }".to_owned()
+    }
+    fn decl(config: &ts_rs::Config) -> String {
+        format!("type NativeDocument = {};", Self::inline(config))
+    }
+    fn output_path() -> Option<std::path::PathBuf> {
+        Some("NativeDocument.ts".into())
+    }
+}
+
+impl<'de> Deserialize<'de> for Handle {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let handle = u32::deserialize(deserializer)?;
+        documents().1.get(&handle).cloned().map(Handle).ok_or_else(|| D::Error::custom("document handle was released"))
+    }
+}
+
+thread_local! {
+    /// The bytes after a request's JSON while its call runs, and those its reply carries after its own.
+    static REQUEST_BYTES: Cell<&'static [u8]> = const { Cell::new(&[]) };
+    static REPLY_BYTES: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Bytes as they cross to and from JavaScript: `{"$bytes": [offset, length]}` in the bytes after the JSON, which
+/// structure-engine.mjs writes for each Uint8Array a request holds and revives as its buffer in a reply.
+pub struct Bytes(pub Vec<u8>);
+
+impl std::ops::Deref for Bytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[derive(serde::Deserialize, Serialize)]
+struct BytesAt {
+    #[serde(rename = "$bytes")]
+    at: (usize, usize),
+}
+
+impl<'de> Deserialize<'de> for Bytes {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let BytesAt { at: (start, length) } = BytesAt::deserialize(deserializer)?;
+        let bytes = REQUEST_BYTES.with(|bytes| bytes.get().get(start..start.saturating_add(length)).map(<[u8]>::to_vec));
+        bytes.map(Bytes).ok_or_else(|| D::Error::custom("bytes past the request's end"))
+    }
+}
+
+impl Serialize for Bytes {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let start = REPLY_BYTES.with_borrow_mut(|reply| {
+            reply.extend_from_slice(&self.0);
+            reply.len() - self.0.len()
+        });
+        BytesAt { at: (start, self.0.len()) }.serialize(serializer)
+    }
+}
+
+#[cfg(feature = "binding-types")]
+impl ts_rs::TS for Bytes {
+    type WithoutGenerics = Self;
+    type OptionInnerType = Self;
     fn name(_: &ts_rs::Config) -> String {
-        "{ \"$document\": number }".to_owned()
+        "Uint8Array".to_owned()
     }
     fn inline(config: &ts_rs::Config) -> String {
         Self::name(config)
@@ -115,14 +193,9 @@ pub(crate) enum Provision {
 }
 
 fn with_document<T>(
-    handle: u32,
+    document: Handle,
     operation: impl FnOnce(&NativeDocument) -> CoreResult<T>,
 ) -> CoreResult<T> {
-    let document = documents()
-        .1
-        .get(&handle)
-        .cloned()
-        .ok_or("document handle was released")?;
     operation(&document)
 }
 
@@ -135,7 +208,7 @@ impl Call {
         serde_json::from_value(self.args.get(name).cloned().unwrap_or(Value::Null))
             .map_err(|error| format!("invalid argument {name}: {error}"))
     }
-    fn document(&self) -> CoreResult<u32> {
+    fn document(&self) -> CoreResult<Handle> {
         self.get("document")
     }
 }
@@ -144,27 +217,23 @@ fn value(output: impl Serialize) -> CoreResult<Value> {
     serde_json::to_value(output).map_err(|error| error.to_string())
 }
 
-/// An operation's result, with no bytes.
-fn done(output: Result<Value, impl Into<Failure>>) -> Result<(Value, Vec<u8>), Failure> {
-    output
-        .map(|output| (output, Vec::new()))
-        .map_err(Into::into)
+fn done(output: Result<Value, impl Into<Failure>>) -> Result<Value, Failure> {
+    output.map_err(Into::into)
 }
 
 #[cfg_attr(not(feature = "legalpdf"), allow(unused_variables))]
 fn dispatch(
     op: &str,
     call: &Call,
-    bytes: &[u8],
     progress: Progress,
-) -> Result<(Value, Vec<u8>), Failure> {
+) -> Result<Value, Failure> {
     let doc = || call.document();
+    let bytes = || call.get::<Bytes>("bytes");
     match op {
         "nativeBuildFeatures" => done(value(engine::native_build_features())),
         "releaseDocument" => {
-            let handle = doc()?;
-            documents().1.remove(&handle);
-            Ok((Value::Null, Vec::new()))
+            documents().1.remove(&call.get::<u32>("document")?);
+            Ok(Value::Null)
         }
         "deriveDocumentStructure" => done(
             engine::derive_document_structure(call.get("request")?)
@@ -173,68 +242,70 @@ fn dispatch(
         ),
         #[cfg(feature = "docx")]
         "fixDocxSupraCrossReferences" => {
-            let mut result = legalpdf::fix_docx_supra_cross_references(bytes)
+            let mut result = legalpdf::fix_docx_supra_cross_references(&bytes()?)
                 .map_err(|error| error.to_string())?;
-            let bytes = std::mem::take(&mut result.bytes);
-            Ok((value(&result)?, bytes))
+            let bytes = Bytes(std::mem::take(&mut result.bytes));
+            let mut reply = value(&result)?;
+            reply["bytes"] = value(bytes)?;
+            Ok(reply)
         }
         #[cfg(feature = "docx")]
         "docxAuthorityTextUnits" => done(
-            legalpdf::docx_to_toa_text_units(bytes)
+            legalpdf::docx_to_toa_text_units(&bytes()?)
                 .map_err(|error| error.to_string())
                 .and_then(value),
         ),
         #[cfg(feature = "legalpdf")]
-        "pdfOpening" => done(value(legalpdf::pdf_opening(bytes).map_err(Failure::from)?)),
+        "pdfOpening" => done(value(legalpdf::pdf_opening(&bytes()?).map_err(Failure::from)?)),
         #[cfg(feature = "legalpdf")]
         "pdfWriteAnnotations" => {
             let marks = call.get::<Vec<legalpdf::AnnotationMark>>("marks")?;
             let out = legalpdf::write_annotations(
-                bytes,
+                &bytes()?,
                 &marks,
                 &call.get::<String>("namespace")?,
                 call.get::<Option<bool>>("disarm")?.unwrap_or(true),
             )
             .map_err(|error| error.to_string())?;
-            Ok((value(serde_json::json!({ "bytes": out.len() }))?, out))
+            done(value(serde_json::json!({ "bytes": Bytes(out) })))
         }
         #[cfg(feature = "legalpdf")]
         "renderSourcePdf" => {
             let (out, page_count, outline) = crate::assembly::statute::render_source_pdf(&call.get("source")?)?;
-            Ok((value(serde_json::json!({ "pageCount": page_count, "outline": outline }))?, out))
+            done(value(serde_json::json!({ "bytes": Bytes(out), "pageCount": page_count, "outline": outline })))
         }
         #[cfg(feature = "legalpdf")]
         "renderAuthoritiesBook" => {
-            let (books, out) = crate::assembly::book::render_book(call.get("book")?, bytes)?;
-            Ok((value(serde_json::json!({ "books": books }))?, out))
+            let (books, out) = crate::assembly::book::render_book(call.get("book")?, &bytes()?)?;
+            done(value(serde_json::json!({ "books": books, "bytes": Bytes(out) })))
         }
         #[cfg(feature = "legalpdf")]
         "renderFilingPdf" => {
-            let (out, page_count) = crate::assembly::book::render_filing(call.get("filing")?, &call.get::<Vec<_>>("entries")?, bytes)?;
-            Ok((value(serde_json::json!({ "pageCount": page_count }))?, out))
+            let (out, page_count) = crate::assembly::book::render_filing(call.get("filing")?, &call.get::<Vec<_>>("entries")?, &bytes()?)?;
+            done(value(serde_json::json!({ "bytes": Bytes(out), "pageCount": page_count })))
         }
         #[cfg(feature = "legalpdf")]
-        "pdfPages" => done(legalpdf::compose::page_frames(bytes).map_err(|error| error.to_string()).and_then(value)),
+        "pdfPages" => done(legalpdf::compose::page_frames(&bytes()?).map_err(|error| error.to_string()).and_then(value)),
         #[cfg(feature = "legalpdf")]
         "renderFinalPdf" => {
-            let (out, page_count) = crate::assembly::book::render_final(&call.get("plan")?, bytes)?;
-            Ok((value(serde_json::json!({ "pageCount": page_count }))?, out))
+            let (out, page_count) = crate::assembly::book::render_final(&call.get("plan")?, &bytes()?)?;
+            done(value(serde_json::json!({ "bytes": Bytes(out), "pageCount": page_count })))
         }
         // A PDF read and cached where another engine reopens it by its cache key (a page's parse workers): its summary.
         #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(value(
-            legalpdf::read_pdf(Some(bytes), &call.get("request")?, progress)
+            legalpdf::read_pdf(Some(&bytes()?), &call.get("request")?, progress)
                 .map_err(Failure::from)?
                 .ok_or("PDF cache miss after parsing source bytes")?
                 .summary(),
         )),
         // The cache key a PDF's reading would be kept under, without reading it (request.expectedSourceSha256 names it).
         #[cfg(feature = "legalpdf")]
-        "pdfCacheKey" => done(value(legalpdf::pdf_cache_key((!bytes.is_empty()).then_some(bytes), &call.get("request")?).map_err(Failure::from)?)),
+        "pdfCacheKey" => done(value(legalpdf::pdf_cache_key(call.get::<Option<Bytes>>("bytes")?.as_deref().filter(|bytes| !bytes.is_empty()), &call.get("request")?).map_err(Failure::from)?)),
         "openSource" => done(value(
-            source::open_source(bytes, call.get("request")?, progress)?.map(Handle),
+            source::open_source(call.get::<Option<Bytes>>("bytes")?.as_deref().unwrap_or_default(), call.get("request")?, progress)?.map(Handle),
         )),
-        "sourceText" => done(value(source::source_text(bytes, call.get("request")?)?)),
+        "sourceText" => done(value(source::source_text(&bytes()?, call.get("request")?)?)),
         #[cfg(feature = "legalpdf")]
         "pdfDocumentSummary" => done(with_document(doc()?, |d| value(engine::pdf(d)?.summary()))),
         #[cfg(feature = "legalpdf")]
@@ -269,23 +340,9 @@ fn dispatch(
             value(engine::pdf(d)?.authority_text_units())
         })),
         #[cfg(feature = "legalpdf")]
-        "authorityReading" => {
-            #[derive(serde::Deserialize)]
-            #[serde(rename_all = "camelCase")]
-            struct PartCall { document: Option<u32>, #[serde(default)] pages: usize, native: Option<u32>, recognized_pages: Option<Vec<usize>>,
-                saved: Option<Vec<legalpdf::AnnotationMark>>, #[serde(default)] require_printed: bool, #[serde(default)] pages_only: bool }
-            let calls = call.get::<Vec<Option<PartCall>>>("parts")?;
-            let held = {
-                let documents = documents();
-                let get = |handle: u32| documents.1.get(&handle).cloned().ok_or("document handle was released");
-                calls.iter().map(|part| part.as_ref().map(|part| Ok::<_, &str>((part.document.map(get).transpose()?, part.native.map(get).transpose()?))).transpose())
-                    .collect::<Result<Vec<_>, _>>()?
-            };
-            let parts = calls.into_iter().zip(&held).map(|(call, held)| call.zip(held.as_ref()).map(|(call, (document, native))|
-                crate::assembly::authority::Part { document: document.as_deref(), pages: call.pages, native: native.as_deref(), recognized: call.recognized_pages.map(|pages| pages.into_iter().collect()), saved: call.saved, require_printed: call.require_printed, pages_only: call.pages_only }))
-                .collect::<Vec<_>>();
-            done(crate::assembly::authority::authority_reading(&parts, &call.get("request")?).and_then(value))
-        }
+        "authorityReading" => done(
+            crate::assembly::authority::authority_reading(&call.get::<Vec<_>>("parts")?, &call.get("request")?).and_then(value),
+        ),
         #[cfg(feature = "legalpdf")]
         "pdfPassageGeometry" => done(with_document(doc()?, |d| {
             engine::passage_geometry(d, call.get("targets")?, call.get("citations")?)
@@ -753,32 +810,22 @@ fn dispatch(
 
 /// Runs one framed request and frames its reply. A panic is reported as the call's error.
 pub fn call(request: &[u8], progress: Progress) -> Vec<u8> {
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-        || -> Result<(Value, Vec<u8>), Failure> {
-            let header = request.get(..4).ok_or("truncated engine request")?;
-            let json_length = u32::from_le_bytes(header.try_into().unwrap()) as usize;
-            let json = request
-                .get(4..4 + json_length)
-                .ok_or("truncated engine request")?;
-            let parsed: Value = serde_json::from_slice(json).map_err(|error| error.to_string())?;
-            let op = parsed
-                .get("op")
-                .and_then(Value::as_str)
-                .ok_or("engine request lacks op")?
-                .to_owned();
-            let call = Call {
-                args: parsed.get("args").cloned().unwrap_or(Value::Null),
-            };
-            dispatch(&op, &call, &request[4 + json_length..], progress)
-        },
-    ));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<Value, Failure> {
+        let header = request.get(..4).ok_or("truncated engine request")?;
+        let json_length = u32::from_le_bytes(header.try_into().unwrap()) as usize;
+        let json = request.get(4..4 + json_length).ok_or("truncated engine request")?;
+        let parsed: Value = serde_json::from_slice(json).map_err(|error| error.to_string())?;
+        let op = parsed.get("op").and_then(Value::as_str).ok_or("engine request lacks op")?.to_owned();
+        let call = Call { args: parsed.get("args").cloned().unwrap_or(Value::Null) };
+        // SAFETY: the request outlives the call, and its bytes are forgotten before the call returns.
+        REQUEST_BYTES.set(unsafe { std::mem::transmute::<&[u8], &'static [u8]>(&request[4 + json_length..]) });
+        dispatch(&op, &call, progress)
+    }));
+    REQUEST_BYTES.set(&[]);
+    let bytes = REPLY_BYTES.take();
     let (ok, json, bytes) = match result {
-        Ok(Ok((output, bytes))) => (true, serde_json::to_vec(&output).unwrap_or_default(), bytes),
-        Ok(Err(failure)) => (
-            false,
-            serde_json::to_vec(&failure).unwrap_or_default(),
-            Vec::new(),
-        ),
+        Ok(Ok(output)) => (true, serde_json::to_vec(&output).unwrap_or_default(), bytes),
+        Ok(Err(failure)) => (false, serde_json::to_vec(&failure).unwrap_or_default(), Vec::new()),
         Err(panic) => (
             false,
             serde_json::to_vec(&Failure::from(

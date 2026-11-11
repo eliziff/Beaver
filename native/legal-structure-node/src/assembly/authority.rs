@@ -1,7 +1,8 @@
 //! An authority's source as its book reads it: each of its PDFs' cited passages placed and marked, the pages its
 //! excerpt keeps of them joined, its bookmarks, the currency line a statute's excerpt prints atop it, and the text
 //! recognition read of its pages. The one reading of a source for its highlights, its excerpt and its book copy.
-use crate::engine::{self, NativeDocument};
+use crate::dispatch::Handle;
+use crate::engine;
 use legal_structure::{normalize_javascript_whitespace, trim_javascript_whitespace};
 use legalpdf::{AnnotationFragment, AnnotationMark, PassageGeometry, PassageTarget, PdfLookupStatus, PlacedPassage};
 use serde::{Deserialize, Serialize};
@@ -45,15 +46,29 @@ pub enum Excerpt {
 /// One of the source's PDFs, in the order the book joins them: its reading (the pages recognition read, where only
 /// some were, are read from it and the rest from `native`), else its count of pages where its text could not be read;
 /// and its marks where they were reviewed. None: a page the book adds in place of a missing PDF.
-pub struct Part<'a> {
-    pub document: Option<&'a NativeDocument>,
+#[derive(Deserialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct Part {
+    #[cfg_attr(feature = "binding-types", ts(optional))]
+    pub document: Option<Handle>,
+    #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<usize>", optional))]
     pub pages: usize,
-    pub native: Option<&'a NativeDocument>,
+    #[cfg_attr(feature = "binding-types", ts(optional))]
+    pub native: Option<Handle>,
+    #[serde(rename = "recognizedPages")]
+    #[cfg_attr(feature = "binding-types", ts(optional))]
     pub recognized: Option<BTreeSet<usize>>,
+    #[cfg_attr(feature = "binding-types", ts(optional))]
     pub saved: Option<Vec<AnnotationMark>>,
     /// Its marks place a paragraph only where its number is printed on it (a PDF the filer attached).
+    #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub require_printed: bool,
     /// Only its cited pages are placed: it was not read for its passages.
+    #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     pub pages_only: bool,
 }
 
@@ -255,12 +270,12 @@ pub fn authority_reading(parts: &[Option<Part>], request: &SourceRequest) -> eng
     let (mut readings, mut texts, mut ocr) = (Vec::new(), Vec::new(), Vec::new());
     let (mut placed, mut context, mut marked, mut starts) = (BTreeMap::new(), BTreeSet::new(), BTreeSet::new(), Vec::new());
     let (mut bookmarks, mut bookmarked) = (Vec::new(), BTreeSet::new());
-    let count = |part: &Part| part.document.map_or(Ok(part.pages), |document| engine::pdf(document).map(|pdf| pdf.page_count()));
+    let count = |part: &Part| part.document.as_deref().map_or(Ok(part.pages), |document| engine::pdf(document).map(|pdf| pdf.page_count()));
     let page_count = parts.iter().map(|part| part.as_ref().map_or(Ok(1), count)).sum::<engine::CoreResult<usize>>()? + request.extra_pages;
     let mut offset = 0;
     for part in parts {
         starts.push(offset);
-        let (Some(part), Some(document)) = (part, part.as_ref().and_then(|part| part.document)) else {
+        let (Some(part), Some(document)) = (part, part.as_ref().and_then(|part| part.document.as_deref())) else {
             let pages = part.as_ref().map_or(1, |part| part.pages);
             texts.extend(std::iter::repeat_n(String::new(), pages)); ocr.extend(std::iter::repeat_n(String::new(), pages));
             // Its reviewed marks stand whether or not its text was read.
@@ -275,7 +290,7 @@ pub fn authority_reading(parts: &[Option<Part>], request: &SourceRequest) -> eng
         let targets = request.targets.iter().filter(|target| !part.pages_only || target.locator_kind == "page").cloned().collect::<Vec<_>>();
         let geometry = (!targets.is_empty()).then(|| engine::passage_geometry(document, targets, Some(request.citations.clone()))).transpose()?;
         let recognized_texts = pdf.page_texts();
-        let native_texts = match (&part.recognized, part.native) { (Some(_), Some(native)) => engine::pdf(native)?.page_texts(), _ => Vec::new() };
+        let native_texts = match (&part.recognized, part.native.as_deref()) { (Some(_), Some(native)) => engine::pdf(native)?.page_texts(), _ => Vec::new() };
         let routed = if request.ocr { pdf.summary().ocr_routed_pages.iter().copied().collect::<BTreeSet<_>>() } else { BTreeSet::new() };
         for index in 0..count {
             let text = match &part.recognized { Some(pages) if !pages.contains(&index) => native_texts.get(index), _ => recognized_texts.get(index) };
