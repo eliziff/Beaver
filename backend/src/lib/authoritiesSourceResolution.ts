@@ -3,7 +3,8 @@ import { authorityCitationServices, caseNameMismatch, editAuthoritiesDraft } fro
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
-  type AuthoritiesDraft, type AuthorityCitedCase, type AuthorityIdentity, type AuthoritySourceLookupFailure } from "./authoritiesDomain";
+  type AuthoritiesDraft, type AuthorityCitedCase, type AuthorityIdentity, type AuthoritySourceIdentity,
+  type AuthoritySourceLookupFailure } from "./authoritiesDomain";
 import { buildCanliiPdfUrl, isCanliiUrl } from "mike/shared/runtime/canliiPageUrls.mjs";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { A2AJUnavailable, a2ajLegalSourceProvider, stableA2AJSourceId } from "./legalSources/a2aj";
@@ -51,6 +52,11 @@ const providerFailure = (provider: string, error: unknown): AuthoritySourceLooku
     : /fetch failed|ENOTFOUND|ECONNREFUSED|ECONNRESET|cannot be reached/iu.test(detail) ? "unreachable" : "error";
   return { reason, retryAfter: null, detail, provider };
 };
+/** A lookup A2AJ did not answer, as its authority records it; a failure of our own is a defect named by its own
+ *  message, never A2AJ's error. */
+const lookupFailure = (error: unknown): AuthoritySourceLookupFailure => error instanceof A2AJUnavailable &&
+  error.reason !== "local-only" ? { reason: error.reason, retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null }
+  : { reason: "defect", retryAfter: null, detail: error instanceof Error ? error.message : String(error) };
 
 /** Resolves the first citation form a provider matches; never a best guess. Without `foreignCases`,
  *  US and UK decisions are not looked up. A provider that cannot answer leaves the others asked; where none
@@ -186,6 +192,15 @@ export async function authorityStatuteText(draft: AuthoritiesDraft, authority: A
   return null;
 }
 
+/** The first original the host has kept at one of a publisher's addresses: its store is read, nothing is fetched. */
+async function keptOriginal(urls: string[], stored: (url: string) => Promise<Uint8Array | null>) {
+  for (const url of urls) {
+    const kept = await stored(url);
+    if (kept) { const bytes = Buffer.from(kept); return { bytes, sourceSha256: sha256(bytes), url }; }
+  }
+  return null;
+}
+
 /** A reopened draft's decisions rebuilt from text because their publisher blocked the original, each
  *  given the original the host has kept since: the host's store is read, nothing is fetched. */
 async function keptOriginals(initial: AuthoritiesDraft, sources: SourceServices) {
@@ -196,16 +211,12 @@ async function keptOriginals(initial: AuthoritiesDraft, sources: SourceServices)
         rebuilt.some(({ origin }) => origin !== "reconstructed")) continue;
     let found = false;
     for (const source of rebuilt) {
-      for (const url of publisherOriginalUrls(source.sourceUrl ?? authority.sourceIdentity?.externalUrl,
-        authority.sourceVerificationUrl)) {
-        const kept = await sources.stored(url).catch(() => null);
-        if (!kept) continue;
-        const bytes = Buffer.from(kept);
-        attachments.push({ authorityId: id, filename: source.filename, bytes, sourceSha256: sha256(bytes),
-          sourceUrl: url, origin: "original", language: source.language });
-        found = true;
-        break;
-      }
+      const kept = await keptOriginal(publisherOriginalUrls(source.sourceUrl ?? authority.sourceIdentity?.externalUrl,
+        authority.sourceVerificationUrl), (url) => sources.stored!(url).catch(() => null));
+      if (!kept) continue;
+      attachments.push({ authorityId: id, filename: source.filename, bytes: kept.bytes, sourceSha256: kept.sourceSha256,
+        sourceUrl: kept.url, origin: "original", language: source.language });
+      found = true;
     }
     if (found) editor.apply({ type: "set-source-verification", authorityId: id, pageUrl: null });
   }
@@ -228,6 +239,20 @@ async function lookUpAuthorities(initial: AuthoritiesDraft, sources: SourceServi
     ? initial.authorityOrder.filter((id) => initial.authorities[id]?.sourceLookupFailure) : [onlyAuthorityId]);
   // Resolution applies one or two actions per authority: one working copy, validated on return.
   const editor = editAuthoritiesDraft(initial), draft = editor.draft;
+  // An authority takes the source found for it. Where a different case is only warned of, the source it cites is kept,
+  // and the authority the source resolves to says which case its citation names, as the brief wrote its name.
+  const resolveWarned = (id: string, citation: string, name: string | null, mismatch: AuthorityCitedCase | null,
+    source: AuthoritySourceIdentity) => {
+    const prior = citedCases === "warn" ? Object.values(draft.authorities).find((authority) => authority.id !== id &&
+      authority.sourceIdentity?.stableSourceId === source.stableSourceId && authority.citedCase) : undefined;
+    const warning = mismatch ?? prior?.citedCase, warned = mismatch ? draft.authorities[id] : prior;
+    const writtenName = warned?.mentionedAs || warned?.name;
+    editor.apply({ type: "resolve-authority", authorityId: id, citation, name: warning ? warned?.name ?? null : name, source });
+    if (!warning) return;
+    const target = draft.authorityOrder.find((other) => draft.authorities[other].sourceIdentity?.stableSourceId === source.stableSourceId)!;
+    if (writtenName) draft.authorities[target].mentionedAs = writtenName;
+    editor.apply({ type: "set-cited-case", authorityId: target, citedCase: warning });
+  };
   const candidates = draft.authorityOrder.flatMap((id) => {
     if (retrying && !retrying.has(id)) return [];
     const authority = draft.authorities[id];
@@ -263,10 +288,7 @@ async function lookUpAuthorities(initial: AuthoritiesDraft, sources: SourceServi
       return { source, revision };
     } catch (error) {
       signal?.throwIfAborted();
-      // A failure of our own is a defect named by its own message, never A2AJ's error.
-      failure = error instanceof A2AJUnavailable && error.reason !== "local-only" ? { reason: error.reason,
-        retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null }
-        : { reason: "defect", retryAfter: null, detail: error instanceof Error ? error.message : String(error) };
+      failure = lookupFailure(error);
       // Another form of the citation would meet the same outage; ask again on retry instead.
       // An error answer or a defect concerns this form alone, so the next form is still asked.
       if (error instanceof A2AJUnavailable && error.reason !== "error") break;
@@ -295,31 +317,17 @@ async function lookUpAuthorities(initial: AuthoritiesDraft, sources: SourceServi
     try { mismatch = await citedCaseMismatch(draft.authorities[id], source, sources, signal, citedCases); }
     catch (error) {
       signal?.throwIfAborted();
-      editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: error instanceof A2AJUnavailable
-        && error.reason !== "local-only" ? { reason: error.reason, retryAfter: error.retryAt ? new Date(error.retryAt).toISOString() : null }
-        : { reason: "defect", retryAfter: null, detail: error instanceof Error ? error.message : String(error) } });
+      editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: lookupFailure(error) });
       continue;
     }
     if (mismatch || draft.authorities[id].citedCase)
       editor.apply({ type: "set-cited-case", authorityId: id, citedCase: mismatch });
     if (mismatch && citedCases === "resolve") continue;
-    const prior = citedCases === "warn" ? Object.values(draft.authorities).find(authority => authority.id !== id &&
-      authority.sourceIdentity?.stableSourceId === stableA2AJSourceId(source) && authority.citedCase) : undefined;
-    const warning = mismatch ?? prior?.citedCase;
-    const warned = mismatch ? authority : prior;
-    const writtenName = warned?.mentionedAs || warned?.name;
     resolvedSources.set(stableA2AJSourceId(source), source);
-    editor.apply({ type: "resolve-authority", authorityId: id,
-      citation: source.citation, name: warning ? warned?.name ?? null : source.name,
-      source: { provider: "a2aj", stableSourceId: stableA2AJSourceId(source),
-        citationForms: [...new Set([...authorityCitationForms(initial, id), source.citation,
-          source.alternateCitation].filter((value): value is string => !!value?.trim()))].slice(0, 50),
-        sourceSha256: resolved.revision, version: source.date, externalUrl: source.url } });
-    if (warning) {
-      const target = draft.authorityOrder.find(id => draft.authorities[id].sourceIdentity?.stableSourceId === stableA2AJSourceId(source))!;
-      if (writtenName) draft.authorities[target].mentionedAs = writtenName;
-      editor.apply({ type: "set-cited-case", authorityId: target, citedCase: warning });
-    }
+    resolveWarned(id, source.citation, source.name, mismatch, { provider: "a2aj", stableSourceId: stableA2AJSourceId(source),
+      citationForms: [...new Set([...authorityCitationForms(initial, id), source.citation,
+        source.alternateCitation].filter((value): value is string => !!value?.trim()))].slice(0, 50),
+      sourceSha256: resolved.revision, version: source.date, externalUrl: source.url });
   }
   // Authorities A2AJ does not hold: US reporter and UK neutral citations, and Quebec
   // legislation, resolve through their own providers into the same source pipeline.
@@ -334,8 +342,8 @@ async function lookUpAuthorities(initial: AuthoritiesDraft, sources: SourceServi
     } catch (error) {
       // A provider that could not answer leaves this authority unchecked, marked for a retry; the others go on.
       signal?.throwIfAborted();
-      editor.apply({ type: "set-source-lookup-failure", authorityId: id, failure: error instanceof ProviderLookupFailure
-        ? error.failure : { reason: "defect", retryAfter: null, detail: error instanceof Error ? error.message : String(error) } });
+      editor.apply({ type: "set-source-lookup-failure", authorityId: id,
+        failure: error instanceof ProviderLookupFailure ? error.failure : lookupFailure(error) });
       return [id, null] as const;
     }
   });
@@ -350,26 +358,14 @@ async function lookUpAuthorities(initial: AuthoritiesDraft, sources: SourceServi
       editor.apply({ type: "set-cited-case", authorityId: id, citedCase: mismatch });
       continue;
     }
-    const prior = citedCases === "warn" ? Object.values(draft.authorities).find(authority => authority.id !== id &&
-      authority.sourceIdentity?.stableSourceId === found.stableSourceId && authority.citedCase) : undefined;
-    const warning = mismatch ?? prior?.citedCase;
-    const warned = mismatch ? draft.authorities[id] : prior;
-    const writtenName = warned?.mentionedAs || warned?.name;
     resolvedSources.set(found.stableSourceId, { ...found, identity: found.stableSourceId,
       alternateCitation: null, dataset: found.provider, language: "en",
       searchText: () => found.text, verifiedPdf: found.pdfUrl
         ? { url: found.pdfUrl, pdfOnly: true } : null });
-    editor.apply({ type: "resolve-authority", authorityId: id,
-      citation: found.citation, name: warning ? warned?.name ?? null
-        : "titleIfUnnamed" in found && found.titleIfUnnamed ? draft.authorities[id].name || found.name : found.name,
-      source: { provider: found.provider, stableSourceId: found.stableSourceId,
-        citationForms: [...new Set([...authorityCitationForms(initial, id), found.citation])].slice(0, 50),
-        sourceSha256: found.sourceSha256, version: found.date, externalUrl: found.url } });
-    if (warning) {
-      const target = draft.authorityOrder.find(id => draft.authorities[id].sourceIdentity?.stableSourceId === found.stableSourceId)!;
-      if (writtenName) draft.authorities[target].mentionedAs = writtenName;
-      editor.apply({ type: "set-cited-case", authorityId: target, citedCase: warning });
-    }
+    resolveWarned(id, found.citation, "titleIfUnnamed" in found && found.titleIfUnnamed ? draft.authorities[id].name || found.name
+      : found.name, mismatch, { provider: found.provider, stableSourceId: found.stableSourceId,
+      citationForms: [...new Set([...authorityCitationForms(initial, id), found.citation])].slice(0, 50),
+      sourceSha256: found.sourceSha256, version: found.date, externalUrl: found.url });
   }
   // Commentary the journals database holds: its article, and the article's link. An article is
   // found by its title, which the whole citation part carries and the authority's citation may not.
@@ -551,14 +547,8 @@ export async function resolveAuthoritiesSources(
     // A publisher that blocked the download, now or earlier in this run, still yields the original the
     // host kept from an earlier fetch of it; the host's store is read, the publisher never asked.
     if (stopped && !original && sources.stored) try {
-      for (const url of publisherOriginalUrls(sourceUrl, pdfUrl)) {
-        const kept = await sources.stored(url);
-        if (!kept) continue;
-        const bytes = Buffer.from(kept);
-        original = { bytes, sourceSha256: sha256(bytes), url };
-        stopped = undefined;
-        break;
-      }
+      const kept = await keptOriginal(publisherOriginalUrls(sourceUrl, pdfUrl), sources.stored);
+      if (kept) { original = kept; stopped = undefined; }
     } catch { signal?.throwIfAborted(); }
     let reconstructed: { bytes: Buffer; pageCount: number } | null = null;
     const text = reconstruct && !original ? source.searchText() : "";
