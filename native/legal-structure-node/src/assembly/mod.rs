@@ -7,17 +7,15 @@ pub mod statute;
 use legalpdf::compose::Face;
 use unicode_normalization::UnicodeNormalization;
 
-/// Text as the court fonts set it: compatibility forms composed, curly quotes straight, dashes hyphens, an ellipsis
-/// three dots.
+/// Text as the court fonts set it: compatibility forms composed (an ellipsis three dots), and a dash their WinAnsi
+/// codes lack a hyphen; their en and em dashes and curly quotes stand.
 pub fn pdf_normalized(value: &str) -> String {
-    value.nfkc().map(|c| match c {
-        '\u{2018}' | '\u{2019}' => '\'', '\u{201c}' | '\u{201d}' => '"', '\u{2010}'..='\u{2015}' | '\u{2212}' => '-', c => c,
-    }).collect::<String>().replace('\u{2026}', "...")
+    value.nfkc().map(|c| match c { '\u{2010}'..='\u{2012}' | '\u{2015}' | '\u{2212}' => '-', c => c }).collect()
 }
 
 /// Normalized, with "?" for a character the fonts cannot set.
 pub fn pdf_text(value: &str) -> String {
-    pdf_normalized(value).chars().map(|c| if matches!(c, '\t' | '\n' | '\r' | ' '..='~' | '\u{a0}'..='\u{ff}') { c } else { '?' }).collect()
+    pdf_normalized(value).chars().map(|c| if matches!(c, '\t' | '\n' | '\r') || legalpdf::compose::win_ansi(c).is_some() { c } else { '?' }).collect()
 }
 
 /// The value on one line within `width`, ending in an ellipsis where it would run past it.
