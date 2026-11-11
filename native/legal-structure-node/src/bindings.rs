@@ -12,6 +12,8 @@ pub fn export_types(directory: &std::path::Path) -> Result<(), ExportError> {
     // The structure, its nodes as a reader takes them, and the queries over a document.
     export!(
         legal_structure::DocumentStructure,
+        legal_structure::NodeReading<'static>,
+        legal_structure::DocxLintReport,
         legal_structure::AuthoritativeTableCell,
         legal_structure::Passage<'static>,
         legal_structure::Locator,
@@ -37,6 +39,7 @@ pub fn export_types(directory: &std::path::Path) -> Result<(), ExportError> {
         legal_structure::opinion::OpinionRecord,
         crate::engine::StructureRequest,
         crate::engine::Failure,
+        crate::engine::LocatedQuotation,
     );
     // What the products build on the engine.
     export!(
@@ -71,7 +74,23 @@ pub fn export_types(directory: &std::path::Path) -> Result<(), ExportError> {
         legal_structure_features::citator_graph::NoteUp,
         legal_structure_features::citator_graph::AuthorityMetric,
     );
-    // ts-rs writes `.ts`; these are declarations.
+    // The parser's: a PDF's summary, opening, page map, laid-out pages, lookups, passage geometry, annotation marks, brief
+    // units and authority text units, and why a parse failed.
+    #[cfg(feature = "legalpdf")]
+    export!(
+        legalpdf::PdfSummary,
+        legalpdf::PdfOpening,
+        legalpdf::FailureKind,
+        legalpdf::AuthorityTextUnit,
+        legalpdf::PdfPageBinding,
+        legalpdf::PassageTarget,
+        legalpdf::PassageGeometry,
+        legalpdf::PdfLookupRequest,
+        legalpdf::PdfStructureLookup,
+        legalpdf::AnnotationMark,
+        legalpdf::BriefUnit,
+        legal_structure::layout::Page,
+    );    // ts-rs writes `.ts`; these are declarations.
     for entry in std::fs::read_dir(config.out_dir())? {
         let path = entry?.path();
         let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();

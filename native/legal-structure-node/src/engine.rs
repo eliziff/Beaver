@@ -21,10 +21,9 @@ pub type CoreResult<T> = Result<T, String>;
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub struct Failure {
     pub message: String,
-    // (legal-pdf-core's FailureKind, its declaration to come from that crate: written as its name in snake case.)
     #[cfg(feature = "legalpdf")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "binding-types", ts(optional, type = "string"))]
+    #[cfg_attr(feature = "binding-types", ts(optional))]
     pub kind: Option<legalpdf::FailureKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "binding-types", ts(optional))]
@@ -179,7 +178,7 @@ pub fn derive_document_structure(request: StructureRequest) -> CoreResult<Native
     Ok(NativeDocument::new(NativeProduct::Structure(structure)))
 }
 
-pub fn docx_structure_lint_json(document: &NativeDocument) -> CoreResult<impl Serialize> {
+pub fn docx_structure_lint_json(document: &NativeDocument) -> CoreResult<legal_structure::DocxLintReport> {
     #[cfg(feature = "legalpdf")]
     {
         if matches!(document.product, NativeProduct::Pdf(_)) {
@@ -200,7 +199,7 @@ pub fn document_anchors(
     document: &NativeDocument,
     kind: Option<NodeKind>,
     end: Option<u32>,
-) -> impl Serialize + '_ {
+) -> Vec<legal_structure::NodeReading<'_>> {
     let structure = document.structure();
     document
         .query
@@ -252,7 +251,7 @@ pub fn quote_locate_document(
     quotes: &[legal_structure_features::QuoteToLocate],
     compare: bool,
     keep: bool,
-) -> CoreResult<Vec<serde_json::Value>> {
+) -> CoreResult<Vec<LocatedQuotation>> {
     let text = document_text(document, None);
     let locate = |locator: &mut legal_structure_features::QuoteLocator| {
         legal_structure_features::locate_document_quotes(
@@ -279,7 +278,7 @@ pub fn quote_locate_document(
         .zip(quotes)
         .map(|(located, item)| {
             if !compare {
-                return serde_json::to_value(&located).expect("a located quotation serializes");
+                return LocatedQuotation { located, errors: None };
             }
             let id = item.id.clone().unwrap_or_default();
             let evidence = if located.found.text.is_empty() {
@@ -296,11 +295,20 @@ pub fn quote_locate_document(
                     labels: Vec::new(),
                 }],
             );
-            let mut value = serde_json::to_value(&located).expect("a located quotation serializes");
-            value["errors"] = serde_json::json!(errors);
-            value
+            LocatedQuotation { located, errors: Some(errors) }
         })
         .collect())
+}
+
+/// A quotation located in a document, and where it was compared, the grounding errors its words leave (`errors`).
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+pub struct LocatedQuotation {
+    #[serde(flatten)]
+    pub located: legal_structure_features::LocatedQuote,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "binding-types", ts(optional))]
+    pub errors: Option<Vec<String>>,
 }
 
 pub use legal_structure_features::{citation_key_version, AliasGroup};
@@ -309,7 +317,7 @@ pub fn lookup_structure_block(
     document: &NativeDocument,
     locator: serde_json::Value,
     context_blocks: u32,
-) -> CoreResult<impl Serialize + '_> {
+) -> CoreResult<legal_structure::DocumentLookup<'_>> {
     let selector = match locator {
         serde_json::Value::String(locator) => legal_structure::GraphScopeSeed::Locator(locator),
         value => serde_json::from_value::<legal_structure::GraphScopeSeed>(value)
@@ -327,7 +335,7 @@ pub fn graph_scope<'a>(
     depth: u32,
     include_descendants: bool,
     include_units: bool,
-) -> impl Serialize + 'a {
+) -> Option<legal_structure::GraphScope<'a>> {
     let structure = document.structure();
     structure
         .cross_references
@@ -372,7 +380,7 @@ mod pdf {
     pub fn pdf_recognized_text(
         document: &NativeDocument,
         pages: Option<Vec<u32>>,
-    ) -> CoreResult<impl Serialize + '_> {
+    ) -> CoreResult<Option<Vec<&legal_structure::layout::Page>>> {
         let document = pdf(document)?;
         if let Some(pages) = &pages {
             if pages.is_empty() || pages.len() > 16 || pages.contains(&0) {

@@ -1405,6 +1405,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "thiserror",
+ "ts-rs",
 ]
 
 [[package]]
@@ -1416,6 +1417,7 @@ dependencies = [
  "pdf-inspector",
  "regex",
  "serde",
+ "ts-rs",
 ]
 
 [[package]]
@@ -1451,6 +1453,7 @@ version = "0.1.0"
 dependencies = [
  "regex",
  "serde",
+ "ts-rs",
 ]
 
 [[package]]
@@ -1500,6 +1503,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "ts-rs",
  "unicode-normalization",
 ]
 

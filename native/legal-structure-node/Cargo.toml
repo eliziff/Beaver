@@ -38,7 +38,7 @@ a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-
 docx = ["dep:legalpdf"]
 legalpdf = ["docx", "legalpdf/pdf"]
 # The TypeScript declarations of its wire types and the crates' it serves (src/bindings.rs, the export-types bin).
-binding-types = ["dep:ts-rs", "legal-structure/binding-types", "legal-structure-features/binding-types"]
+binding-types = ["dep:ts-rs", "legal-structure/binding-types", "legal-structure-features/binding-types", "legalpdf?/binding-types"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup", "opinion"] }
