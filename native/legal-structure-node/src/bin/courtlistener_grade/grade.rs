@@ -942,7 +942,7 @@ fn grade_record(structure: &DocumentStructure, raw: &str, renditions: &[(String,
         if question.kind == Kind::Point {
             let said = point_answer(structure, &quote_parts(&question.quote));
             let result = outcome(question, &said);
-            tally.add(format!("{kind}|structure|{result}"));
+            tally.add(format!("{kind}|parser|{result}"));
             tally.add(format!("{kind}|field|no answer"));
             tally.add(format!("{kind}|docket|no answer"));
             if result != "right" {
@@ -1007,7 +1007,7 @@ fn grade_record(structure: &DocumentStructure, raw: &str, renditions: &[(String,
         scored.push((group.clone(), "field".to_owned(), field_result, claim.clone()));
         tally.add(format!("{group}|docket|{}", if other.is_some() { outcome(question, &docket_said) } else { "quotation not in its text" }));
         let Some(found) = mine else {
-            tally.add(format!("{group}|structure|quotation not in its text"));
+            tally.add(format!("{group}|parser|quotation not in its text"));
             tally.add(format!("{group}|combined|quotation not in its text"));
             scored.push((group.clone(), "parser".to_owned(), "quotation not in its text", claim.clone()));
             scored.push((group.clone(), "combined".to_owned(), "quotation not in its text", claim.clone()));
@@ -1018,7 +1018,7 @@ fn grade_record(structure: &DocumentStructure, raw: &str, renditions: &[(String,
         };
         let said = parser_answer(structure, question, found);
         let result = outcome(question, &said);
-        tally.add(format!("{group}|structure|{result}"));
+        tally.add(format!("{group}|parser|{result}"));
         scored.push((group.clone(), "parser".to_owned(), result, claim.clone()));
         let vote = other.filter(|_| matches!(question.kind, Kind::Page | Kind::Paragraph)).and_then(|found| majority(question, found));
         if let Some(vote) = &vote {
@@ -1188,7 +1188,7 @@ fn tag_check(structure: &DocumentStructure, field: &Field, our_units: &[u16], th
         tally.add(format!("{GROUP}|field|{}", outcome(&asked, &said)));
         let ours_said = names.iter().find_map(|name| parser_answer(structure, &question(name), mine));
         let result = outcome(&asked, &ours_said);
-        tally.add(format!("{GROUP}|structure|{result}"));
+        tally.add(format!("{GROUP}|parser|{result}"));
         // The citers' numbering against the tags, which no citer wrote: the one check of it the citers cannot have leaked into.
         let reckoned = names.iter().find_map(|name| legal_structure::opinion::citers_page(citers.get(name)?, (mine.start + mine.end) / 2)).map(|pages| (pages.0.to_string(), pages.1.to_string()));
         tally.add(format!("{GROUP}|citers|{}", outcome(&asked, &reckoned)));
@@ -1575,18 +1575,18 @@ fn structure_holdout(structure: &DocumentStructure, harvard: &str, lawbox: &str,
             continue;
         }
         let found = notes.iter().find(|note| note.1.contains(&key));
-        counted.add(format!("note|structure|{}", if found.is_some() { "found" } else { "lost" }));
+        counted.add(format!("note|parser|{}", if found.is_some() { "found" } else { "lost" }));
         counted.add(format!("note|field|{}", if lawbox_notes.iter().any(|note| note.contains(&key)) { "found" } else { "lost" }));
         if let Some(note) = found {
-            counted.add(format!("note label|structure|{}", if note.0 == label.trim_matches(['*', ' ']) { "right" } else { "wrong" }));
+            counted.add(format!("note label|parser|{}", if note.0 == label.trim_matches(['*', ' ']) { "right" } else { "wrong" }));
         }
         if body.contains(&key) {
-            counted.add("note in the body|structure|left in the text".to_owned());
+            counted.add("note in the body|parser|left in the text".to_owned());
             let inside = paragraphs.iter().position(|text| text.contains(&key)).unwrap_or(0);
             let quoted = harvard_body_has(harvard, &key);
             missed.push(json!({ "id": id, "kind": "leak", "label": label, "words": key, "paragraph": inside, "of": paragraphs.len(), "also_in_harvard_body": quoted, "rendition": reading(structure).rendition, "text": paragraphs.get(inside).map(|text| text.chars().take(160).collect::<String>()) }));
         } else {
-            counted.add("note in the body|structure|kept out".to_owned());
+            counted.add("note in the body|parser|kept out".to_owned());
         }
         if found.is_none() {
             missed.push(json!({ "id": id, "kind": "note", "label": label, "words": key }));
@@ -1601,7 +1601,7 @@ fn structure_holdout(structure: &DocumentStructure, harvard: &str, lawbox: &str,
             continue;
         }
         let found = starts.iter().any(|start| start.contains(&key));
-        counted.add(format!("paragraph|structure|{}", if found { "found" } else { "lost" }));
+        counted.add(format!("paragraph|parser|{}", if found { "found" } else { "lost" }));
         if !found {
             missed.push(json!({ "id": id, "kind": "paragraph", "words": key }));
         }
@@ -1609,7 +1609,7 @@ fn structure_holdout(structure: &DocumentStructure, harvard: &str, lawbox: &str,
     let keys = wanted.iter().map(|text| opening(text)).collect::<std::collections::HashSet<_>>();
     for start in starts.iter().filter(|start| start.chars().count() >= HOLD_OPENING) {
         let at_harvard = keys.iter().any(|key| start.contains(key.as_str()));
-        counted.add(format!("paragraph opens|structure|{}", if at_harvard { "where Harvard's does" } else { "where it does not" }));
+        counted.add(format!("paragraph opens|parser|{}", if at_harvard { "where Harvard's does" } else { "where it does not" }));
     }
 }
 
@@ -1655,7 +1655,7 @@ pub fn holdout(args: &[String]) {
                         continue;
                     }
                     let (mine, field) = (held(&ours, heading), held(&theirs, heading));
-                    counted.add(format!("recall|structure|{}", if mine { "found" } else { "lost" }));
+                    counted.add(format!("recall|parser|{}", if mine { "found" } else { "lost" }));
                     counted.add(format!("recall|field|{}", if field { "found" } else { "lost" }));
                     if !mine {
                         missed.push(json!({ "id": id, "lost": heading, "field": field }));
@@ -1663,7 +1663,7 @@ pub fn holdout(args: &[String]) {
                 }
                 for (known, heading) in ours.iter().zip(nodes(&structure, NodeKind::Heading)).filter(|(known, _)| known.len() >= 2) {
                     let in_tags = held(&key, known);
-                    counted.add(format!("precision|structure|{}", if in_tags { "in Lawbox's tags" } else { "not in them" }));
+                    counted.add(format!("precision|parser|{}", if in_tags { "in Lawbox's tags" } else { "not in them" }));
                     if !in_tags {
                         let units = structure.text.encode_utf16().collect::<Vec<_>>();
                         let around = |from: usize, to: usize| String::from_utf16_lossy(&units[from.min(units.len())..to.min(units.len())]);
@@ -1766,7 +1766,7 @@ fn pdf_score(structure: &DocumentStructure, pages: &[Value], counted: &mut Tally
             if let Some(found) = sample.and_then(|line| finder.find(&words_of(&line).0)) {
                 let said = last_before(&marks, found.start);
                 let result = match said { None => "no answer", Some(label) if label == printed => "right", Some(_) => "wrong" };
-                counted.add(format!("page|structure|{result}"));
+                counted.add(format!("page|parser|{result}"));
                 if result != "right" {
                     let held = marks.iter().take(6).map(|mark| mark.1.clone()).collect::<Vec<_>>();
                     missed.push(json!({ "id": id, "kind": "page", "result": result, "printed": printed, "said": said, "series": main, "marks": marks.len(), "first_marks": held, "at": found.start, "length": structure.text.encode_utf16().count(), "rendition": reading(structure).rendition }));
@@ -1784,7 +1784,7 @@ fn pdf_score(structure: &DocumentStructure, pages: &[Value], counted: &mut Tally
                 match finder.find(&words_of(&words).0) {
                     Some(found) if !found.twice => {
                         let (note, body_text) = (in_range(found.start, &notes), in_range(found.start, &paragraphs));
-                        counted.add(format!("note line|structure|{}", if note && !body_text { "in a note" } else if body_text { "in the body" } else { "in neither" }));
+                        counted.add(format!("note line|parser|{}", if note && !body_text { "in a note" } else if body_text { "in the body" } else { "in neither" }));
                         if !note || body_text {
                             missed.push(json!({ "id": id, "kind": "note line", "words": words, "body": body_text }));
                         }
@@ -1797,7 +1797,7 @@ fn pdf_score(structure: &DocumentStructure, pages: &[Value], counted: &mut Tally
             if bold && (6..=120).contains(&plain.chars().count()) && !words.trim_end().ends_with([',', ';', '.']) && words.chars().any(char::is_alphabetic) && !number.is_match(&words) {
                 if finder.find(&words_of(&words).0).is_some() || structure.text.contains(words.trim()) {
                     let held = squeezed_headings.iter().any(|heading| heading.contains(&plain) || (heading.len() >= 6 && plain.contains(heading.as_str())));
-                    counted.add(format!("bold line|structure|{}", if held { "a heading" } else { "not a heading" }));
+                    counted.add(format!("bold line|parser|{}", if held { "a heading" } else { "not a heading" }));
                     if !held {
                         missed.push(json!({ "id": id, "kind": "bold line", "words": words }));
                     }
