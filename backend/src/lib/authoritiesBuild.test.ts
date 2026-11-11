@@ -774,7 +774,7 @@ describe("Authorities output builder", () => {
       .rejects.toThrow("Attached PDF could not be opened for Federal Courts Act, RSC 1985, c F-7");
   });
 
-  it("exports an explicit incomplete draft without the PDFs its court leaves out, fixed labels, and source guards", async () => {
+  it("exports an explicit incomplete draft without the PDFs its court leaves out, and fixed labels", async () => {
     const casePdf = await sourcePdf("Grant", [[400, 500]]);
     const lawPdf = await sourcePdf("Act", [[500, 600]]);
     let state = reduceAuthoritiesDraft(draft(casePdf, lawPdf),
@@ -795,8 +795,6 @@ describe("Authorities output builder", () => {
       .toEqual(["Schedule A", "Schedule B"]);
     expect(pageContent(book, book.getPage(2)).toUpperCase()).not.toContain(pdfTextHex("unavailable"));
     expect(pageContent(book, book.getPage(0)).toUpperCase()).not.toContain(pdfTextHex("NOT FOR FILING"));
-    await expect(buildAuthorities({ ...input, sources: { "source:grant": { bytes: lawPdf } } }))
-      .rejects.toThrow(/changed|exact current input/iu);
   });
 
   it("enforces current Alberta source delivery instead of emitting court placeholders", async () => {

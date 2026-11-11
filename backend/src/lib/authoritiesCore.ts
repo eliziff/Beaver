@@ -26,9 +26,6 @@ export async function gatherAuthoritySources(current: AuthoritiesDraft, options:
   progress?: (message: string) => void; signal?: AbortSignal;
 }) {
   const prepared = await options.resolve(current);
-  for (const attachment of prepared.attachments) if (sha256(attachment.bytes) !== attachment.sourceSha256) {
-    reject(500, "Prepared authority source hash is invalid");
-  }
   options.signal?.throwIfAborted();
   const kept = await options.keep(prepared.attachments);
   const keptBy = new Map(prepared.attachments.map((attachment, index) => [attachment, kept[index]!]));

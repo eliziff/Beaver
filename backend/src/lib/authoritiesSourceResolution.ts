@@ -533,9 +533,6 @@ export async function resolveAuthoritiesSources(
           language: source.language, url: source.url },
         filename: pdfFilename(source.name ?? source.citation), title: source.name,
         version: source.date }, signal) ?? undefined;
-      if (original && sha256(original.bytes) !== original.sourceSha256) {
-        original = undefined;
-      }
     } catch (error) {
       signal?.throwIfAborted();
       if (error instanceof PublisherDownloadFailure) {

@@ -27,7 +27,7 @@ import { authorityReferenceText, authorityStatuteText, authoritySourceServices, 
   from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
-import { canonicalJsonSha256, sha256 } from "./hash";
+import { canonicalJsonSha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
 import { preparePdf } from "./sourceDocument";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
@@ -54,6 +54,9 @@ function libraryBinding(draft: AuthoritiesDraft, role: string): LibraryBinding {
   return binding;
 }
 
+/** The version a binding names, or null for the document's latest. */
+const boundVersion = (binding: LibraryBinding) => binding.version === "latest" ? null : binding.version.versionId;
+
 /** Every bound PDF in the draft, keyed by role, with the action that re-points its slot. */
 function boundPdfs(draft: AuthoritiesDraft) {
   const entries: Array<{ pdf: BoundPdf;
@@ -74,14 +77,6 @@ function boundPdfs(draft: AuthoritiesDraft) {
     }),
   ];
   return new Map(entries.map((entry) => [entry.pdf.bindingRole, entry]));
-}
-
-function attachableAuthority(draft: AuthoritiesDraft, authorityId: string) {
-  const authority = draft.authorities[authorityId];
-  if (!authority) {
-    throw new ApplicationError(409, "This authority cannot accept that PDF");
-  }
-  return authority;
 }
 
 export function createAuthoritiesWorkspaceApplication(
@@ -116,10 +111,9 @@ export function createAuthoritiesWorkspaceApplication(
 
   /** Library keeps each PDF the core hands it as a document of its own, removed again if the change is not saved. */
   async function keepInLibrary(scope: ApplicationScope, created: DocumentRollback[], file: DocumentFile,
-    projectId: string | null | undefined, sourceSha256: string): Promise<KeptPdf> {
+    projectId: string | null | undefined): Promise<KeptPdf> {
     const saved = await files.create(scope, "authorities", file, { projectId, pdfOcrProvider: null });
     created.push(createdDocumentRollback(saved));
-    if (saved.source_sha256 !== sourceSha256) throw new Error("Saved authority PDF hash does not match its source");
     return { binding: { kind: "document", documentId: saved.id,
       version: { versionId: saved.current_version_id, sha256: saved.source_sha256 } },
     reference: { documentId: saved.id, versionId: saved.current_version_id }, filename: saved.filename };
@@ -133,9 +127,9 @@ export function createAuthoritiesWorkspaceApplication(
       resolve: (draft) => resolveAuthoritiesSources(draft, sources, signal, onlyAuthorityId, progress),
       keep: async (attachments) => {
         const kept: KeptPdf[] = [];
-        for (const { filename, bytes, sourceSha256 } of attachments) {
+        for (const { filename, bytes } of attachments) {
           signal?.throwIfAborted();
-          kept.push(await keepInLibrary(scope, created, { filename, fileType: "pdf", bytes }, projectId, sourceSha256));
+          kept.push(await keepInLibrary(scope, created, { filename, fileType: "pdf", bytes }, projectId));
         }
         return kept;
       },
@@ -144,10 +138,12 @@ export function createAuthoritiesWorkspaceApplication(
 
   async function saveRefresh(scope: ApplicationScope, product: AuthoritiesProduct,
     draft: AuthoritiesDraft, revision: number, source: AuthoritiesImportSource) {
-    const fresh = await importer.draft(scope, source,
-      { sourceMode: draft.settings.sourceMode, supraLinking: draft.settings.supraLinking });
-    return workProducts.save(scope, product.id, { revision, state: await refreshedAuthoritiesDraft(draft, fresh) });
+    return workProducts.save(scope, product.id, { revision,
+      state: await refreshedAuthoritiesDraft(draft, await reimport(scope, draft, source)) });
   }
+  /** A brief read again as the draft reads its sources. */
+  const reimport = (scope: ApplicationScope, draft: AuthoritiesDraft, source: AuthoritiesImportSource) =>
+    importer.draft(scope, source, { sourceMode: draft.settings.sourceMode, supraLinking: draft.settings.supraLinking });
 
   async function currentLibraryVersion(scope: ApplicationScope, binding: LibraryBinding,
     expected: "pdf" | "docx", allowMissing = false) {
@@ -183,9 +179,7 @@ export function createAuthoritiesWorkspaceApplication(
             snapshot.versionId !== version.id || snapshot.sha256 !== version.source_sha256 ||
             draft.import.filename !== version.filename) {
           signal?.throwIfAborted();
-          const fresh = await importer.draft(scope, binding,
-            { sourceMode: draft.settings.sourceMode, supraLinking: draft.settings.supraLinking });
-          draft = await refreshedAuthoritiesDraft(draft, fresh, signal);
+          draft = await refreshedAuthoritiesDraft(draft, await reimport(scope, draft, binding), signal);
         }
       }
     }
@@ -218,9 +212,8 @@ export function createAuthoritiesWorkspaceApplication(
     if (draft.import.kind === "document" && draft.import.snapshot) {
       const { bindingRole, snapshot, filename } = draft.import;
       const binding = libraryBinding(draft, bindingRole);
-      const requested = binding.version === "latest" ? null : binding.version.versionId;
       const [source, current] = await Promise.all([
-        documents.documentSource(scope, binding.documentId, requested),
+        documents.documentSource(scope, binding.documentId, boundVersion(binding)),
         binding.version === "latest" ? documents.metadata(scope, binding.documentId) : null,
       ]);
       const currentFilename = current && current.current_version_id === source?.versionId
@@ -235,11 +228,7 @@ export function createAuthoritiesWorkspaceApplication(
         filename: resolvedFilename, sha256: source.sourceSha256 };
       if (plan.byteRoles.has(bindingRole)) {
         const file = await documents.read(scope, binding.documentId, source.versionId, false);
-        if (!file || file.fileType.toLowerCase() !== draft.import.fileType ||
-            file.version.source_sha256 !== snapshot.sha256 ||
-            sha256(file.bytes) !== snapshot.sha256) {
-          throw new ApplicationError(409, "The imported document changed. Refresh before building.");
-        }
+        if (!file) throw new ApplicationError(409, "The imported document changed. Refresh before building.");
         files.push({ role: bindingRole, filename: resolvedFilename, bytes: file.bytes, sourceSha256: snapshot.sha256,
           reference: { documentId: binding.documentId, versionId: source.versionId }, pdfProfile: file.pdfProfile, resolved });
       } else unread[bindingRole] = resolved;
@@ -247,13 +236,10 @@ export function createAuthoritiesWorkspaceApplication(
     const readPdf = async (source: BoundPdf, label: string, allowMissing = false) => {
       signal?.throwIfAborted();
       const binding = libraryBinding(draft, source.bindingRole);
-      const file = await documents.read(scope, binding.documentId,
-        binding.version === "latest" ? null : binding.version.versionId, false);
+      const file = await documents.read(scope, binding.documentId, boundVersion(binding), false);
       if (!file && allowMissing) return;
-      if (!file || file.fileType.toLowerCase() !== "pdf" ||
-          file.version.source_sha256 !== source.sourceSha256 ||
-          sha256(file.bytes) !== source.sourceSha256) throw new ApplicationError(409,
-        `${label} changed: ${source.filename}`);
+      if (!file || file.fileType.toLowerCase() !== "pdf" || file.version.source_sha256 !== source.sourceSha256)
+        throw new ApplicationError(409, `${label} changed: ${source.filename}`);
       // Every PDF goes in: one Library has not prepared (or prepared only in part) is read by the build itself.
       files.push({ role: source.bindingRole, filename: source.filename, bytes: file.bytes,
         sourceSha256: source.sourceSha256, reference: { documentId: binding.documentId, versionId: file.version.id },
@@ -276,7 +262,7 @@ export function createAuthoritiesWorkspaceApplication(
     const bytes = "bytes" in input.file ? input.file.bytes : await readFile(input.file.path);
     const created: DocumentRollback[] = [];
     return withRollback(scope, created, async () => workProducts.save(scope, id, { revision: input.revision,
-      state: await attach(draft, bytes, () => keepInLibrary(scope, created, input.file, product.projectId, sha256(bytes))) }),
+      state: await attach(draft, bytes, () => keepInLibrary(scope, created, input.file, product.projectId)) }),
     "Attaching the PDF could not be completed");
   }
   return Object.freeze({
@@ -291,8 +277,7 @@ export function createAuthoritiesWorkspaceApplication(
       const plan = createAuthoritiesPreparation(draft);
       return async (source) => {
         const binding = libraryBinding(draft, source.bindingRole);
-        const file = await documents.read(scope, binding.documentId,
-          binding.version === "latest" ? null : binding.version.versionId, false);
+        const file = await documents.read(scope, binding.documentId, boundVersion(binding), false);
         if (!file || file.version.source_sha256 !== source.sourceSha256) return null;
         return plan.prepareText(source.bindingRole, { bytes: file.bytes, documentId: binding.documentId,
           versionId: file.version.id, sourceSha256: source.sourceSha256, pdfProfile: file.pdfProfile, signal });
@@ -311,8 +296,7 @@ export function createAuthoritiesWorkspaceApplication(
           "Source corrections require an imported Word document");
         const binding = libraryBinding(draft, imported.bindingRole);
         const source = await documents.read(scope, binding.documentId, snapshot.versionId, false);
-        if (!source || source.fileType.toLowerCase() !== "docx" ||
-            source.version.source_sha256 !== snapshot.sha256 || sha256(source.bytes) !== snapshot.sha256) {
+        if (!source || source.fileType.toLowerCase() !== "docx" || source.version.source_sha256 !== snapshot.sha256) {
           throw new ApplicationError(409, "The imported Word document changed. Refresh first.");
         }
         return { ...source, binding, snapshot };
@@ -331,14 +315,9 @@ export function createAuthoritiesWorkspaceApplication(
       if (!version) throw new ApplicationError(409,
         "The imported Word document changed while the correction was being saved");
       return withRollback(scope, [createdVersionRollback(binding.documentId, version)], async () => {
-        if (version.source_sha256 !== sha256(bytes)) {
-          throw new Error("Saved Word correction does not match its accepted source");
-        }
         signal?.throwIfAborted();
-        const fresh = await importer.draft(scope, { kind: "document",
-          documentId: binding.documentId,
-          version: { versionId: version.id, sha256: version.source_sha256 } },
-        { sourceMode: draft.settings.sourceMode, supraLinking: draft.settings.supraLinking });
+        const fresh = await reimport(scope, draft, { kind: "document", documentId: binding.documentId,
+          version: { versionId: version.id, sha256: version.source_sha256 } });
         return workProducts.save(scope, id, { revision: input.revision,
           state: correctedAuthoritiesDraft(decided, fresh, draft.stage) });
       }, "The accepted Authorities correction could not be saved");
@@ -467,11 +446,11 @@ export function createAuthoritiesWorkspaceApplication(
     }, signal?: AbortSignal) {
       const opened = (await open(scope, id)).draft;
       const draft = input.passageMarking ? { ...opened, settings: { ...opened.settings, passageMarking: input.passageMarking } } : opened;
-      const attached = attachedAuthoritySources(attachableAuthority(draft, input.authorityId).source)
-        .find(source => source.bindingRole === input.bindingRole);
+      const authority = draft.authorities[input.authorityId];
+      if (!authority) throw new ApplicationError(409, "This authority cannot accept that PDF");
+      const attached = attachedAuthoritySources(authority.source).find(source => source.bindingRole === input.bindingRole);
       const binding = libraryBinding(draft, input.bindingRole);
-      const source = await documents.documentSource(scope, binding.documentId,
-        binding.version === "latest" ? null : binding.version.versionId);
+      const source = await documents.documentSource(scope, binding.documentId, boundVersion(binding));
       if (!attached || !source || source.fileType !== "pdf" ||
           attached.sourceSha256 !== input.sourceSha256 || source.sourceSha256 !== input.sourceSha256)
         throw new ApplicationError(409, "This PDF changed. Relink it before editing highlights.");
@@ -490,8 +469,7 @@ export function createAuthoritiesWorkspaceApplication(
         .filter(({ source }) => roles.includes(source.bindingRole))
         .map(async ({ source, authority }) => {
           const binding = libraryBinding(draft, source.bindingRole);
-          const resolved = await documents.documentSource(scope, binding.documentId,
-            binding.version === "latest" ? null : binding.version.versionId);
+          const resolved = await documents.documentSource(scope, binding.documentId, boundVersion(binding));
           if (!resolved) throw new ApplicationError(409, `The PDF for ${source.filename} is unavailable`);
           const reference = { userId: scope.userId, documentId: resolved.documentId,
             versionId: resolved.versionId, sourceSha256: resolved.sourceSha256 };

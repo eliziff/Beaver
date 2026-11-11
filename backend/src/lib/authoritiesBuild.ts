@@ -9,7 +9,6 @@ import {
   attachedAuthoritySources,
   authoritiesProfile,
   authorityCitationForms,
-  validateAuthoritiesDraft,
   authorityReproducedInBook,
   authoritySourceRequirement,
   authoritySourceUrl,
@@ -382,10 +381,8 @@ function nativeMark(draft: AuthoritiesDraft, authority: AuthorityIdentity,
 }
 
 async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filename: string,
-  bytes: Uint8Array, sourceSha256: string, finalLinks = false) {
-  if (!bytes.byteLength || sha256(Buffer.from(bytes)) !== sourceSha256) {
-    throw new Error("The imported Word document changed before building.");
-  }
+  bytes: Uint8Array, finalLinks = false) {
+  if (!bytes.byteLength) throw new Error("The imported Word document is unavailable.");
   const seen = new Set<string>();
   const tabs = new Map(groups.flatMap(({ entries }) => entries.map(({ authority, tab }) => [authority.id, tab])));
   const marks = draft.units.flatMap((unit) => unit.occurrenceIds.flatMap((id) => {
@@ -425,11 +422,8 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
 /** The filing PDF with its table of authorities after it, as the engine lays it out (assembly/book.rs), each
  *  authority without a public link appended after the table. */
 async function filingPdfArtifact(groups: Group[], filename: string,
-  bytes: Uint8Array, sourceSha256: string,
-  attached: NonNullable<AuthoritiesBuildInput["sources"]>, allowIncomplete = false) {
-  if (!bytes.byteLength || sha256(Buffer.from(bytes)) !== sourceSha256) {
-    throw new Error("The imported filing PDF changed before building.");
-  }
+  bytes: Uint8Array, attached: NonNullable<AuthoritiesBuildInput["sources"]>, allowIncomplete = false) {
+  if (!bytes.byteLength) throw new Error("The imported filing PDF is unavailable.");
   const entries = await Promise.all(groups.flatMap(({ entries: items }) => items).map(async (entry) => {
     const source = entry.authority.source;
     const parts = !entry.sourceUrl && source.kind === "attached"
@@ -460,7 +454,7 @@ const FEDERAL_APPEAL_PAPER_COVERS: Record<string, PaperCover> = {
 /** An attached PDF's bytes, as attached; the engine counts its pages where it joins it. */
 function boundPdf(part: AuthoritiesBoundPdf, label: string, attached: NonNullable<AuthoritiesBuildInput["sources"]>) {
   const bytes = attached[part.bindingRole]?.bytes;
-  if (!bytes?.byteLength || sha256(Buffer.from(bytes)) !== part.sourceSha256) throw new Error(`Attached PDF changed for ${label}.`);
+  if (!bytes?.byteLength) throw new Error(`The attached PDF is unavailable for ${label}.`);
   return bytes;
 }
 
@@ -524,7 +518,7 @@ async function loadAuthorityPdf(
     const given = attached[source.bindingRole];
     if (allowIncomplete && given?.bytes === undefined) return null;
     // A PDF read is one that opens; one whose text was not read is counted here, where its attaching did not.
-    if (given?.reading && given.bytes && sha256(Buffer.from(given.bytes)) === source.sourceSha256) return { bytes: given.bytes, pages: undefined };
+    if (given?.reading && given.bytes) return { bytes: given.bytes, pages: undefined };
     const bytes = boundPdf(source, label.name, attached);
     return { bytes, pages: source.pageCount ?? (await structureNative().pdfPages(bytes)).length };
   }));
@@ -767,27 +761,12 @@ function resolvedInput(
       ? { kind: "document" as const, documentId: binding.documentId,
         versionId: binding.version.versionId, filename, sha256: sourceSha256 }
       : null);
-  if (!resolved || resolved.sha256 !== sourceSha256 ||
-      (binding.kind === "local-file" &&
-        (resolved.kind !== binding.kind || resolved.handleId !== binding.handleId)) ||
-      (binding.kind === "document" &&
-        (resolved.kind !== binding.kind || resolved.documentId !== binding.documentId ||
-         (binding.version !== "latest" &&
-          resolved.versionId !== binding.version.versionId))) ||
-      (binding.kind === "work-product-output" &&
-        (resolved.kind !== binding.kind || resolved.workProductId !== binding.workProductId ||
-         resolved.role !== binding.role))) {
-    throw new Error(`Resolve the exact current input for ${role} before building.`);
-  }
+  if (!resolved) throw new Error(`Resolve the exact current input for ${role} before building.`);
   return resolved;
 }
 
 export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<AuthoritiesBuildResult> {
   input.signal?.throwIfAborted();
-  const errors = validateAuthoritiesDraft(input.draft);
-  if (errors.length) throw new Error(errors[0]);
-  if (!input.workProduct.id || !Number.isInteger(input.workProduct.revision) ||
-      input.workProduct.revision < 1) throw new Error("Valid work-product identity is required.");
   const tableGroups = groupedEntries(input.draft, "table");
   const bookGroups = groupedEntries(input.draft, "book");
   const sources = input.sources ?? {}, placed = new Map<string, { geometry: PassageGeometry; offset: number }>();
@@ -844,13 +823,8 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
     const bindingSha = binding.kind === "local-file" ? binding.lastSeen.sha256
       : binding.kind === "document" && binding.version !== "latest"
         ? binding.version.sha256 : undefined;
-    const resolved = resolvedInput(role, binding, filename,
-      snapshot?.sha256 ?? supplied?.sha256 ?? bindingSha ?? "", supplied);
-    if (snapshot && (resolved.kind !== "document" ||
-        resolved.documentId !== snapshot.documentId || resolved.versionId !== snapshot.versionId)) {
-      throw new Error(`Resolve the imported document snapshot for ${role} before building.`);
-    }
-    return [{ role, resolved }];
+    return [{ role, resolved: resolvedInput(role, binding, filename,
+      snapshot?.sha256 ?? supplied?.sha256 ?? bindingSha ?? "", supplied) }];
   })() : [];
   const inputs = [...imported, ...briefInput ? [{ role: briefInput.role, resolved: briefInput.resolved }] : [],
     ...input.draft.authorityOrder.flatMap((id) => {
@@ -889,21 +863,18 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
       : input.draft.import.kind === "document" && input.draft.import.fileType === "pdf"
         ? [await filingPdfArtifact(tableGroups,
           `${base}.with-table-of-authorities.pdf`,
-          sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array(),
-          imported[0]?.resolved.sha256 ?? "", sources, !!input.draft.settings.allowIncomplete)]
+          sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array(), sources, !!input.draft.settings.allowIncomplete)]
         : [await documentArtifact(input.draft, tableGroups,
           `${base}.${!input.draft.insertIntoDocument ? "with-tab-references"
             : input.draft.settings.tableDelivery === "native-marks" ? "marked-authorities" : "with-table-of-authorities"}.docx`,
           sources[input.draft.import.kind === "document"
-            ? input.draft.import.bindingRole : "source"]?.bytes ?? new Uint8Array(),
-          imported[0]?.resolved.sha256 ?? "")]))).flat();
+            ? input.draft.import.bindingRole : "source"]?.bytes ?? new Uint8Array())]))).flat();
   let linkWarnings: AuthoritiesBuildReceipt["linkWarnings"];
   if (input.draft.settings.finalPdf && input.draft.import.kind === "document" && briefInput !== null) {
     input.signal?.throwIfAborted();
     const importedFilename = input.draft.import.filename;
     const source = sources[input.draft.import.bindingRole]?.bytes ?? new Uint8Array();
-    if (!source.byteLength || sha256(Buffer.from(source)) !== imported[0]?.resolved.sha256)
-      throw new Error("The imported document changed before final PDF export.");
+    if (!source.byteLength) throw new Error("The imported document is unavailable for final PDF export.");
     input.progress?.("Assembling the final PDF");
     const sourcePdf = input.draft.import.fileType === "pdf" ? source : briefInput?.bytes ?? await (async () => {
       if (!input.finalPdfSource) throw new Error("Word-to-PDF conversion is unavailable for final export.");
@@ -911,7 +882,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
           !input.draft.settings.linkTabs && !input.draft.settings.linkPinpoints)
         return input.finalPdfSource(source, importedFilename);
       const document = await documentArtifact(input.draft, tableGroups,
-        importedFilename, source, imported[0].resolved.sha256, true);
+        importedFilename, source, true);
       return input.finalPdfSource(document.bytes, importedFilename);
     })();
     const filename = `${base}.final.pdf`;
