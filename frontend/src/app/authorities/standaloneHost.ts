@@ -21,27 +21,6 @@ import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from ".
 import { authoritiesProfile } from "./profiles";
 import { prepareAnnotations } from "./annotationPreparation";
 import { prepareSourceText, readSourceText, recognitionWaiting } from './standalonePdfText';
-import { mapAuthorityBookBytes, type BuiltAuthorityBook, type PreparedAuthoritiesBook } from
-  "mike/shared/runtime/authoritiesBook.mjs";
-import BookWorker from "./bookWorker?worker&inline";
-
-/** Assembles the book in a worker: its pages are copied and saved there, not on the page's thread. */
-function renderBook(book: PreparedAuthoritiesBook, signal?: AbortSignal) {
-  const worker = new BookWorker();
-  return new Promise<BuiltAuthorityBook[]>((resolve, reject) => {
-    const stop = () => { worker.terminate(); reject(new DOMException("The build was cancelled.", "AbortError")); };
-    signal?.addEventListener("abort", stop, { once: true });
-    const finish = () => { signal?.removeEventListener("abort", stop); worker.terminate(); };
-    worker.onmessage = ({ data }: MessageEvent<{ built?: BuiltAuthorityBook[]; error?: string }>) => {
-      finish(); if (data.built) resolve(data.built); else reject(new Error(data.error));
-    };
-    worker.onerror = (event) => { finish(); reject(new Error(event.message || "The book could not be assembled.")); };
-    // The prepared PDFs are the response's own copies, so they move to the worker rather than copy.
-    worker.postMessage(book, [...new Set([book.customCover, book.customIndex, ...book.sources.map(({ bytes }) => bytes)]
-      .flatMap((bytes) => bytes ? [bytes.buffer as ArrayBuffer] : []))]);
-  });
-}
-
 // The runtime asks the page for publisher PDFs it verified before, and for answers sources gave
 // before (Authorities.html's page bridge).
 Object.assign(globalThis, { AUTHORITIES_SOURCE_PDFS: { read: readSourcePdf, remember: rememberSourcePdf },
@@ -394,30 +373,13 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     progress?.("Building outputs");
     const response = await runtimeResponse("build", form, signal, progress);
     signal?.throwIfAborted();
-    const { receipt, book } = response.data as { receipt: AuthoritiesBuildReceipt; book?: PreparedAuthoritiesBook<string> };
+    const { receipt } = response.data as { receipt: AuthoritiesBuildReceipt };
     const artifacts: Omit<StandaloneArtifact, "receipt">[] = await Promise.all(
       Object.entries(receipt.outputs).map(async ([role, detail]) => {
         const file = response.files?.find(file => file.role === role);
         if (!detail || !file) throw new Error(`The ${role} output is missing.`);
         return { role, ...detail, bytes: file.bytes };
       }));
-    if (book) {
-      const preparedBook = await mapAuthorityBookBytes(book,
-        async (role) => {
-          const source = response.files?.find(file => file.role === role);
-          if (!source) throw new Error(`The prepared PDF ${role} is missing.`);
-          return source.bytes;
-        });
-      progress?.("Assembling the book");
-      const built = await renderBook(preparedBook, signal);
-      for (const item of built) {
-        const hash = await crypto.subtle.digest("SHA-256", item.bytes as Uint8Array<ArrayBuffer>);
-        const sha256 = [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-        const detail = { filename: item.filename, mimeType: item.mimeType, sha256, pageCount: item.pageCount };
-        receipt.outputs[item.role] = detail;
-        artifacts.push({ ...item, sha256 });
-      }
-    }
     signal?.throwIfAborted();
     progress?.("Saving outputs");
     const saved = await saveStandaloneArtifacts(product, artifacts.map((artifact) =>

@@ -2,8 +2,6 @@ import express from "express";
 import { Document, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
-import * as pdfLibrary from "pdf-lib";
-import { mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import request from "supertest";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AuthoritiesDraft } from "../lib/authoritiesDomain";
@@ -214,13 +212,11 @@ describe("standalone Authorities runtime", () => {
     const form = await new Response(response.body as Buffer, { headers: {
       "content-type": response.headers["content-type"],
     } }).formData();
-    const plan = await mapAuthorityBookBytes(JSON.parse(String(form.get("book"))) as PreparedAuthoritiesBook<string>,
-      async (role) => new Uint8Array(await (form.get(role) as File).arrayBuffer()));
-    expect(plan.sources.map(({ key }) => key).sort()).toEqual(state.authorityOrder.map(id => `authority:${id}`).sort());
-    const [book] = await renderAuthoritiesBook(pdfLibrary, plan);
-    expect(book.placements).toHaveLength(101);
-    expect(book.placements.every(placement => placement.sourcePageIndices.length === 1)).toBe(true);
-    expect((await PDFDocument.load(book.bytes)).getPageCount()).toBe(book.pageCount);
+    const receipt = JSON.parse(String(form.get("receipt"))) as { outputs: Record<string, { pageCount: number }> };
+    const book = await PDFDocument.load(new Uint8Array(await (form.get("book") as File).arrayBuffer()));
+    // A cover, the index, and each of the 101 authorities behind its tab page.
+    expect(book.getPageCount()).toBeGreaterThan(202);
+    expect(book.getPageCount()).toBe(receipt.outputs.book.pageCount);
   });
 
 });

@@ -10,14 +10,11 @@ import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests,
 import { attachedAuthoritySources, createAuthoritiesDraft as createDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
-import { fit, mapAuthorityBookBytes, renderAuthoritiesBook, type PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import { filingLinkUrl } from "./authoritiesFinalPdf";
 import { createAuthoritiesPreparation } from "./authoritiesPreparation";
 import { structureNative, type NativePdfPassageGeometry } from "./structureNative";
 import { createAuthoritiesOperations } from "./authoritiesOperations";
 import { authoritySourceServices } from "./authoritiesSourceResolution";
-import { pdfAssembly } from "mike/shared/runtime/pdfAssembly.mjs";
-import * as pdfLibrary from "pdf-lib";
 
 /** These drafts lay their books out page for page, without TAB pages and with the pages in the index:
  *  the tests below are about what each authority's pages hold, not the tabs between them. */
@@ -510,10 +507,8 @@ describe("Authorities output builder", () => {
     const { bytes } = await structureNative().renderSourcePdf({ kind: "case", name: "A ‑ B\r\nSecond\tline",
       citation: "2026 SCC 16",
       text: "The Court said “source text” — not source metadata." });
-    const document = await PDFDocument.load(bytes);
-    expect(document.getPageCount()).toBe(1);
-    const font = await document.embedFont(StandardFonts.Helvetica);
-    expect(fit(font, "A ‑ B\r\nSecond\tline", 12, 400)).toBe("A - B Second line");
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
+    expect(await pdfText(bytes)).toContain("A - B");
   });
 
   it("keeps formatted prose and oversized identifiers inside the source PDF's margins", async () => {
@@ -1119,10 +1114,7 @@ describe("Authorities output builder", () => {
       modified: 1, sha256: sha256(statute) } };
     const response = await operations.build({ draft: state, title: "Configured provider", id: "provider", revision: 1,
       roles: ["act"], files: [{ filename: "act.pdf", bytes: statute }] }, { signal: new AbortController().signal });
-    const plan = (response.data as { book: PreparedAuthoritiesBook<string> }).book;
-    const outputs = await renderAuthoritiesBook(pdfLibrary, await mapAuthorityBookBytes(plan, async role =>
-      response.files!.find(file => file.role === role)!.bytes));
-    const content = await pdfText(outputs.find(file => file.role === "book")!.bytes);
+    const content = await pdfText(response.files!.find(file => file.role === "book")!.bytes);
     expect(content).toContain("A vessel needs permit 12 before leaving harbour.");
     expect(content).not.toContain("A vessel needs permit 13 before leaving harbour.");
   });

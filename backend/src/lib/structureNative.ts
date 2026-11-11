@@ -263,7 +263,16 @@ type StructureAddon = {
   pdfWriteAnnotations(bytes: Uint8Array, marks: unknown[], namespace: string, disarm?: boolean): { bytes: Buffer };
   /** A source's own PDF set from its provider's text (a statute by its provisions, a judgment by its paragraphs). */
   renderSourcePdf(source: { kind: string; name: string | null; citation: string; text: string; provider?: string;
-    retrieved?: string; federal?: boolean }): Promise<{ bytes: Buffer; pageCount: number }>;
+    retrieved?: string; federal?: boolean }): Promise<{ bytes: Buffer; pageCount: number;
+    outline: Array<{ title: string; pageIndex?: number; children?: unknown[] }> }>;
+  /** A book of authorities' volumes from its plan (assembly/book.rs) and its PDFs' bytes, in the order it names them:
+   *  each volume `bytes` long in the reply's bytes. */
+  renderAuthoritiesBook(bytes: Uint8Array, book: object): Promise<{ bytes: Buffer; books: Array<{ role: string; filename: string;
+    pageCount: number; bytes: number; placements: Array<{ key: string; pageIndex: number; tabPageIndex: number; sourcePageIndices: number[] }> }> }>;
+  /** A filing PDF (its first `filing` bytes) with its table of authorities, and the PDFs appended after it. */
+  renderFilingPdf(bytes: Uint8Array, filing: number, entries: object[]): Promise<{ bytes: Buffer; pageCount: number }>;
+  /** Each page's shown size, [width, height]. */
+  pdfPageSizes(bytes: Uint8Array): Promise<Array<[number, number]>>;
   /** The first two pages' native witnesses for source identification; no recognition or structure inference. */
   pdfOpening(bytes: Buffer): Promise<{ pageCount: number; pages: Array<NativePdfTextPage & { marginText: string }> }>;
   /** A stored source read as its document by its format's reader: the document the engine keeps for it, or, given its

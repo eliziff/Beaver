@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { pdfFontkit } from "./systemArial";
+import fontkit from "@pdf-lib/fontkit";
 import { nestedOutline, pdfAssembly, sourceOutline } from "mike/shared/runtime/pdfAssembly.mjs";
 const { addInternalLink, applyOcrText, applyOutlines, applyPageLabels, drawPageNumber, assemble, appendPages } = pdfAssembly(pdf);
 
@@ -22,7 +22,7 @@ it("keeps custom-font OCR searchable across pages without substituting ligatures
   const require = createRequire(new URL("../../../frontend/package.json", import.meta.url));
   const library = path.dirname(require.resolve("pdfjs-dist/package.json"));
   const document = await PDFDocument.create();
-  document.registerFontkit((await pdfFontkit())!);
+  document.registerFontkit(fontkit);
   const font = await document.embedFont(await readFile(path.join(library, "standard_fonts/LiberationSans-Regular.ttf")),
     { subset: true });
   const first = document.addPage();

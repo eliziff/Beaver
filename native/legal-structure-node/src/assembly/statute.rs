@@ -228,8 +228,8 @@ impl Setter {
     }
 }
 
-/// The source's pages, and how many there are.
-pub fn render_source_pdf(input: &SourceText) -> Result<(Vec<u8>, usize), String> {
+/// The source's pages, how many there are, and its bookmarks.
+pub fn render_source_pdf(input: &SourceText) -> Result<(Vec<u8>, usize, Vec<Outline>), String> {
     if input.text.trim().is_empty() { return Err("Authority source text is empty.".into()); }
     let mut c = Composer::new();
     let (serif, bold, italic, bold_italic, mono) = (c.font(Face::Times), c.font(Face::TimesBold), c.font(Face::TimesItalic), c.font(Face::TimesBoldItalic), c.font(Face::Courier));
@@ -371,7 +371,7 @@ pub fn render_source_pdf(input: &SourceText) -> Result<(Vec<u8>, usize), String>
         nested_outline(s.placed.iter().filter(|p| p.placing.heading.unwrap_or(0) > 1).map(|p| (title_of(&p.placing), p.placing.heading.unwrap_or(0), Some(p.page))))
     };
     let mut c = s.c;
-    if !bookmarks.is_empty() { c.set_outline(bookmarks, false); }
+    if !bookmarks.is_empty() { c.set_outline(bookmarks.clone(), false); }
     let pages = c.page_count();
     for page in 0..pages {
         if page > 0 {
@@ -382,7 +382,7 @@ pub fn render_source_pdf(input: &SourceText) -> Result<(Vec<u8>, usize), String>
     }
     let bytes = c.save(&Meta { title: &title, subject: &citation, creator: "Beaver", producer: "Beaver", lang: None, xmp: false }, false)
         .map_err(|e| e.to_string())?;
-    Ok((bytes, pages))
+    Ok((bytes, pages, bookmarks))
 }
 
 /// A day (YYYY-MM-DD) as Canadian English writes it in full: "January 5, 2026".

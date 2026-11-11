@@ -4,7 +4,6 @@ import { attachedAuthoritySources, authoritiesBriefPdf } from "mike/shared/autho
 import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } from "mike/shared/authorities-contract.d.ts";
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
 import { nestedOutline, pdfAssembly, removeActiveContent, type PdfOutline } from "mike/shared/runtime/pdfAssembly.mjs";
-import { dropUnreachable } from "mike/shared/runtime/authoritiesBook.mjs";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
 import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
@@ -255,4 +254,21 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput,
   dropUnreachable(pdf, document);
   return { bytes: Buffer.from(await document.save({ useObjectStreams: true, objectsPerTick: Infinity })),
     pageCount: document.getPageCount(), warnings };
+}
+
+/** Leaves out of the file what nothing in it refers to: the pages, fonts and images a copied PDF's links to pages
+ *  the final PDF does not keep carried in. */
+function dropUnreachable(pdfModule: typeof pdf, document: pdf.PDFDocument) {
+  const { context } = document, reached = new Set<string>();
+  const queue: unknown[] = [context.trailerInfo.Root, context.trailerInfo.Info, context.trailerInfo.Encrypt];
+  while (queue.length) {
+    const item = queue.pop();
+    if (item instanceof pdfModule.PDFRef) {
+      if (reached.has(item.toString())) continue;
+      reached.add(item.toString()); queue.push(context.lookup(item));
+    } else if (item instanceof pdfModule.PDFDict) queue.push(...item.values());
+    else if (item instanceof pdfModule.PDFArray) queue.push(...item.asArray());
+    else if (item instanceof pdfModule.PDFStream) queue.push(item.dict);
+  }
+  for (const [ref] of context.enumerateIndirectObjects()) if (!reached.has(ref.toString())) context.delete(ref);
 }

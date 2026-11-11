@@ -7,7 +7,6 @@ import { reject } from "./applicationError";
 import { excerptPageCounts, statuteExcerptSummary } from "./authoritiesBuild";
 import { structureNative } from "./structureNative";
 import { sourceReadings } from "./sourceReadings";
-import { mapAuthorityBookBytes } from "mike/shared/runtime/authoritiesBook.mjs";
 import { attachedAuthoritySources } from "./authoritiesDomain";
 import { authoritySourceServices, authorityStatuteText, resolveAuthoritiesSources } from "./authoritiesSourceResolution";
 import { gatherAuthoritySources } from "./authoritiesCore";
@@ -147,18 +146,12 @@ export function createAuthoritiesOperations(options: OperationsOptions = {}) {
         : reject(409, "An attached PDF changed. Add the current file before continuing.");
       return { role, filename: file.filename, bytes, sourceSha256 };
     });
-    // A page assembles the book in its own worker; only a final PDF is assembled here.
-    const { built, book } = await buildAuthoritiesDraft(state, { title, workProduct: { id, revision }, files: buildFiles,
-      readings, prepareBook: true, signal: context.signal, progress,
+    const { built } = await buildAuthoritiesDraft(state, { title, workProduct: { id, revision }, files: buildFiles,
+      readings, signal: context.signal, progress,
       statuteText: (authority, signal) => authorityStatuteText(state, authority, services, signal),
       ...(wordToPdfAvailable() ? { finalPdfSource: async (bytes: Uint8Array) => docxToPdf(Buffer.from(bytes)) } : {}) });
     const artifacts = Object.values(built.artifacts).filter((artifact) => artifact !== undefined);
-    const bookFiles: Array<{ role: string; mimeType: string; bytes: Buffer }> = [];
-    const prepared = book && await mapAuthorityBookBytes(book, (bytes, role) => {
-      bookFiles.push({ role, mimeType: "application/pdf", bytes: Buffer.from(bytes) }); return role;
-    });
-    return fileResult( { receipt: built.receipt, ...(prepared ? { book: prepared } : {}) },
-      [...artifacts, ...bookFiles]);
+    return fileResult({ receipt: built.receipt }, artifacts);
     },
   }) };
 }

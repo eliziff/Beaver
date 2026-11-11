@@ -200,9 +200,21 @@ fn dispatch(
         }
         #[cfg(feature = "legalpdf")]
         "renderSourcePdf" => {
-            let (out, page_count) = crate::assembly::statute::render_source_pdf(&call.get("source")?)?;
+            let (out, page_count, outline) = crate::assembly::statute::render_source_pdf(&call.get("source")?)?;
+            Ok((value(serde_json::json!({ "pageCount": page_count, "outline": outline }))?, out))
+        }
+        #[cfg(feature = "legalpdf")]
+        "renderAuthoritiesBook" => {
+            let (books, out) = crate::assembly::book::render_book(&call.get("book")?, bytes)?;
+            Ok((value(serde_json::json!({ "books": books }))?, out))
+        }
+        #[cfg(feature = "legalpdf")]
+        "renderFilingPdf" => {
+            let (out, page_count) = crate::assembly::book::render_filing(call.get("filing")?, &call.get::<Vec<_>>("entries")?, bytes)?;
             Ok((value(serde_json::json!({ "pageCount": page_count }))?, out))
         }
+        #[cfg(feature = "legalpdf")]
+        "pdfPageSizes" => done(legalpdf::compose::page_sizes(bytes).map_err(|error| error.to_string()).and_then(value)),
         // A PDF read and cached where another engine reopens it by its cache key (a page's parse workers): its summary.
         #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(value(

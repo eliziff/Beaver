@@ -1,5 +1,6 @@
 import type { PDFArray, PDFDict, PDFDocument, PDFFont, PDFObject, PDFPage, PDFRef, SaveOptions } from "pdf-lib";
-import type { PdfFontSource } from "./arialFont.mjs";
+/** A font an assembly embeds: a standard font, a font file, or a font made in the document. */
+type PdfFontSource = import("pdf-lib").StandardFonts | Uint8Array | ((document: PDFDocument) => PDFFont | Promise<PDFFont>);
 
 type PdfOutlineDictionary = { dictionary: Array<[string, PdfOutlineValue]> };
 export type PdfOutlineValue = number | boolean | null | { name: string } | { literal: string } |

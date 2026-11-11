@@ -3,13 +3,12 @@
 import { reject } from "./applicationError";
 import { attachAuthoritiesBookPdf, applyAuthoritiesUserAction, type AuthoritiesUserAction } from "./authoritiesActions";
 import { authoritiesBookFront, authorityPassageTargets, buildAuthorities, prepareAuthorityAnnotations,
-  savedAuthoritiesBook, type AuthoritiesBuildInput, type StatuteText } from "./authoritiesBuild";
+  type AuthoritiesBuildInput, type StatuteText } from "./authoritiesBuild";
 import type { KeptPdf, SourcePdfReference } from "./authoritiesCore";
 import { attachedAuthoritySources, authorityCitationForms, type AuthoritiesDraft } from "./authoritiesDomain";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { authoritiesSourceText, createAuthoritiesPreparation } from "./authoritiesPreparation";
 import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
-import type { PreparedAuthoritiesBook } from "mike/shared/runtime/authoritiesBook.mjs";
 import { openDocument, PLAIN_PDF } from "./sourceDocument";
 import { structureNative } from "./structureNative";
 import type { PdfProfileSelection } from "./documentStore";
@@ -47,16 +46,15 @@ export async function authorityAnnotations(state: AuthoritiesDraft, input: {
     item.bindingRole === input.bindingRole);
   if (!authority || !source) return reject(400, "The authority PDF is not attached");
   if (sha256(input.bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
-  const pdf = await import("pdf-lib");
-  const document = await pdf.PDFDocument.load(input.bytes, { updateMetadata: false, parseSpeed: Infinity });
-  if (!document.getPageCount() || document.getPageCount() > 2_000) return reject(400, "Unsupported PDF page count");
+  const pages = await structureNative().pdfPageSizes(input.bytes);
+  if (!pages.length || pages.length > 2_000) return reject(400, "Unsupported PDF page count");
   const reading = input.recognize ? state
     : { ...state, settings: { ...state.settings, scannedPdfPolicy: "page-margin" as const } };
   const text = state.settings.passageMarking !== "none" && authorityPassageTargets(state, authority.id).length
     ? await authoritiesSourceText(reading, input.readings)(source.bindingRole, { bytes: input.bytes,
       sourceSha256: source.sourceSha256, ...input.reference, pdfProfile: input.pdfProfile, signal: input.signal }) : {};
   input.signal?.throwIfAborted();
-  return prepareAuthorityAnnotations(pdf, document, state, authority, source, text, true);
+  return prepareAuthorityAnnotations(pages, state, authority, source, text, true);
 }
 
 /** A source a build reads, as its host holds it. */
@@ -64,14 +62,13 @@ export type AuthoritiesBuildFile = { role: string; filename: string; bytes: Buff
   reference?: SourcePdfReference; pdfProfile?: PdfProfileSelection; resolved?: ResolvedWorkProductInput };
 
 /** The draft's outputs, built from the sources the host read. Sources are read in parallel within the native document
- *  working set, so a PDF's text, passages and labels reuse its open document. `prepareBook` hands back the prepared
- *  book for the host to assemble (in a page's worker) in place of assembling it here. */
+ *  working set, so a PDF's text, passages and labels reuse its open document. */
 export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
   title: string; workProduct: { id: string; revision: number }; files: readonly AuthoritiesBuildFile[];
   /** Roles the build names without reading them. */
   unread?: Record<string, ResolvedWorkProductInput>;
   statuteText: StatuteText; finalPdfSource?: AuthoritiesBuildInput["finalPdfSource"];
-  readings?: SourceReadings; prepareBook?: boolean; builder?: typeof buildAuthorities;
+  readings?: SourceReadings; builder?: typeof buildAuthorities;
   signal: AbortSignal; progress?: (message: string) => void;
 }) {
   const { signal, progress, files } = options;
@@ -116,15 +113,12 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
       ...text, ...(passageGeometry && { passageGeometry }),
       ...(file.resolved ? { resolved: file.resolved } : {}) };
   });
-  let book: PreparedAuthoritiesBook | undefined;
   const built = await (options.builder ?? buildAuthorities)({ draft: state, title: options.title,
     workProduct: options.workProduct, sources, signal, progress, statuteText: options.statuteText,
     ...(options.finalPdfSource ? { finalPdfSource: options.finalPdfSource } : {}),
-  }, options.prepareBook && !state.settings.finalPdf
-    ? async (prepared) => { book = await savedAuthoritiesBook(prepared); return []; } : undefined)
-    .catch((error) => {
-      if (signal.aborted) throw error;
-      return reject(409, error instanceof Error ? error.message : "Authorities could not be built");
-    });
-  return { built, book };
+  }).catch((error) => {
+    if (signal.aborted) throw error;
+    return reject(409, error instanceof Error ? error.message : "Authorities could not be built");
+  });
+  return { built };
 }

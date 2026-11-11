@@ -116,8 +116,7 @@ describe('persistent visual PDF annotations',()=>{
   });
   it('exports the edited set, never independently regenerating deleted automatic quotes',async()=>{
     const {draft,bytes,hash}=await fixture();draft.settings.passageMarking='text';
-    const source=await PDFDocument.load(bytes);
-    const initial=prepareAuthorityAnnotations(pdf,source,draft,draft.authorities.case,
+    const initial=prepareAuthorityAnnotations((await PDFDocument.load(bytes)).getPages().map(page=>[page.getWidth(),page.getHeight()] as [number,number]),draft,draft.authorities.case,
       {bindingRole:'case-en',filename:'case.pdf',sourceSha256:hash},{passageGeometry:geometry(hash)}).annotations;
     const edited=reduceAuthoritiesDraft(draft,action({...initial,marks:[initial.marks[1],mark()]}));
     const output=await build(edited,bytes,geometry(hash));

@@ -3,7 +3,8 @@
 // to WebAssembly in the browser (native/legal-structure-node/src/dispatch.rs).
 
 const ASYNC = new Set(["deriveDocumentStructure",
-  "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "pdfOpening", "renderSourcePdf", "preparePdfDocument", "openSource", "sourceText",
+  "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "pdfOpening", "renderSourcePdf",
+  "renderAuthoritiesBook", "renderFilingPdf", "pdfPageSizes", "preparePdfDocument", "openSource", "sourceText",
   "pdfPassageGeometry", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes, and a reply's bytes are its
 // value's `bytes`; "document" is a document's handle, and a reply's `{ $document: handle }` its document.
@@ -18,6 +19,9 @@ export const SIGNATURES = {
   pdfWriteAnnotations: ["bytes", "marks", "namespace", "disarm"],
   // A source's own PDF set from its provider's text (assembly/statute.rs): its bytes and pageCount.
   renderSourcePdf: ["source"],
+  // A book of authorities' volumes, and a filing with its table of authorities, from their PDFs' bytes in order
+  // (assembly/book.rs); each page's shown size.
+  renderAuthoritiesBook: ["bytes", "book"], renderFilingPdf: ["bytes", "filing", "entries"], pdfPageSizes: ["bytes"],
   // A stored source read as its document (none where the engine keeps none and no bytes are given), or as its text.
   openSource: ["bytes", "request"], sourceText: ["bytes", "request"],
   pdfDocumentSummary: ["document"], pdfRecognizedText: ["document", "pages"],

@@ -74,7 +74,7 @@ class ScopeTests(unittest.TestCase):
                      'backend/src/lib/chat/chatToolRunner.ts',
                      'frontend/src/app/lib/api/chat.ts',
                      'shared/contracts/assistantWire.mts',
-                     'shared/contracts/authoritiesBook.mts', 'docs/guide.md'):
+                     'docs/guide.md'):
             with self.subTest(path=path):
                 self.assertFalse(ci.scope([path])['cloud'])
         for path in ('backend/schema.sql', 'backend/src/lib/relationalProjectRepository.ts',
