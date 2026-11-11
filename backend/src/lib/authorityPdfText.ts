@@ -17,8 +17,7 @@ export async function authorityPdfOutline(input: {
   // Recognized text already retained for the source is read too; nothing new is recognized.
   const prepared = await preparePdf({ ...reference, bytes: input.bytes, signal: input.signal,
     ...(input.pdfProfile ? { pdfProfile: input.pdfProfile } : { ocrProvider: null, layout: false }) });
-  return structureNative().documentOutline(await openDocument({ ...reference, readBytes: () => input.bytes,
-    pdfProfile: prepared }, { signal: input.signal }))
+  return structureNative().documentOutline(prepared.document)
     .flatMap(({ title, ...entry }) => entry.kind === "heading" && title ? [{ ...entry, title }] : []);
 }
 
@@ -60,7 +59,8 @@ export async function authorityPdfText(input: {
     : { ocrProvider: null, ...(pageOnly ? { layout: false } : {}) }) });
   if (retained && native.cacheKey !== retained.cacheKey) throw new Error("Prepared authority PDF profile changed.");
   if (!native.pageCount) return { pageTextByPage: [], ocrTextByPage: [] };
-  const document = (prepared: Prepared, plain = false) => openDocument({ ...reference,
+  // A prepared reading is its own document; the plain reading (no recognition, no layout) is another.
+  const document = async (prepared: Prepared, plain = false) => !plain ? prepared.document : openDocument({ ...reference,
     readBytes: () => input.bytes, pdfProfile: prepared }, { signal: input.signal,
     ...(plain ? PLAIN_PDF : {}) });
   const citations = input.citations ?? [];

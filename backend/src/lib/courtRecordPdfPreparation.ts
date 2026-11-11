@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { ApplicationError } from "./applicationError";
 import { validateDocumentFile } from "./documentTypes";
-import { openDocument, preparePdf } from "./sourceDocument";
+import { preparePdf } from "./sourceDocument";
 import type { DocumentFile } from "./documentStore";
 import { sha256 } from "./hash";
-import { pdfFailureKind, structureNative } from "./structureNative";
+import { pdfFailureKind, structureNative, type NativeDocument } from "./structureNative";
 
 export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: unknown) {
   const pages = selectedOcrPages(requestedPages);
@@ -25,8 +25,7 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
     if (prepared.pageCount > 2_000) {
       throw new ApplicationError(409, "This PDF has an unsupported page count");
     }
-    const pageText = await courtRecordPageText({ documentId, versionId, sourceSha256: digest,
-      readBytes: () => bytes, pdfProfile: prepared });
+    const pageText = courtRecordPageText(prepared.document);
     return { source_sha256: digest, page_count: prepared.pageCount,
       parser_status: prepared.status,
       ocr_pages: prepared.ocrRoutedPages.map((page) => page + 1),
@@ -41,8 +40,8 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
 }
 
 /** Each page's text of a prepared PDF, a scanned page's empty where nothing was recognized on it. */
-export async function courtRecordPageText(source: Parameters<typeof openDocument>[0]) {
-  return structureNative().pdfPageTexts(await openDocument(source))
+export function courtRecordPageText(document: NativeDocument) {
+  return structureNative().pdfPageTexts(document)
     .map((text, index) => ({ page_number: index + 1, text }));
 }
 

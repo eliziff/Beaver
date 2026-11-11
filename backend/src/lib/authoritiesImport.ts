@@ -17,7 +17,7 @@ import {
 } from "./authoritiesDomain";
 import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
-import { openDocument, preparePdf } from "./sourceDocument";
+import { preparePdf } from "./sourceDocument";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
@@ -577,9 +577,7 @@ async function importAuthoritiesDocument(input: AuthoritiesDocumentImport) {
   }
   const reference = { ...input.reference, sourceSha256, fileType: input.fileType, readBytes: () => input.bytes };
   const readPdf = async () => {
-    const read = async (options: Parameters<typeof preparePdf>[0]) => {
-      return openDocument({ ...reference, pdfProfile: await preparePdf(options) });
-    };
+    const read = async (options: Parameters<typeof preparePdf>[0]) => (await preparePdf(options)).document;
     const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null });
     // A scanned page whose own text layer reads well needs no recognition: only the pages the engine
     // still names as needing it are recognized, and with none the brief is read as it is.

@@ -182,13 +182,19 @@ fn dispatch(
             .map_err(|error| error.to_string())?;
             Ok((value(serde_json::json!({ "bytes": out.len() }))?, out))
         }
+        // A PDF read and cached where another engine reopens it by its cache key (a page's parse workers): its summary.
         #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(value(
-            legalpdf::prepare_pdf_document(bytes, &call.get("request")?, progress)
-                .map_err(Failure::from)?,
+            legalpdf::read_pdf(Some(bytes), &call.get("request")?, progress)
+                .map_err(Failure::from)?
+                .ok_or("PDF cache miss after parsing source bytes")?
+                .summary(),
         )),
+        // The cache key a PDF's reading would be kept under, without reading it (request.expectedSourceSha256 names it).
+        #[cfg(feature = "legalpdf")]
+        "pdfCacheKey" => done(value(legalpdf::pdf_cache_key(&call.get("request")?).map_err(Failure::from)?)),
         "openSource" => done(value(
-            source::open_source(bytes, call.get("request")?)?.map(Handle),
+            source::open_source(bytes, call.get("request")?, progress)?.map(Handle),
         )),
         "sourceText" => done(value(source::source_text(bytes, call.get("request")?)?)),
         #[cfg(feature = "legalpdf")]

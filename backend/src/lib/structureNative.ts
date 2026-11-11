@@ -263,12 +263,11 @@ type StructureAddon = {
   pdfWriteAnnotations(bytes: Uint8Array, marks: unknown[], namespace: string, disarm?: boolean): { bytes: Buffer };
   /** The first two pages' native witnesses for source identification; no recognition or structure inference. */
   pdfOpening(bytes: Buffer): Promise<{ pageCount: number; pages: Array<NativePdfTextPage & { marginText: string }> }>;
-  /** `progress(recognized, total)` follows text recognition as pages finish. */
-  preparePdfDocument(bytes: Buffer, request: unknown, signal?: AbortSignal,
-    progress?: (recognized: number, total: number) => void): Promise<PdfPreparationSummary>;
   /** A stored source read as its document by its format's reader: the document the engine keeps for it, or, given its
-   *  bytes, read afresh (sourceDocument.ts builds the request); without bytes, null where the engine keeps none. */
-  openSource(bytes: Buffer | undefined, request: unknown): Promise<NativeDocument | null>;
+   *  bytes, read afresh (sourceDocument.ts builds the request); without bytes, null where the engine keeps none.
+   *  `progress(recognized, total)` follows a PDF's text recognition as pages finish. */
+  openSource(bytes: Buffer | undefined, request: unknown, signal?: AbortSignal,
+    progress?: (recognized: number, total: number) => void): Promise<NativeDocument | null>;
   /** A source's text as its format's reader gives it, without its structure. */
   sourceText(bytes: Buffer, request: unknown): Promise<string>;
   pdfDocumentSummary(document: NativeDocument): PdfPreparationSummary;

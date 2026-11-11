@@ -1,4 +1,5 @@
 import { courtRecordPageText, prepareCourtRecordPdf } from "./courtRecordPdfPreparation";
+import { openDocument } from "./sourceDocument";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
@@ -319,7 +320,7 @@ async function readPreparedPageText(documents: DocumentStore,
   if (!Number.isSafeInteger(pageCount) || pageCount < 1 || pageCount > 2_000) {
     throw new ApplicationError(409, "Prepare this PDF before using it in a court record");
   }
-  const pages = await courtRecordPageText(source);
+  const pages = courtRecordPageText(await openDocument(source));
   return { document_id: documentId, version_id: source.versionId,
     source_sha256: source.sourceSha256, page_count: pageCount,
     parser_status: source.pdfProfile?.status ?? "ready", pages };

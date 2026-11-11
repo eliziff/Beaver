@@ -5,6 +5,7 @@
 
 #[cfg(feature = "legalpdf")]
 use crate::engine::NativeProduct;
+use crate::dispatch::Progress;
 use crate::engine::{Failure, NativeDocument};
 use crate::formats;
 use legal_structure::{analyze_instrument, utf16_prefix_ceil, DocumentStructure};
@@ -146,7 +147,7 @@ fn limited(mut text: String, limit: Option<u32>) -> String {
 /// with the profile it was asked with). Without bytes, none where the engine keeps none: the caller reads the bytes and
 /// asks again.
 #[cfg_attr(not(feature = "legalpdf"), allow(unused_variables))]
-pub fn open_source(bytes: &[u8], request: SourceRequest) -> Result<Option<Arc<NativeDocument>>, Failure> {
+pub fn open_source(bytes: &[u8], request: SourceRequest, progress: Progress) -> Result<Option<Arc<NativeDocument>>, Failure> {
     let format = format_of(&request.file_type)?;
     let SourceRequest { document_id, version_id, file_type, source_sha256, mode, pdf } = request;
     let id = format!("{document_id}:{version_id}");
@@ -157,7 +158,7 @@ pub fn open_source(bytes: &[u8], request: SourceRequest) -> Result<Option<Arc<Na
     } else { Mode::Text };
     if matches!(format, Format::Pdf | Format::Converted) {
         #[cfg(feature = "legalpdf")]
-        return open_pdf(bytes, format, &id, &source_sha256, pdf, key);
+        return open_pdf(bytes, format, &id, &source_sha256, pdf, key, progress);
         #[cfg(not(feature = "legalpdf"))]
         return Err("PDF documents require the engine's PDF reader".into());
     }
@@ -207,21 +208,26 @@ fn open_pdf(
     source_sha256: &str,
     pdf: serde_json::Value,
     key: impl Fn(&str) -> String,
+    progress: Progress,
 ) -> Result<Option<Arc<NativeDocument>>, Failure> {
     let mut request = serde_json::from_value::<legalpdf::PdfRequest>(pdf.clone()).map_err(|error| Failure::from(error.to_string()))?;
     request.id = Some(id.to_owned());
     request.expected_source_sha256 = (format == Format::Pdf).then(|| source_sha256.to_owned());
     let document = |document: legalpdf::PdfDocument| Arc::new(NativeDocument::new(NativeProduct::Pdf(document)));
+    // Without bytes, a reading is still found where the parse cache holds it under the key the request names (a
+    // converted source's PDF has no hash to name it by until its bytes are converted).
     let parse = |request: &legalpdf::PdfRequest| -> Result<Option<Read>, Failure> {
-        if bytes.is_empty() {
+        if bytes.is_empty() && request.expected_source_sha256.is_none() {
             return Ok(None);
         }
-        let parsed = legalpdf::read_pdf(Some(bytes), request)?.ok_or("PDF cache miss after parsing source bytes")?;
+        let Some(parsed) = legalpdf::read_pdf((!bytes.is_empty()).then_some(bytes), request, progress)? else {
+            return Ok(None);
+        };
         Ok(Some(Read { keys: vec![key(&parsed.summary().cache_key)], document: document(parsed), keep: true }))
     };
     if let Some(cache_key) = request.cache_key.clone().filter(|_| format == Format::Pdf) {
         return read_once(&key(&cache_key), || {
-            if let Some(cached) = legalpdf::read_pdf(None, &request)? {
+            if let Some(cached) = legalpdf::read_pdf(None, &request, None)? {
                 return Ok(Some(Read { document: document(cached), keys: Vec::new(), keep: true }));
             }
             // Parsed again, it may have a cache key of its own: it is kept by that one.

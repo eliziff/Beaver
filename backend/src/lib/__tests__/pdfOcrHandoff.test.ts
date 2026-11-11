@@ -11,16 +11,17 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
   const root = await mkdtemp(path.join(os.tmpdir(), 'ocr-handoff-'));
   vi.stubEnv('AUTH_MODE', 'local'); vi.stubEnv('MIKE_LOCAL_DATA_DIR', root);
   const scope = { userId: '00000000-0000-0000-0000-000000000001' };
-  const artifacts = new Map<string, { sha256: string; pages: NativePdfTextPage[] }>();
+  const artifacts = new Map<string, { sha256: string; pages: NativePdfTextPage[]; summary: object }>();
   const prepare = vi.fn(async (bytes: Buffer, input: { pages?: number[]; ocr?: unknown }) => {
     const pages = input.ocr ? input.pages ?? [1, 2, 3] : [];
     const key = sha256(JSON.stringify([sha256(bytes), pages]));
-    artifacts.set(key, { sha256: sha256(bytes), pages: pages.map(number => ({ number,
-      width: 400, height: 500, lines: [{ id: `${number}-1`, text: '', bbox: [40, 60, 240, 75],
-        words: [{ text: `Recognized page ${number}`, bbox: [40, 60, 240, 75] }] }] })) });
-    return { sha256: sha256(bytes), cacheKey: key, parserVersion: 'test', status: pages.length === 3 ? 'ready' : 'degraded',
+    const summary = { sha256: sha256(bytes), cacheKey: key, parserVersion: 'test', status: pages.length === 3 ? 'ready' : 'degraded',
       pageCount: 3,
       pagesNeedingOcr: [0, 1, 2].filter(page => !pages.includes(page + 1)), ocrRoutedPages: pages.map(page => page - 1) };
+    artifacts.set(key, { sha256: sha256(bytes), summary, pages: pages.map(number => ({ number,
+      width: 400, height: 500, lines: [{ id: `${number}-1`, text: '', bbox: [40, 60, 240, 75],
+        words: [{ text: `Recognized page ${number}`, bbox: [40, 60, 240, 75] }] }] })) });
+    return summary;
   });
   const restore = vi.fn(async (bytes: Buffer | undefined, input: {
     sourceSha256: string; pdf: { cacheKey: string; pages?: number[]; ocr?: unknown };
@@ -30,8 +31,8 @@ it('retains disjoint OCR passes through the worker, SQLite reopen and authorized
     if (!bytes) return null;
     return artifacts.get((await prepare(bytes, input.pdf)).cacheKey);
   });
-  vi.doMock('../structureNative', () => ({ nativeDocumentLive: () => true, structureNative: () => ({ preparePdfDocument: prepare,
-    openSource: restore,
+  vi.doMock('../structureNative', () => ({ nativeDocumentLive: () => true, structureNative: () => ({ openSource: restore,
+    pdfDocumentSummary: (artifact: { summary: object }) => artifact.summary,
     pdfRecognizedText: (artifact: { pages: NativePdfTextPage[] }, pages?: number[]) =>
       artifact.pages.filter(page => !pages || pages.includes(page.number)),
   }) }));

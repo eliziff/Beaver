@@ -29,7 +29,7 @@ import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
-import { openDocument, preparePdf } from "./sourceDocument";
+import { preparePdf } from "./sourceDocument";
 import { sourceReadings } from "./sourceReadings";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
@@ -509,8 +509,7 @@ export function createAuthoritiesWorkspaceApplication(
           const targets = pages ? [] : authorityPassageTargets(draft, authority.id);
           // Page pinpoints locate themselves without any text, so a scan whose passages the
           // geometry cannot find still has its cited pages recognized before the whole PDF.
-          const citedPages = targets.length ? (await structureNative().pdfPassageGeometry(await openDocument({
-            ...resolved, readBytes: () => bytes, pdfProfile: prepared }), targets, citations)).targets
+          const citedPages = targets.length ? (await structureNative().pdfPassageGeometry(prepared.document, targets, citations)).targets
             .flatMap(target => target.status === "found" || target.locatorKind === "page" && target.status === "unavailable"
               ? target.pages.map(page => page.pageNumber) : []) : [];
           if (!citedPages.length && targets.some(target => target.locatorKind === "page") &&

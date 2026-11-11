@@ -2,17 +2,17 @@
 // dispatch request and returns its reply: the native addon's `call` in Node, the same crate compiled
 // to WebAssembly in the browser (native/legal-structure-node/src/dispatch.rs).
 
-const ASYNC = new Set(["deriveDocumentStructure", "deriveDocumentFingerprint",
+const ASYNC = new Set(["deriveDocumentStructure",
   "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "pdfOpening", "preparePdfDocument", "openSource", "sourceText",
   "pdfPassageGeometry", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments"]);
 // Positional arguments, named as the dispatch reads them. "bytes" travels as raw bytes, and a reply's bytes are its
 // value's `bytes`; "document" is a document's handle, and a reply's `{ $document: handle }` its document.
 export const SIGNATURES = {
   nativeBuildFeatures: [],
-  deriveDocumentStructure: ["request"], deriveDocumentFingerprint: ["request"],
+  deriveDocumentStructure: ["request"],
   fixDocxSupraCrossReferences: ["bytes"],
   docxAuthorityTextUnits: ["bytes"],
-  preparePdfDocument: ["bytes", "request"],
+  preparePdfDocument: ["bytes", "request"], pdfCacheKey: ["request"],
   pdfOpening: ["bytes"],
   // Annotations appended to the PDF as an incremental update; with disarm (default), its active content taken out.
   pdfWriteAnnotations: ["bytes", "marks", "namespace", "disarm"],
@@ -28,12 +28,12 @@ export const SIGNATURES = {
   documentText: ["document", "limit"], documentTextBytes: ["document"], documentRevision: ["document"],
   readDocumentTextWindow: ["document", "offset", "startChar", "limit"],
   readDocumentTextRange: ["document", "start", "end", "offset", "limit", "startChar"],
-  documentFingerprint: ["document"], documentAnchors: ["document", "kind", "end"],
+  documentAnchors: ["document", "kind", "end"],
   documentOutline: ["document"],
   legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
   textOutline: ["text", "kind"], statuteProvisionSpans: ["text", "labels"], collapseLabels: ["labels", "kind"],
   statuteCurrency: ["pages"], filingCover: ["opening", "title"],
-  searchQuery: ["query", "columns"], renderCitedBlocks: ["blocks"], renderReferenceBlocks: ["blocks"],
+  searchQuery: ["query", "columns"], renderCitedBlocks: ["blocks"],
   citationLookupKeys: ["texts"], citationKeyVersion: [], providerCitationsInText: ["text"],
   citationEngineCall: ["method", "request"],
   documentReadingOrder: ["units"],
@@ -102,9 +102,9 @@ function engineReply(reply, revive) {
  *   `call` runs an operation now; `callAsync`, where the host has one, off its thread. `restart`
  *   drops an engine that a call interrupted (a trap) and returns the reason it last gave.
  * @param {{ toBuffer?: (bytes: Uint8Array) => Uint8Array, recognizePdf?: Function,
- *   parser?: { prepare(bytes, request, signal): Promise<object> } }} [host]
+ *   parser?: { prepare(bytes, request): Promise<object>, seed(sha256): Promise<void> } }} [host]
  *   `toBuffer` wraps result bytes as the host's Buffer; `recognizePdf` recognizes scanned pages in the
- *   host; `parser` prepares PDFs elsewhere, writing the parse cache where this engine reads it.
+ *   host; `parser` prepares PDFs this engine has no cache of elsewhere, writing the parse cache where it reads it.
  */
 export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, recognizePdf, parser } = {}) {
   // A trapped engine restarts; documents belong to the engine that made them.
@@ -169,38 +169,56 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     catch (error) { throw trapped(error, name); }
     return result(reply);
   }
-  // A host parser prepares PDFs off this engine's thread and leaves the parse cache readable here.
-  const prepare = (bytes, request, signal) => parser
-    ? parser.prepare(bytes, request, signal) : invokeOff("preparePdfDocument", [bytes, request]);
-  async function invokeAsync(name, positional) {
-    if (name === "openSource") {
-      const [bytes, source] = positional;
-      await parser?.seed(source?.sourceSha256);
-      if ((parser || recognizePdf) && source?.fileType === "pdf") {
-        // Host-prepared PDFs reopen by cache key; their native engine has no host OCR provider.
-        const { ocr, layout, ...pdf } = source.pdf ?? {};
-        if (bytes) {
-          const summary = await invokeAsync("preparePdfDocument", [bytes, { ...source.pdf,
-            id: `${source.documentId}:${source.versionId}`, expectedSourceSha256: source.sourceSha256 }]);
-          pdf.cacheKey = summary.cacheKey;
-        }
-        return invokeOff(name, [undefined, { ...source, pdf }]);
-      }
+  // A wait an abandoned asker leaves, without cancelling the work it shares with others.
+  const abandonable = (pending, signal) => !signal ? pending : Promise.race([pending, new Promise((_, reject) => {
+    signal.throwIfAborted(); signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+  })]);
+  // Readings being made for this engine by its host, by cache key: a second asker waits for the first's.
+  const preparing = new Map();
+  // A PDF the host reads for this engine: parsed in its parse workers (`parser`), its scanned pages recognized by its
+  // own recognizers (`recognizePdf`) in place of the engine's, and reopened here by its cache key. A reading already
+  // cached is reopened without asking the host.
+  async function hostPdf(bytes, source, signal, progress) {
+    await parser?.seed(source.sourceSha256);
+    const { ocr, layout, cacheKey: named, ...pdf } = source.pdf ?? {};
+    const reopen = (cacheKey) => invokeOff("openSource", [undefined, { ...source, pdf: { ...pdf, cacheKey } }]);
+    if (named) {
+      // A reading no longer cached is made again from the bytes, as the engine itself does; it may have a key of its own.
+      const kept = await reopen(named);
+      if (kept || !bytes) return kept;
     }
-    if (name !== "preparePdfDocument") return invokeOff(name, positional);
-    const [bytes, request, signal, progress] = positional;
-    signal?.throwIfAborted();
-    let final = request;
-    if (recognizePdf && request?.ocr) {
-      const { ocr, ...plain } = request;
-      const inspected = await prepare(bytes, plain, signal);
+    // Without bytes, only a reading this engine can name itself is found: one asking for no recognition or layout.
+    else if (!bytes) return ocr || layout ? null : reopen();
+    const { cacheKey: _named, ...asked } = source.pdf ?? {};
+    let request = { ...asked, id: `${source.documentId}:${source.versionId}`, expectedSourceSha256: source.sourceSha256 };
+    if (recognizePdf && request.ocr) {
+      const { ocr: _ocr, ...plain } = asked;
+      const inspected = invoke("pdfDocumentSummary", [await hostPdf(bytes, { ...source, pdf: plain }, signal)]);
       const pages = inspected.pagesNeedingOcr.filter(index => !request.pages || request.pages.includes(index + 1));
       const supplied = pages.length ? await recognizePdf(bytes, inspected.sha256, pages, signal,
         progress && (done => progress(done, pages.length))) : undefined;
       signal?.throwIfAborted();
-      final = { ...plain, ...(supplied ? { suppliedOcr: supplied } : {}) };
+      const { ocr: _requested, ...rest } = request;
+      request = { ...rest, ...(supplied ? { suppliedOcr: supplied } : {}) };
     }
-    return parser ? parser.prepare(bytes, final, signal) : invokeOff(name, [bytes, final], progress);
+    const cacheKey = invoke("pdfCacheKey", [request]);
+    const kept = await reopen(cacheKey);
+    if (kept) return kept;
+    let pending = preparing.get(cacheKey);
+    if (!pending) {
+      pending = (parser ? parser.prepare(bytes, request) : invokeOff("preparePdfDocument", [bytes, request], progress))
+        .finally(() => preparing.delete(cacheKey));
+      preparing.set(cacheKey, pending);
+    }
+    return reopen((await abandonable(pending, signal)).cacheKey);
+  }
+  async function invokeAsync(name, positional) {
+    if (name !== "openSource" && name !== "preparePdfDocument") return invokeOff(name, positional);
+    const [bytes, request, signal, progress] = positional;
+    signal?.throwIfAborted();
+    if (name === "openSource" && (parser || recognizePdf) && request?.fileType === "pdf")
+      return hostPdf(bytes, request, signal, progress);
+    return invokeOff(name, [bytes, request], progress);
   }
   // The page reads every pass's pages on its own pool of recognizers, so passes need not wait their turn.
   const addon = { schedulesRecognition: !!recognizePdf,

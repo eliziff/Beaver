@@ -146,27 +146,27 @@ type PdfPrepareInput = {
   progress?: (value: PdfPreparationProgress) => void | Promise<void>;
 };
 
-/** Prepares a PDF's reading and caches it, recognizing its pages where its profile does: its summary with the profile
- *  it was read with, which is also its profile selection. A prepared reading the engine still has is its summary. */
+/** Reads a PDF and caches its reading, recognizing its pages where its profile does: the document, with its summary
+ *  and the profile it was read with (which is also its profile selection). A reading the engine still has is that
+ *  one. Whoever holds the result holds the document, so reopening it by its cache key reads it from memory. */
 export async function preparePdf(input: PdfPrepareInput) {
   input.signal?.throwIfAborted();
   const profile: LegalPdfProfile = input.pdfProfile?.profile ?? profileFor(input.ocrProvider, input.layout);
   const pages = input.pages?.length ? input.pages : undefined;
   await input.progress?.({ phase: "extracting", pages: pages ?? [] });
   const native = structureNative();
-  if (input.pdfProfile && !pages) {
-    // A reading no longer kept is made again below, as it was first made.
-    const kept = await cachedPdf({ ...input, sourceSha256: input.sourceSha256 ?? sha256(input.bytes) }, input.pdfProfile.cacheKey);
-    if (kept) return { ...native.pdfDocumentSummary(kept), profile };
+  const source = { ...input, sourceSha256: input.sourceSha256 ?? sha256(input.bytes) };
+  // A reading no longer kept is made again below, as it was first made.
+  let document = input.pdfProfile && !pages ? await cachedPdf(source, input.pdfProfile.cacheKey) : null;
+  if (!document) {
+    const request = sourceRequest(source, "pdf", "text", pdfRequest(profile, pages));
+    const open = () => pdfLifecyclePhase("prepare.native", input.documentId, () =>
+      native.openSource(input.bytes, request, input.signal, input.progress &&
+        ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total }))));
+    document = await abandonable(profile.ocr ? recognitionTurn(open, input.signal) : open(), input.signal);
   }
-  const request = { ...pdfRequest(profile, pages), id: `${input.documentId}:${input.versionId}`,
-    ...(input.sourceSha256 && { expectedSourceSha256: input.sourceSha256 }) };
-  const prepare = () => pdfLifecyclePhase("prepare.native", input.documentId, () =>
-    native.preparePdfDocument(input.bytes, request, input.signal, input.progress &&
-      ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total }))));
-  const summary = await (profile.ocr ? recognitionTurn(prepare, input.signal) : prepare());
   input.signal?.throwIfAborted();
-  return { ...summary, profile };
+  return { ...native.pdfDocumentSummary(document!), profile, document: document! };
 }
 
 /** The recognized text of a PDF's pages (at most 16), each page from the reading that recognized it: the reading its
