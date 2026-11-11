@@ -32,7 +32,7 @@ fn main() {
 mod corpus {
     use a2aj_gold::gold_store::{gold_lines, gold_sources, items, list_item, rows_of, GoldLine};
     use flate2::read::GzDecoder;
-    use legal_structure::{NodeKind, ScalarText, StructureAnalysis, STRUCTURE_ANALYSIS};
+    use legal_structure::{NodeKind, ScalarText};
     use legal_structure_node::engine;
     use rusqlite::{types::Value as Sql, Connection, OpenFlags};
     use serde_json::{json, Value};
@@ -514,7 +514,7 @@ mod corpus {
             let Some(text) = (if *language == "en" { &texts.0 } else { &texts.1 }).as_deref().map(legal_structure::trim_javascript_whitespace).filter(|text| !text.is_empty()) else { continue };
             let scalar = ScalarText::new(text);
             whole.insert(*language, stream(text));
-            for (number, ranges) in STRUCTURE_ANALYSIS.judgment_paragraphs(text) {
+            for (number, ranges) in legal_structure::case_outline::judgment_paragraphs(text) {
                 let words = ranges.iter().filter_map(|range| scalar.slice_utf16(range.start..range.end)).collect::<Vec<_>>().join(" ");
                 // (A number alone over an appendix, the PDF printing none, is no paragraph of the provider's.)
                 let want = stream(unnumbered(&words, number));
@@ -996,7 +996,7 @@ mod corpus {
                 // The case reader on a text alone: each number it reads and where.
                 let text = fs::read_to_string(&args[1]).unwrap_or_else(|e| panic!("{}: {e}", args[1]));
                 let scalar = ScalarText::new(&text);
-                for (number, ranges) in STRUCTURE_ANALYSIS.judgment_paragraphs(&text) {
+                for (number, ranges) in legal_structure::case_outline::judgment_paragraphs(&text) {
                     let opening = ranges.first().and_then(|range| scalar.slice_utf16(range.start..range.end.min(range.start + 70))).unwrap_or_default().replace('\n', " ");
                     println!("{number}\t{}\t{opening}", ranges.first().map_or(0, |range| range.start));
                 }

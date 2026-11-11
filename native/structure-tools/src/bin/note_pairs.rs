@@ -11,7 +11,7 @@
 //!   article's notes as JSONL.
 
 use legal_structure::layout::{Line, LineZone, NoteLine, NotePage};
-use legal_structure::{ScalarRange, StructureAnalysis, STRUCTURE_ANALYSIS};
+use legal_structure::ScalarRange;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -78,8 +78,7 @@ fn pair(given: &[Given]) -> Vec<Value> {
         let line = starts.partition_point(|&at| at <= range.start) - 1;
         json!({"line_id": lines[line].id, "start": range.start - starts[line], "end": range.end - starts[line]})
     };
-    STRUCTURE_ANALYSIS
-        .pair_footnotes(&lines, &place)
+    legal_structure::note_pairing::pair_footnotes(&lines, false, &place)
         .notes
         .iter()
         .map(|note| json!({
