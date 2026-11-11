@@ -2,6 +2,7 @@
 //! own), its index, each authority behind its tab, bookmarks, links and page labels, divided into volumes where the
 //! court limits a filing's pages or bytes.
 use super::{citation_lines, fit, pdf_normalized, pdf_text, wrapped, Run};
+use legal_structure::PartyGroup;
 use legalpdf::compose::{map_outline, nested_outline, read_outline, source_outline, Composer, Face, Label, Meta, Outline, Position, Rgb, Target};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -78,10 +79,6 @@ pub struct BookSource {
     pub outline: bool,
 }
 
-#[derive(Deserialize, Clone)]
-#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-pub struct PartyGroup { pub role: String, pub parties: Vec<String> }
 
 #[derive(Deserialize, Clone, Default)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]

@@ -23,6 +23,7 @@ const KEPT: usize = 8;
 /// cache and pages, and the reading it names by cache key; the engine names the document and its hash). A Word or
 /// PowerPoint binary (doc, ppt) comes as the PDF converted from it.
 #[derive(Deserialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS), ts(rename = "OpenSourceRequest"))]
 #[serde(rename_all = "camelCase")]
 pub struct SourceRequest {
     document_id: String,
@@ -30,23 +31,29 @@ pub struct SourceRequest {
     file_type: String,
     source_sha256: String,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<Mode>", optional))]
     mode: Mode,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(type = "unknown", optional))]
     pdf: serde_json::Value,
 }
 
 /// What text is read of a source: with `drafting`, a Word document's drafting text; at most `limit` UTF-16 units.
 #[derive(Deserialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS), ts(rename = "SourceTextRequest"))]
 #[serde(rename_all = "camelCase")]
 pub struct TextRequest {
     file_type: String,
     source_sha256: String,
     #[serde(default)]
+    #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     drafting: bool,
+    #[cfg_attr(feature = "binding-types", ts(optional))]
     limit: Option<u32>,
 }
 
 #[derive(Clone, Copy, Default, Deserialize, PartialEq)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS), ts(rename = "SourceMode"))]
 #[serde(rename_all = "snake_case")]
 enum Mode {
     #[default]

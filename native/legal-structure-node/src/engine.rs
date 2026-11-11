@@ -213,13 +213,21 @@ pub struct LocatedQuotation {
 
 pub use legal_structure_features::{citation_key_version, AliasGroup};
 
-pub fn lookup_structure_block(document: &NativeDocument, locator: serde_json::Value, context_blocks: u32)
-    -> CoreResult<legal_structure::DocumentLookup<'_>> {
+/// A block looked up by its locator ("para 12"), or as a graph's seed names it.
+#[derive(Deserialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[serde(untagged)]
+pub enum BlockLocator {
+    Locator(String),
+    Seed(legal_structure::GraphScopeSeed),
+}
+
+pub fn lookup_structure_block(document: &NativeDocument, locator: BlockLocator, context_blocks: u32) -> legal_structure::DocumentLookup<'_> {
     let selector = match locator {
-        serde_json::Value::String(locator) => legal_structure::GraphScopeSeed::Locator(locator),
-        value => serde_json::from_value::<legal_structure::GraphScopeSeed>(value).map_err(|error| error.to_string())?,
+        BlockLocator::Locator(locator) => legal_structure::GraphScopeSeed::Locator(locator),
+        BlockLocator::Seed(seed) => seed,
     };
-    Ok(document.query.structure_selection(document.structure(), &selector, context_blocks as usize))
+    document.query.structure_selection(document.structure(), &selector, context_blocks as usize)
 }
 
 pub fn graph_scope<'a>(document: &'a NativeDocument, seed: &legal_structure::GraphScopeSeed, follow: FollowDirection, depth: u32,

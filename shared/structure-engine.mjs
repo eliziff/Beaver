@@ -1,79 +1,11 @@
 // The legal-structure engine's operations as JavaScript calls them, over one transport that takes a
 // dispatch request and returns its reply: the native addon's `call` in Node, the same crate compiled
-// to WebAssembly in the browser (native/legal-structure-node/src/dispatch.rs).
+// to WebAssembly in the browser (native/legal-structure-node/src/dispatch.rs, whose table of operations
+// export-types writes to engine-types/operations.mjs). An argument named "document" is a document, sent
+// as its handle; a reply's `{ $document: handle }` is its document.
 
-const ASYNC = new Set(["deriveDocumentStructure",
-  "fixDocxSupraCrossReferences", "docxAuthorityTextUnits", "pdfOpening", "renderSourcePdf",
-  "renderAuthoritiesBook", "renderFilingPdf", "renderFinalPdf", "pdfPages", "preparePdfDocument", "openSource", "sourceText",
-  "pdfPassageGeometry", "authorityReading", "quoteLocateDocument", "a2ajDocument", "a2ajSection", "a2ajRecord", "a2ajRecordProvision", "a2ajStoreDocuments"]);
-// Positional arguments, named as the dispatch reads them. "document" is a document's handle, and a reply's
-// `{ $document: handle }` its document.
-export const SIGNATURES = {
-  nativeBuildFeatures: [],
-  deriveDocumentStructure: ["request"],
-  fixDocxSupraCrossReferences: ["bytes"],
-  docxAuthorityTextUnits: ["bytes"],
-  preparePdfDocument: ["bytes", "request"], pdfCacheKey: ["bytes", "request"],
-  pdfOpening: ["bytes"],
-  // Annotations appended to the PDF as an incremental update; with disarm (default), its active content taken out.
-  pdfWriteAnnotations: ["bytes", "marks", "namespace", "disarm"],
-  // A source's own PDF set from its provider's text (assembly/statute.rs): its bytes and pageCount.
-  renderSourcePdf: ["source"],
-  // A book of authorities' volumes, a filing with its table of authorities and the brief with its book, from their PDFs'
-  // bytes in order (assembly/book.rs); each page's crop box, rotation and web links.
-  renderAuthoritiesBook: ["bytes", "book"], renderFilingPdf: ["bytes", "filing", "entries"], renderFinalPdf: ["bytes", "plan"],
-  pdfPages: ["bytes"],
-  // A stored source read as its document (none where the engine keeps none and no bytes are given), or as its text.
-  openSource: ["bytes", "request"], sourceText: ["bytes", "request"],
-  pdfDocumentSummary: ["document"], pdfRecognizedText: ["document", "pages"],
-  pdfAuthorityTextUnits: ["document"], pdfPageMap: ["document", "citations"], pdfPageTexts: ["document"],
-  pdfPrintedPages: ["document", "citations", "labels"], reporterStartPages: ["citations"],
-  pdfPassageGeometry: ["document", "targets", "citations"],
-  // An authority's source as its book reads it: each of its PDFs (`document`, `native` handles within).
-  authorityReading: ["parts", "request"],
-  briefOccurrencePages: ["pages", "units", "occurrences"],
-  queryPdfDocument: ["document", "request"],
-  docxStructureLint: ["document"],
-  documentText: ["document", "limit"], documentTextBytes: ["document"], documentRevision: ["document"],
-  readDocumentTextWindow: ["document", "offset", "startChar", "limit"],
-  readDocumentTextRange: ["document", "start", "end", "offset", "limit", "startChar"],
-  documentAnchors: ["document", "kind", "end"],
-  documentOutline: ["document"],
-  legalSourceViewer: ["document", "primaryKind", "limit"], documentTableCells: ["document"],
-  textOutline: ["text", "kind"], statuteProvisionSpans: ["text", "labels"], collapseLabels: ["labels", "kind"], expandLabels: ["labels", "kind", "limit"], bareLabels: ["labels", "kind"],
-  filingCover: ["opening", "title"],
-  searchQuery: ["query", "columns"], renderCitedBlocks: ["blocks"],
-  citationLookupKeys: ["texts"], citationKeyVersion: [], providerCitationsInText: ["text"],
-  citationEngineCall: ["method", "request"],
-  briefText: ["units"], briefCitationOrder: ["units", "citations", "joinBodies"], footnotePropositions: ["units", "context"],
-  citationOccurrencesInText: ["text"], authorityReferencesInText: ["text"],
-  hasCitationInText: ["text"],
-  groundedProseErrors: ["text", "citedEvidenceIds", "visibleEvidence"],
-  quoteRepairSuggestion: ["claim", "spans"], markedQuoteSpans: ["text"], documentTextUnits: ["document", "sentences"],
-  quoteComparison: ["authored", "source"],
-  quoteLocateDocument: ["document", "source", "quotes", "compare", "keep"], editorialQuote: ["authored", "source"],
-  verbatimRepair: ["authored", "source"], quoteOccurrences: ["text", "quote"], quotationDiff: ["authored", "source"],
-  // The one sequence diff (difflib's blocks), a quotation's fewest-character plan and the runs it highlights.
-  sequenceOpcodes: ["left", "right"], characterPlan: ["text", "target"], highlightRuns: ["text", "plan", "base"],
-  journalTitleSearches: ["citation"], journalTitleChoice: ["hits"],
-  readDocumentRange: ["document", "kind", "from", "to", "contextBlocks"],
-  canliiCaseUrl: ["citations", "language", "court"], canliiLawUrl: ["text", "language", "consolidated"], canliiCourtRoute: ["court"],
-  passageLink: ["document", "request"], citedPassageLink: ["document", "url", "pinpoints"],
-  sourceLink: ["document", "request"],
-  smallestContainingDocumentBlock: ["document", "start", "end"], documentLocator: ["document", "start", "end", "nodeId"],
-  lookupStructureBlock: ["document", "locator", "contextBlocks"],
-  resolveDocumentAddressSpans: ["document", "spec", "follow", "depth"],
-  graphScope: ["document", "seed", "follow", "depth", "includeDescendants", "includeUnits"],
-  documentHasOrigin: ["document", "origin"],
-  // The local A2AJ store at `store`, read by the engine.
-  a2ajDocument: ["store", "lookup"], a2ajSection: ["store", "lookup", "section", "excerpt"],
-  a2ajRecord: ["record", "language", "docType"], a2ajRecordProvision: ["records", "lookup", "excerpt"],
-  a2ajRecordListing: ["record", "language"], a2ajRecordMatches: ["records", "query"],
-  a2ajAliasGroups: ["store", "keys"], a2ajNamedCase: ["store", "named"], a2ajNamedRecord: ["records", "named", "language"], a2ajNameKeys: ["names"],
-  a2ajSearch: ["store", "search"], a2ajCourts: ["store"], a2ajFind: ["store", "lookup"], a2ajStoreDocuments: ["store", "ids", "docType", "language"], a2ajReads: ["store", "ids", "docType", "language"],
-  // The citator's graph, read beside the A2AJ store at `store`, which also gives a note-up its keys.
-  citatorNoteUp: ["store", "request"], citatorMetrics: ["store", "citations"],
-};
+import { OPERATIONS } from "./engine-types/operations.mjs";
+
 // Readings of text alone, which an operation's stages repeat: a request asked before is answered with the reply it
 // had, read afresh, from the latest this many.
 const PURE = new Set(["providerCitationsInText", "citationOccurrencesInText", "citationLookupKeys",
@@ -96,7 +28,7 @@ class NativeDocumentHandle {
 }
 
 const encoder = new TextEncoder(), decoder = new TextDecoder();
-/** `[u32 json length][json {op, args}][bytes]`: with `lift`, each Uint8Array the arguments hold is
+/** `[u32 json length][json {op, args}][bytes]`, `args` positional: with `lift`, each Uint8Array they hold is
  *  `{ $bytes: [offset, length] }` in the bytes after the JSON. */
 function engineRequest(op, args, lift) {
   const chunks = []; let length = 0;
@@ -140,7 +72,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
   // A released document is freed off this thread where the host can: freeing a large one holds up whatever runs here.
   const released = new FinalizationRegistry(({ handle, generation: owner }) => {
     if (owner !== generation) return;
-    const request = engineRequest("releaseDocument", { document: handle });
+    const request = engineRequest("releaseDocument", [handle]);
     if (transport.callAsync) void transport.callAsync(request).catch(() => { /* engine already reset */ });
     else try { engineReply(transport.call(request)); } catch { /* engine already reset */ }
   });
@@ -153,14 +85,10 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     return new Error(transport.restart?.() || `The legal-structure engine failed during ${op}.`);
   }
   function request(name, positional) {
-    const args = {};
-    SIGNATURES[name].forEach((key, index) => {
-      const value = positional[index];
-      if (key === "document" && !(value instanceof NativeDocumentHandle))
-        throw new Error("This document was lost when the engine restarted. Reopen it and try again.");
-      args[key] = value ?? null;
-    });
-    return engineRequest(name, args, SIGNATURES[name].includes("bytes"));
+    const { args, bytes } = OPERATIONS[name];
+    if (args.some((key, index) => key === "document" && !(positional[index] instanceof NativeDocumentHandle)))
+      throw new Error("This document was lost when the engine restarted. Reopen it and try again.");
+    return engineRequest(name, args.map((_, index) => positional[index] ?? null), bytes);
   }
   // A document a reply holds, as JavaScript holds it, and its bytes as the host's buffer.
   function revive(_key, value, bytes) {
@@ -238,7 +166,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     return reopen((await abandonable(pending, signal)).cacheKey);
   }
   async function invokeAsync(name, positional) {
-    if (name !== "openSource" && name !== "preparePdfDocument") return invokeOff(name, positional);
+    if (OPERATIONS[name].mode !== "progress") return invokeOff(name, positional);
     const [bytes, request, signal, progress] = positional;
     signal?.throwIfAborted();
     if (name === "openSource" && (parser || recognizePdf) && request?.fileType === "pdf")
@@ -255,8 +183,8 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     recycle() { generation += 1; transport.restart?.(); },
     /** A synchronous operation run off this thread, for a call long enough to hold up the event loop. */
     offThread: (name, ...positional) => invokeOff(name, positional) };
-  for (const name of Object.keys(SIGNATURES)) addon[name] = ASYNC.has(name)
-    ? (...positional) => invokeAsync(name, positional)
-    : (...positional) => invoke(name, positional);
+  for (const [name, { mode }] of Object.entries(OPERATIONS)) addon[name] = mode === "now"
+    ? (...positional) => invoke(name, positional)
+    : (...positional) => invokeAsync(name, positional);
   return addon;
 }

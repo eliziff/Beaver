@@ -1434,6 +1434,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "ts-rs",
  "zip 8.2.0",
 ]
 
@@ -1570,6 +1571,7 @@ dependencies = [
  "legal-pdf-parser",
  "legal-structure",
  "legal-structure-features",
+ "legal-structure-model",
  "libmimalloc-sys",
  "mail-parser",
  "mimalloc",

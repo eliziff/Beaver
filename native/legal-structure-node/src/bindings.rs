@@ -2,102 +2,27 @@
 //! types serde writes and reads (ts-rs, behind `binding-types`): package-time only, never part of a runtime build. The
 //! export-types bin writes them to shared/engine-types.
 
-use ts_rs::{Config, ExportError, TS};
+use std::any::TypeId;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
+use ts_rs::{Config, Dependency, ExportError, TypeVisitor, TS};
 
-/// Each declaration, and every type it names, written as `<name>.d.ts` in `directory`.
+/// Each declaration, and every type it names, written as `<name>.d.ts` in `directory`, with the engine's operations.
 pub fn export_types(directory: &std::path::Path) -> Result<(), ExportError> {
     // (serde_json writes 64-bit integers as numbers, which JavaScript reads as numbers.)
     let config = Config::new().with_out_dir(directory).with_large_int("number");
-    macro_rules! export { ($($type:ty),+ $(,)?) => { $(<$type>::export_all(&config)?;)+ }; }
-    // The structure, its nodes as a reader takes them, and the queries over a document.
-    export!(
-        legal_structure::DocumentStructure,
-        legal_structure::NodeReading<'static>,
-        legal_structure::DocxLintReport,
-        legal_structure::AuthoritativeTableCell,
-        legal_structure::Passage<'static>,
-        legal_structure::Locator,
-        legal_structure::DocumentLookup<'static>,
-        legal_structure::DocumentRangeLookup<'static>,
-        legal_structure::DocumentTextWindow<'static>,
-        legal_structure::DocumentAddressResolution,
-        legal_structure::FollowDirection,
-        legal_structure::GraphScopeSeed,
-        legal_structure::GraphScope<'static>,
-        legal_structure::DocumentViewer<'static>,
-        legal_structure::TextFragmentPlan,
-    );
-    // Readings of text, and what a document is derived from.
-    export!(
-        legal_structure::CitationOccurrence,
-        legal_structure::AuthorityReferenceOccurrence,
-        legal_structure::ProviderCitationMatch,
-        legal_structure::FilingCover,
-        legal_structure::ProviderTextInput,
-        legal_structure::NativeMarkupInput,
-        legal_structure::JournalPageLabel,
-        legal_structure::opinion::OpinionRecord,
-        crate::engine::StructureRequest,
-        crate::engine::Failure,
-        crate::engine::LocatedQuotation,
-    );
-    // What the products build on the engine.
-    export!(
-        legal_structure_features::OutlineEntry,
-        legal_structure_features::BriefText,
-        legal_structure_features::BriefCitationOrder,
-        legal_structure_features::FootnotePropositions,
-        legal_structure_features::PropositionUnit,
-        legal_structure_features::QuoteContext,
-        legal_structure_features::QuotationDiff,
-        legal_structure_features::QuoteComparison,
-        legal_structure_features::QuoteSource,
-        legal_structure_features::QuoteToLocate,
-        legal_structure_features::LocatedQuote,
-        legal_structure_features::JournalTitleSearch,
-        legal_structure_features::JournalTitleHit,
-        legal_structure_features::MarkedQuoteSpan,
-        legal_structure_features::PassageLink,
-        legal_structure_features::search_query::SearchQuery,
-        legal_structure_features::AliasGroup,
-        legal_structure_features::CitedBlock,
-    );
-    #[cfg(feature = "a2aj")]
-    export!(
-        crate::dispatch::StoreDocument,
-        crate::dispatch::Provision,
-        legal_structure_features::a2aj::Listing,
-        legal_structure_features::a2aj_store::Lookup,
-        legal_structure_features::a2aj_store::ProvisionLookup,
-        legal_structure_features::a2aj_store::StoreRead,
-        legal_structure_features::a2aj_store::Court,
-        legal_structure_features::citator_graph::NoteUp,
-        legal_structure_features::citator_graph::AuthorityMetric,
-    );
-    // The parser's: a PDF's summary, opening, page map, laid-out pages, lookups, passage geometry, annotation marks, brief
-    // units and authority text units, and why a parse failed.
-    #[cfg(feature = "legalpdf")]
-    export!(
-        legalpdf::PdfSummary,
-        legalpdf::PdfOpening,
-        legalpdf::FailureKind,
-        legalpdf::AuthorityTextUnit,
-        legalpdf::PdfPageBinding,
-        legalpdf::PassageTarget,
-        legalpdf::PassageGeometry,
-        legalpdf::PdfLookupRequest,
-        legalpdf::PdfStructureLookup,
-        legalpdf::AnnotationMark,
-        legalpdf::BriefUnit,
-        legal_structure::layout::Page,
-        crate::assembly::authority::SourceRequest,
-        crate::assembly::authority::AuthorityReading,
-        crate::assembly::book::PreparedBook,
-        crate::assembly::book::BuiltBook,
-        crate::assembly::book::FilingEntry,
-        crate::assembly::book::FinalPlan,
-        crate::assembly::statute::SourceText,
-    );    // ts-rs writes `.ts`; these are declarations.
+    // What no operation names: why a call failed, and a document's structure as experiments read it.
+    crate::engine::Failure::export_all(&config)?;
+    legal_structure::DocumentStructure::export_all(&config)?;
+    legal_structure_features::LocatedQuote::export_all(&config)?;
+    let mut table = Table { config: &config, imports: BTreeMap::new(), methods: String::new(), entries: String::new(), operation: None };
+    crate::dispatch::operations(&mut table)?;
+    const NOTE: &str = "// Generated by the export-types bin from native/legal-structure-node/src/dispatch.rs. Do not edit this file manually.\n";
+    let imports = table.imports.iter()
+        .map(|(path, names)| format!("import type {{ {} }} from \"{path}\";\n", names.iter().cloned().collect::<Vec<_>>().join(", ")))
+        .collect::<String>();
+    std::fs::write(directory.join("operations.d.ts"), format!("{NOTE}{imports}\n/** The engine's operations as structure-engine.mjs serves them. */\nexport interface EngineOperations {{\n{}}}\n", table.methods))?;
+    std::fs::write(directory.join("operations.mjs"), format!("{NOTE}/** Each operation's arguments in order, whether it runs on the caller's thread (\"now\"), off it (\"off\") or off it\n *  reporting recognition's progress (\"progress\"), and whether its arguments hold bytes. */\nexport const OPERATIONS = {{\n{}}};\n", table.entries))?;
+    // ts-rs writes `.ts`; these are declarations.
     for entry in std::fs::read_dir(config.out_dir())? {
         let path = entry?.path();
         let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
@@ -106,4 +31,108 @@ pub fn export_types(directory: &std::path::Path) -> Result<(), ExportError> {
         }
     }
     Ok(())
+}
+
+/// The engine's operations (dispatch.rs's table) as JavaScript calls them, `operations.mjs`, and as TypeScript types
+/// them, `operations.d.ts`'s `EngineOperations`; every type they name is exported beside them.
+pub struct Table<'a> {
+    config: &'a Config,
+    imports: BTreeMap<String, BTreeSet<String>>,
+    methods: String,
+    entries: String,
+    operation: Option<Operation>,
+}
+
+struct Operation {
+    name: &'static str,
+    mode: &'static str,
+    docs: Vec<String>,
+    arguments: Vec<Argument>,
+}
+
+struct Argument {
+    name: String,
+    ts: String,
+    optional: bool,
+    bytes: bool,
+}
+
+impl Table<'_> {
+    pub fn operation(&mut self, name: &'static str, mode: &'static str, docs: &[&str]) {
+        let docs = docs.iter().map(|line| line.strip_prefix(' ').unwrap_or(line).to_owned()).collect();
+        self.operation = Some(Operation { name, mode, docs, arguments: Vec::new() });
+    }
+
+    pub fn argument<T: TS + 'static>(&mut self, name: &str) -> Result<(), ExportError> {
+        let ts = self.named::<T>()?;
+        let bytes = holds_bytes::<T>();
+        let operation = self.operation.as_mut().expect("an argument of an operation");
+        operation.arguments.push(Argument { name: crate::dispatch::camel(name), ts, optional: T::IS_OPTION, bytes });
+        Ok(())
+    }
+
+    pub fn reply<T: TS + 'static>(&mut self) -> Result<(), ExportError> {
+        let mut reply = self.named::<T>()?;
+        let Operation { name, mode, docs, arguments } = self.operation.take().expect("a reply of an operation");
+        if !docs.is_empty() {
+            self.methods += &format!("  /**\n{}   */\n", docs.iter().map(|line| format!("   * {line}\n")).collect::<String>());
+        }
+        // Trailing optional arguments may be left out; an optional one before a required one is passed as undefined.
+        let required = arguments.iter().rposition(|argument| !argument.optional).map_or(0, |index| index + 1);
+        let mut parameters = arguments.iter().enumerate().map(|(index, Argument { name, ts, optional, .. })| match () {
+            _ if index >= required => format!("{name}?: {ts}"),
+            _ if *optional => format!("{name}: {ts} | undefined"),
+            _ => format!("{name}: {ts}"),
+        }).collect::<Vec<_>>();
+        if mode == "progress" {
+            parameters.extend(["signal?: AbortSignal".to_owned(), "progress?: (done: number, total: number) => void".to_owned()]);
+        }
+        if mode != "now" {
+            reply = format!("Promise<{reply}>");
+        }
+        self.methods += &format!("  {name}({}): {reply};\n", parameters.join(", "));
+        let names = arguments.iter().map(|argument| format!("{:?}", argument.name)).collect::<Vec<_>>().join(", ");
+        let bytes = if arguments.iter().any(|argument| argument.bytes) { ", bytes: true" } else { "" };
+        self.entries += &format!("  {name}: {{ args: [{names}], mode: {mode:?}{bytes} }},\n");
+        Ok(())
+    }
+
+    /// The type's name as TypeScript writes it, each declared type it names exported and imported.
+    fn named<T: TS + 'static>(&mut self) -> Result<String, ExportError> {
+        struct Imports<'a, 'b> {
+            table: &'a mut Table<'b>,
+            error: Option<ExportError>,
+        }
+        impl TypeVisitor for Imports<'_, '_> {
+            fn visit<U: TS + 'static + ?Sized>(&mut self) {
+                let Some(dependency) = Dependency::from_ty::<U>(self.table.config) else { return };
+                let path = dependency.output_path.with_extension("").to_string_lossy().replace('\\', "/");
+                self.table.imports.entry(format!("./{path}")).or_default().insert(dependency.ts_name);
+                if let Err(error) = U::export_all(self.table.config) {
+                    self.error.get_or_insert(error);
+                }
+            }
+        }
+        let mut imports = Imports { table: self, error: None };
+        imports.visit::<T>();
+        T::visit_generics(&mut imports);
+        imports.error.map_or(Ok(T::name(self.config)), Err)
+    }
+}
+
+/// Whether a type holds bytes anywhere, which a request carries after its JSON (structure-engine.mjs lifts them).
+fn holds_bytes<T: TS + 'static>() -> bool {
+    struct Holds(HashSet<TypeId>, bool);
+    impl TypeVisitor for Holds {
+        fn visit<U: TS + 'static + ?Sized>(&mut self) {
+            self.1 |= TypeId::of::<U>() == TypeId::of::<crate::dispatch::Bytes>();
+            if self.0.insert(TypeId::of::<U>()) {
+                U::visit_dependencies(self);
+                U::visit_generics(self);
+            }
+        }
+    }
+    let mut holds = Holds(HashSet::new(), false);
+    holds.visit::<T>();
+    holds.1
 }

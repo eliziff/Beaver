@@ -43,6 +43,7 @@ binding-types = ["dep:ts-rs", "legal-structure/binding-types", "legal-structure-
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup", "opinion"] }
 legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification"] }
+legal-structure-model = { path = "../../legal-structure/model" }
 serde = { version = "1.0", features = ["derive"] }
 # float_roundtrip as the a2aj-gold crate needs it: one serde_json for the workspace, so the stack under it builds once
 serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
