@@ -903,7 +903,7 @@ fn grade(store: &Path, options: &[String]) -> Result<(), String> {
     // The citation grammar's tables and regexes compile on first use; pay that once, outside
     // any document's timing.
     legal_pdf_core::profile::measure("warmup.citations", || {
-        let _ = legal_pdf_core::layout_analysis().citations("R. v. White, 2020 NSCA 33, [2008] 2 S.C.R. 3, para. 12.");
+        let _ = legal_structure::analysis::citation_spans("R. v. White, 2020 NSCA 33, [2008] 2 S.C.R. 3, para. 12.");
     });
     let flag = |name: &str| options.iter().any(|o| o == name);
     let value = |name: &str| {
@@ -1204,7 +1204,6 @@ fn explain(store: &Path, prefix: &str, options: &[String]) -> Result<(), String>
 }
 
 fn main() {
-    legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let result = match arguments.as_slice() {
         [command, store, options @ ..] if command == "grade" => grade(Path::new(store), options),

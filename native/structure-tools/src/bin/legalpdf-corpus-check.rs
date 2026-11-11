@@ -399,7 +399,6 @@ fn main() {}
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
     match run() {
         Ok(code) => std::process::exit(code),
         Err(error) => {

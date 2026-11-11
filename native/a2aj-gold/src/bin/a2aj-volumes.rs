@@ -344,7 +344,6 @@ fn main() {
     let threads = args.iter().position(|arg| arg == "--threads").and_then(|at| args.get(at + 1)).and_then(|n| n.parse().ok()).unwrap_or(4);
     // a2aj-volumes --labels READING: each page's number as the product reads it, beside its head's first lines
     if args.first().map(String::as_str) == Some("--labels") {
-        legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
         let volume = volume(Path::new(&args[1])).unwrap_or_else(|error| panic!("{error}"));
         for (page, label) in volume.reading.pages.iter().zip(&volume.labels) {
             let height = page.height.unwrap_or(792.0);
@@ -357,7 +356,6 @@ fn main() {
     // a2aj-volumes --evidence READING OUT: the page map's evidence of a volume ({id, pages}, as page-evidence writes it),
     // added to OUT, for page-map-score
     if args.first().map(String::as_str) == Some("--evidence") {
-        legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
         let file = Path::new(&args[1]);
         let bytes = fs::read(file).unwrap_or_else(|error| panic!("{error}"));
         let extracted: legalpdf::ExtractedPdf = serde_json::from_slice(&bytes).unwrap_or_else(|error| panic!("{error}"));
@@ -380,7 +378,6 @@ fn main() {
 
 fn volumes(reads: &Path, out: &Path, threads: usize) -> Result<(), String> {
     let started = Instant::now();
-    legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
     fs::create_dir_all(out).map_err(|e| e.to_string())?;
     let db_path = store::a2aj_db();
     let open = || Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX).map_err(|e| e.to_string());

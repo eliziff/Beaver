@@ -239,13 +239,6 @@ pub fn graph_scope<'a>(document: &'a NativeDocument, seed: &legal_structure::Gra
     document.query.graph_scope(structure, graph, seed, follow, depth as usize, include_descendants, include_units)
 }
 
-/// Supplies this engine to the PDF and DOCX parsers, which are built without it so that an engine edit does not recompile
-/// them. The addon supplies it as it loads, the browser's module before its first call.
-pub fn install_structure_analysis() {
-    #[cfg(feature = "docx")]
-    legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
-}
-
 #[cfg(feature = "legalpdf")]
 pub use pdf::*;
 

@@ -973,7 +973,6 @@ mod corpus {
         let flag = |name: &str| args.iter().position(|arg| arg == name).and_then(|at| args.get(at + 1)).cloned();
         match args.first().map(String::as_str) {
             Some("run") if args.len() >= 2 => {
-                engine::install_structure_analysis();
                 let out = Path::new(&args[1]);
                 let store = flag("--store").unwrap_or_else(|| "all".to_owned());
                 let workers = flag("--workers").and_then(|n| n.parse().ok()).unwrap_or(3);
@@ -988,7 +987,6 @@ mod corpus {
                 summary(Path::new(&args[2]));
             }
             Some("show") if args.len() >= 2 => {
-                engine::install_structure_analysis();
                 let cache = flag("--cache").map_or_else(|| home().join("pinpoint-cache"), PathBuf::from);
                 show(&args[1], &cache, flag("--ocr").as_deref().map(Path::new));
             }

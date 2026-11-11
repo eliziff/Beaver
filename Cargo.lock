@@ -1365,6 +1365,7 @@ dependencies = [
  "flate2",
  "hayro",
  "legal-layout",
+ "legal-structure",
  "legal-structure-model",
  "ort",
  "serde",
@@ -1393,6 +1394,7 @@ name = "legal-pdf-language"
 version = "0.1.0"
 dependencies = [
  "legal-pdf-core",
+ "legal-structure",
  "legal-structure-model",
  "libc",
  "quick-xml",
@@ -1437,6 +1439,7 @@ dependencies = [
  "legal-pdf-pages",
  "legal-pdf-structure",
  "legal-pdf-support",
+ "legal-structure",
  "legal-structure-model",
  "serde",
  "serde_json",
@@ -1448,6 +1451,7 @@ name = "legal-pdf-structure"
 version = "0.1.0"
 dependencies = [
  "legal-pdf-core",
+ "legal-structure",
  "legal-structure-model",
  "ort",
  "pdf-inspector",

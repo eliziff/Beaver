@@ -24,7 +24,6 @@ fn init() {
     unsafe {
         libmimalloc_sys::mi_option_set(MI_OPTION_PURGE_DELAY, 0);
     }
-    engine::install_structure_analysis();
 }
 
 /// One operation, run now: a dispatch request in, its reply out.

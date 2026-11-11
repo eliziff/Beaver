@@ -99,7 +99,6 @@ pub fn run(args: &[String]) -> Result<(), String> {
             Ok(())
         }
         "freeze" => {
-            legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
             freeze::freeze(rest.iter().any(|arg| arg == "--write"), value(rest, "--sha").as_deref().unwrap_or(""), value(rest, "--rows").as_deref().map(std::path::Path::new));
             Ok(())
         }

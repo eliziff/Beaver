@@ -125,7 +125,6 @@ fn main() {
     let out = PathBuf::from(out);
     let cache = value("--cache").map(PathBuf::from).unwrap_or_else(|| out.join("cache"));
     fs::create_dir_all(&cache).expect("OUT");
-    legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
     let index = Index::open(&cache);
     let mut articles: Vec<(Value, PathBuf)> = BufReader::new(fs::File::open(key).expect("KEY")).lines().map_while(Result::ok)
         .filter_map(|line| serde_json::from_str::<Value>(&line).ok())

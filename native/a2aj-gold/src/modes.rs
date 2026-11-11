@@ -33,7 +33,6 @@ fn round4(share: f64) -> f64 {
 /// each written as OUT/<sha256>.json. One PDF at a time; a PDF already written is skipped, so a stopped run resumes, and
 /// recognition is cached under OUT/cache/<sha256>, so no page is read twice. LIST: one `<sha256>\t<path>` line per PDF.
 pub fn read_list(list: &Path, out: &Path) -> Result<(), String> {
-    legalpdf::install_structure_analysis(&legal_structure::STRUCTURE_ANALYSIS);
     let list = fs::read_to_string(list).map_err(|e| format!("{}: {e}", list.display()))?;
     let pdfs: Vec<(&str, &str)> = list.lines().filter_map(|line| line.split_once('\t')).collect();
     fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;

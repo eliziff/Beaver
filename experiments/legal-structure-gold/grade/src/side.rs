@@ -565,7 +565,7 @@ impl Side {
         // form's own fields ("Email:") is none.
         let transcript = {
             let written: Vec<&str> = sources.iter().map(|(_, text, _, _)| text.as_str()).filter(|text| !text.trim().is_empty()).collect();
-            let spoken = written.iter().filter(|text| legal_pdf_core::layout_analysis().speaker_label(text).is_some()).count();
+            let spoken = written.iter().filter(|text| legal_structure::transcript::speaker_label(text).is_some()).count();
             let numbered = structure.nodes.iter().any(|node| node.role == Some(PrimaryRole::LineLabel));
             let share = spoken as f64 / written.len().max(1) as f64;
             (numbered && share >= 0.02) || (spoken >= 20 && share >= 0.08)
@@ -614,7 +614,7 @@ impl Side {
                 let first = found[0];
                 let opening: String = lines[first.line].text.iter().skip(first.start).take(first.end - first.start).collect();
                 let at = |bytes: usize| first.start + opening[..bytes].chars().count();
-                block.speaker = legal_pdf_core::layout_analysis().speaker_labels(&opening).into_iter()
+                block.speaker = legal_structure::transcript::speaker_labels(&opening).into_iter()
                     .map(|(start, end)| Span { line: first.line, start: at(start), end: at(end) }).collect();
             }
             // A paragraph or item set inside a display quotation is another text's words, numbered or not: a quote block,
