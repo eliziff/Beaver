@@ -1,4 +1,6 @@
 import { apiRequest, pagePath } from "@/app/lib/api/client";
+import type { DocumentViewerSlice } from "../../../../../shared/engine-types/DocumentViewerSlice";
+import type { OutlineEntry } from "../../../../../shared/engine-types/OutlineEntry";
 
 export type LegalDocumentType = "cases" | "laws" | "articles";
 export type LegalSearchDocumentType = LegalDocumentType | "hansard";
@@ -32,39 +34,11 @@ export interface LegalSourceViewerPayload {
     language: "en" | "fr";
     pdfUrl?: string | null;
   };
-  slices: {
-    start: number;
-    end: number;
-    text: string;
-    anchors: LegalSourceViewerAnchor[];
-    primary: LegalSourceViewerAnchor | null;
-    /** The slice is a heading the structure reads. */
-    heading?: boolean;
-    /** The marker its primary node prints ("(2)"), and where in `text` the words after it begin. */
-    marker?: string;
-    body?: number;
-  }[];
+  slices: DocumentViewerSlice[];
   /** A judgment's front-matter parts and headings, as the engine's document outline reads them (offsets the
    *  slices'). */
-  outline?: {
-    kind: "heading" | "section" | "paragraph" | "prose" | "list_item" | "quote" | "span" | "text";
-    level: number;
-    role?: "title" | "furniture" | "party" | "caption" | "labelled" | "counsel";
-    start: number;
-    end: number;
-  }[];
+  outline?: OutlineEntry[];
   truncated: boolean;
-}
-/** A node of the source as the reader takes it: the node, and its link fragment as the structure writes it ("par12"),
- *  its place in the reader. */
-interface LegalSourceViewerAnchor {
-  node: {
-    id: string;
-    kind: "paragraph" | "prose" | "page" | "section" | "footnote" | "table" | "row" | "cell";
-    /** As the document prints it; none for prose. */
-    label?: string;
-  };
-  fragment?: string;
 }
 export const getLegalSourceCoverage = async () =>
   (await apiRequest<{ coverage: LegalSourceCoverage[] }>("/sources/coverage")).coverage;
