@@ -8,7 +8,7 @@ import { StepSection } from './StepSection';
 import { PdfView } from '@/app/components/shared/views/PdfView';
 import type { AnnotationTool } from '../../../../shared/pdf/pdfAnnotationLayer';
 import { cn, errorMessage } from '@/app/lib/utils';
-import { decodeAnnotationSet, emptyAnnotationSet,
+import { emptyAnnotationSet,
   type PdfAnnotation, type PdfAnnotationSet } from '../../../../shared/pdf-annotations.mjs';
 import type { AuthoritiesHost } from './host';
 import { OptionCards, type CardOption } from './OptionCards';
@@ -157,7 +157,7 @@ export const passageOptions = (profileId: AuthoritiesProfileId) =>
 
 const savedSet = (product: AuthoritiesProduct, choice: Choice) => {
   const saved = product.state.authorities[choice.authorityId].annotations?.[choice.bindingRole];
-  return saved?.sourceSha256 === choice.sourceSha256 ? decodeAnnotationSet(saved) : undefined;
+  return saved?.sourceSha256 === choice.sourceSha256 ? saved : undefined;
 };
 
 type Prepared = { set: PdfAnnotationSet; warning: string };
@@ -444,18 +444,14 @@ function AuthoritiesHighlightEditor({ product, choices: initialChoices, host, oc
     if (marks instanceof Promise) marks.catch(() => { /* Reported once its PDF is open. */ });
     if (!host.readSource) throw new Error('This source cannot be opened.');
     const blob = await host.readSource(base, key, signal);
-    const bytes = new Uint8Array(await blob.arrayBuffer()); signal.throwIfAborted();
-    const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.buffer))]
-      .map(value => value.toString(16).padStart(2,'0')).join('');
-    signal.throwIfAborted();
-    if (hash !== choice.sourceSha256) throw new Error('This PDF changed. Relink the source before editing highlights.');
+    // The host reads the PDF the draft names (its version or its file, checked against the draft's hash).
+    const bytes = new Uint8Array(await blob.arrayBuffer()), hash = choice.sourceSha256; signal.throwIfAborted();
     setPdfs(values => ({ ...values, [key]: { bytes } }));
     const loaded = readDocument(key);
     if (loaded && loaded.review !== 'preparing') return;
     if (saved && saved.sourceSha256 !== hash)
       throw new Error('Saved highlights belong to a different PDF. Relink the original PDF before editing them.');
-    const set = saved ? decodeAnnotationSet(saved) : emptyAnnotationSet(hash);
-    if (set.sourceSha256 !== hash) throw new Error("The marking source does not match this PDF.");
+    const set = saved ?? emptyAnnotationSet(hash);
     // Decide against the current state, not a ref checked before React applies this update.
     const place = ({ set, warning }: Prepared, review: OpenPdf['review']) => setDocuments(values =>
       values[key] && values[key].review !== 'preparing' ? values : {...values,

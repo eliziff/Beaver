@@ -34,7 +34,6 @@ import type { WorkProductStore } from "@/app/lib/workProducts";
 import { watchedFolder } from "@/app/lib/standaloneWorkProducts";
 import { getUserProfile, updateUserProfile } from "@/app/lib/api/account";
 import type { AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
-import { decodeAnnotationSet } from "../../../../shared/pdf-annotations.mjs";
 
 const drafts: WorkProductStore = {
   list: listWorkProducts, get: getWorkProduct, create: createWorkProduct,
@@ -94,9 +93,8 @@ export const beaverAuthoritiesHost: AuthoritiesHost = {
     const authority = draft.state.authorities[authorityId];
     const source = authority?.source.kind === "attached" ? authority.source.sources.find(source => source.bindingRole === role) : null;
     if (!source) throw new Error("This source is unavailable.");
-    const prepared = await prepareAuthoritiesAnnotations(draft.id, authorityId, role, source.sourceSha256, signal,
+    return prepareAuthoritiesAnnotations(draft.id, authorityId, role, source.sourceSha256, signal,
       draft.state.settings.passageMarking);
-    return { ...prepared, annotations: decodeAnnotationSet(prepared.annotations) };
   },
   mode: "beaver",
   wordToPdf: authoritiesWordToPdf,
