@@ -3,7 +3,9 @@
 //! cache) by what each was read as, while a reader holds them, the latest eight; a document being read is waited for,
 //! not read twice.
 
-use crate::engine::{Failure, NativeDocument, NativeProduct};
+#[cfg(feature = "legalpdf")]
+use crate::engine::NativeProduct;
+use crate::engine::{Failure, NativeDocument};
 use crate::formats;
 use legal_structure::{analyze_instrument, utf16_prefix_ceil, DocumentStructure};
 use serde::Deserialize;
@@ -190,7 +192,7 @@ pub fn open_source(bytes: &[u8], request: SourceRequest) -> Result<Option<Arc<Na
         if text_view && structure.query_text().len() > MAX_OUTPUT_BYTES {
             return Err("Document projection output exceeds the read limit".into());
         }
-        Ok(Some(Read { document: Arc::new(NativeDocument::new(NativeProduct::Structure(structure))), keys: Vec::new(), keep }))
+        Ok(Some(Read { document: Arc::new(NativeDocument::of(structure)), keys: Vec::new(), keep }))
     })
 }
 

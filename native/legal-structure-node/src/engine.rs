@@ -93,46 +93,36 @@ pub enum StructureRequest {
 
 pub(crate) enum NativeProduct {
     Structure(DocumentStructure),
-    #[cfg(feature = "a2aj")]
-    A2aj(std::sync::Arc<legal_structure_features::a2aj_store::SourceDocument>),
     #[cfg(feature = "legalpdf")]
     Pdf(legalpdf::PdfDocument),
 }
 
 pub struct NativeDocument {
     pub(crate) product: NativeProduct,
-    pub(crate) query: std::sync::Arc<DocumentQuery>,
+    pub(crate) query: DocumentQuery,
     /// What locating quotations has read of the document, kept for the quotations located in it after where the
     /// caller asks (`keep`): a quicker check of each later quotation for the memory the readings hold (some 250 MiB
     /// for the Criminal Code).
-    quotes: std::sync::Arc<std::sync::Mutex<legal_structure_features::QuoteLocator>>,
+    quotes: std::sync::Mutex<legal_structure_features::QuoteLocator>,
 }
 
 impl NativeDocument {
     pub(crate) fn new(product: NativeProduct) -> Self {
         Self {
             product,
-            query: std::sync::Arc::new(DocumentQuery::new()),
+            query: DocumentQuery::new(),
             quotes: Default::default(),
         }
     }
 
-    #[cfg(feature = "a2aj")]
-    pub(crate) fn a2aj(
-        source: std::sync::Arc<legal_structure_features::a2aj_store::SourceDocument>,
-    ) -> Self {
-        Self {
-            query: source.query.clone(),
-            quotes: source.quotes.clone(),
-            product: NativeProduct::A2aj(source),
-        }
+    /// A structure the engine read, as its document.
+    pub(crate) fn of(structure: DocumentStructure) -> Self {
+        Self::new(NativeProduct::Structure(structure))
     }
 
     pub fn structure(&self) -> &DocumentStructure {
         match &self.product {
             NativeProduct::Structure(structure) => structure,
-            #[cfg(feature = "a2aj")]
-            NativeProduct::A2aj(source) => source.structure(),
             #[cfg(feature = "legalpdf")]
             NativeProduct::Pdf(document) => document.structure(),
         }
@@ -208,8 +198,6 @@ pub fn document_text(document: &NativeDocument, limit: Option<u32>) -> &str {
 pub fn document_fingerprint_of(document: &NativeDocument) -> DocumentFingerprint {
     match &document.product {
         NativeProduct::Structure(structure) => document_fingerprint(structure),
-        #[cfg(feature = "a2aj")]
-        NativeProduct::A2aj(source) => document_fingerprint(source.structure()),
         #[cfg(feature = "legalpdf")]
         NativeProduct::Pdf(document) => document.fingerprint(),
     }

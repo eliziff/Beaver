@@ -77,21 +77,15 @@ struct StoreDocument {
 
 #[cfg(feature = "a2aj")]
 impl StoreDocument {
-    fn of(id: Option<i64>, found: a2aj::Found) -> Self {
-        let native = Arc::new(NativeDocument::a2aj(found.native));
-        let search = found.search.map_or_else(|| Arc::clone(&native), |search| Arc::new(NativeDocument::a2aj(search)));
+    fn of(id: Option<i64>, found: a2aj::Found<NativeDocument>) -> Self {
+        let search = found.search.unwrap_or_else(|| Arc::clone(&found.native));
         Self {
             id,
             metadata: found.metadata,
-            native: Handle(native),
+            native: Handle(found.native),
             search_native: Handle(search),
         }
     }
-}
-
-#[cfg(feature = "a2aj")]
-fn a2aj_handle(source: Arc<a2aj::SourceDocument>) -> Handle {
-    Handle(Arc::new(NativeDocument::a2aj(source)))
 }
 
 /// A statute's provision as the store holds it: found, or the provision or the statute missing.
@@ -454,7 +448,7 @@ fn dispatch(
         })),
         #[cfg(feature = "a2aj")]
         "a2ajDocument" => done(
-            a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?)
+            a2aj::document(&call.get::<PathBuf>("store")?, &call.get("lookup")?, NativeDocument::of)
                 .map(|found| found.map(|found| StoreDocument::of(None, found)))
                 .and_then(value),
         ),
@@ -467,6 +461,7 @@ fn dispatch(
                 call.get::<Option<legal_structure_features::a2aj::Language>>("language")?
                     .unwrap_or(legal_structure_features::a2aj::Language::En),
                 &call.get::<String>("docType")?,
+                NativeDocument::of,
             )
             .map(|found| found.map(|found| StoreDocument::of(None, found)))
             .and_then(value),
@@ -477,8 +472,9 @@ fn dispatch(
                 &call.get::<Vec<Value>>("records")?,
                 &call.get("lookup")?,
                 call.get("excerpt")?,
+                NativeDocument::of,
             )
-            .map(|native| native.map(a2aj_handle))
+            .map(|native| native.map(Handle))
             .and_then(value),
         ),
         #[cfg(feature = "a2aj")]
@@ -499,10 +495,11 @@ fn dispatch(
                 &call.get("lookup")?,
                 &call.get::<String>("section")?,
                 call.get("excerpt")?,
+                NativeDocument::of,
             )
             .map(|found| match found {
                 Some(Some(native)) => Provision::Found {
-                    native: a2aj_handle(native),
+                    native: Handle(native),
                 },
                 Some(None) => Provision::MissingProvision,
                 None => Provision::MissingStatute,
@@ -564,6 +561,7 @@ fn dispatch(
                     .unwrap_or_else(|| "cases".to_owned()),
                 call.get::<Option<legal_structure_features::a2aj::Language>>("language")?
                     .unwrap_or(legal_structure_features::a2aj::Language::En),
+                NativeDocument::of,
             )
             .map(|found| {
                 found.map(|found| {
