@@ -3,7 +3,7 @@
  *  operations are authoritiesOperations.ts's, which an app that builds no book (the ALR Quote Verifier) never loads. */
 import { decodePdfProfileSelection } from "./documentStore";
 import { pdfTextLayer, preparePdf } from "./sourceDocument";
-import { pdfQuotePlacements } from "./pdfQuotes";
+import { pdfQuotePages } from "./pdfQuotes";
 import { wordToPdfAvailable } from "./convert";
 import { reject } from "./applicationError";
 import { attachedAuthoritySources, createAuthoritiesDraft, decodeAuthoritiesDraft,
@@ -151,7 +151,7 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
       if (!Array.isArray(quotes) || !quotes.length || quotes.length > 50 ||
           quotes.some(quote => typeof quote !== "string" || !quote || quote.length > 4_000)) reject(400, "Invalid quotations");
       const { document } = await preparePdf({ ...reference, bytes, ocrProvider: null, layout: false, signal: context.signal });
-      return value(await pdfQuotePlacements(document, quotes as string[]));
+      return value(await pdfQuotePages(document, quotes as string[]));
     },
     "source-text": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;

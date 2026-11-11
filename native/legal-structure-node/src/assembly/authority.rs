@@ -150,10 +150,6 @@ fn valid(rect: &Rect) -> bool {
     rect.iter().all(|value| value.is_finite() && (0.0..=1.0).contains(value)) && rect[2] > rect[0] && rect[3] > rect[1]
 }
 
-fn normalized(rect: &Rect, width: f64, height: f64) -> Rect {
-    [rect[0] / width, rect[1] / height, rect[2] / width, rect[3] / height].map(|value| value.clamp(0.0, 1.0))
-}
-
 /// A mark's identity, as the builder has always made it: the digest of its kind, label, excerpt and fragments as
 /// JavaScript writes them.
 fn mark_id(kind: &str, label: &str, excerpt: &str, fragments: &[AnnotationFragment]) -> String {
@@ -199,7 +195,7 @@ fn first_marks(geometry: &[&PlacedPassage], sizes: &[(f64, f64)], request: &Sour
             let fragments = if found(target, require_printed) {
                 target.pages.iter().filter(|page| page.source == "native" && size(page.page_number).is_some() && page.width > 0.0 && page.height > 0.0)
                     .filter_map(|page| {
-                        let rects = page.passage_rects.iter().map(|rect| normalized(rect, page.width, page.height)).filter(valid).collect::<Vec<_>>();
+                        let rects = page.passage_rects.iter().copied().filter(valid).collect::<Vec<_>>();
                         (!rects.is_empty()).then_some(AnnotationFragment { page_number: page.page_number, rects })
                     }).collect::<Vec<_>>()
             } else { Vec::new() };
@@ -229,7 +225,7 @@ fn first_marks(geometry: &[&PlacedPassage], sizes: &[(f64, f64)], request: &Sour
                     let fragments = pieces.into_iter().filter_map(|(number, rects)| {
                         let page = target.pages.iter().find(|page| page.page_number == number)?;
                         size(page.page_number)?;
-                        Some(AnnotationFragment { page_number: number, rects: rects.iter().map(|rect| normalized(rect, page.width, page.height)).filter(valid).collect() })
+                        Some(AnnotationFragment { page_number: number, rects: rects.iter().copied().filter(valid).collect() })
                     }).collect::<Vec<_>>();
                     if !matches!(quote.status, PdfLookupStatus::Found) || fragments.is_empty() || fragments.iter().any(|f| f.rects.is_empty()) { continue; }
                     add(&mut marks, "highlight", format!("{label} · Quote"), &quote.text, fragments);

@@ -29,10 +29,9 @@ export const getDocumentPdfPages = (id: string, versionId: string | undefined, s
   apiRequest<PdfPages>(pagePath(`/single-documents/${segment(id)}/pdf-pages`,
     { version_id: versionId, source_sha256: sourceSha256 }), { signal });
 /** Where each quotation stands in a PDF as the engine reads it: its page (from 1) and rectangles, or null. */
-export type PdfQuotePlacement = { pageNumber: number; rects: Array<[number, number, number, number]> } | null;
 export const getDocumentPdfQuotes = async (id: string, versionId: string | undefined | null, quotes: string[],
   signal?: AbortSignal, sourceSha256?: string) =>
-  (await apiRequest<{ quotes: PdfQuotePlacement[] }>(pagePath(`/single-documents/${segment(id)}/pdf-quotes`,
+  (await apiRequest<{ quotes: Array<number | null> }>(pagePath(`/single-documents/${segment(id)}/pdf-quotes`,
     { version_id: versionId ?? undefined, source_sha256: sourceSha256 }),
     { method: "POST", body: JSON.stringify({ quotes }), headers: { "Content-Type": "application/json" }, signal })).quotes;
 export const getDocumentPdfTextLayer = (id: string, versionId: string | undefined, signal?: AbortSignal,

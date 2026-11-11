@@ -1462,7 +1462,7 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
             error={sourcePreview?.pdf.status === "failed" ? sourcePreview.pdf.error : undefined} quoteFocusKey={sourcePreview?.quote}
             quotes={sourcePreview?.quote ? [{ quote: sourcePreview.quote }] : undefined}
             locateQuotes={sourcePreview && draft && host.sourceQuotes ? async (quotes, signal) =>
-              (await host.sourceQuotes!(draft, sourcePreview.role, quotes, signal)).map(placed => placed?.pageNumber ?? null)
+              host.sourceQuotes!(draft, sourcePreview.role, quotes, signal)
               : undefined} />
         </div>
       </Modal>

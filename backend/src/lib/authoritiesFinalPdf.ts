@@ -4,7 +4,7 @@ import type { AuthoritiesBuildReceipt, AuthoritiesDraft, AuthorityOccurrence } f
 import type { AuthoritiesBuildArtifact, AuthoritiesBuildInput } from "./authoritiesBuild";
 import { authorityProcedureInput, deriveAuthorityProcedure, tabReference } from "mike/shared/authorities-order.mjs";
 import { sha256 } from "./hash";
-import { hasPrintedParagraphLocator, normalizePassageRect } from "./authoritiesAnnotations";
+import { hasPrintedParagraphLocator } from "./authoritiesAnnotations";
 import { structureNative } from "./structureNative";
 import type { FinalLink } from "mike/shared/engine-types/FinalLink";
 import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
@@ -111,7 +111,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput, 
       const pageIndex = placement.pages.get(sourceIndex);
       if (pageIndex === undefined) continue;
       // The link lands at the top of the passage's first line, or of its page.
-      const rect = page.passageRects[0] && normalizePassageRect(page.passageRects[0], page.width, page.height);
+      const rect = page.passageRects[0];
       if (rect && !validRect(rect)) continue;
       return { pageIndex, rect: rect ?? [0, 0, 1, 1] as [number, number, number, number], sourcePageNumber: page.pageNumber };
     }
@@ -165,8 +165,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput, 
         const geometryPage = geometryTarget?.pages.find((page) => page.pageNumber === pageNumber);
         const rotation = ((pages[pageNumber - 1].rotation % 360) + 360) % 360;
         return !geometryPage || geometryPage.source !== "native" || geometryPage.width <= 0 || geometryPage.height <= 0 ||
-          ![0, 90, 180, 270].includes(rotation) || rects.some((rect) =>
-            !validRect(normalizePassageRect(rect, geometryPage.width, geometryPage.height)));
+          ![0, 90, 180, 270].includes(rotation) || rects.some((rect) => !validRect(rect));
       })) {
         warn(occurrence.id, "citation-location", kind === "pinpoint");
         if (kind === "pinpoint") {
@@ -177,12 +176,8 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput, 
         }
         continue;
       }
-      const placed = fragments.flatMap(({ pageNumber, rects }) => {
-        const geometryPage = geometryTarget!.pages.find((item) => item.pageNumber === pageNumber)!;
-        return rects.map((rect) => ({ page: pageNumber - 1, bounds: quadBounds([rectToPdfQuad(
-          normalizePassageRect(rect, geometryPage.width, geometryPage.height), cropBox(pages[pageNumber - 1]),
-          pages[pageNumber - 1].rotation)]) }));
-      });
+      const placed = fragments.flatMap(({ pageNumber, rects }) => rects.map((rect) => ({ page: pageNumber - 1,
+        bounds: quadBounds([rectToPdfQuad(rect, cropBox(pages[pageNumber - 1]), pages[pageNumber - 1].rotation)]) })));
       // The brief's own web link over the citation stays the one a click follows.
       if (placed.some(({ page, bounds }) => pages[page].links.some(([, uri, rect]) =>
         !uri.startsWith(LINK_PREFIX) && overlaps(rect, bounds)))) {

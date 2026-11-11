@@ -6,7 +6,7 @@ import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesBuildSettin
 import type { OutputFolderPort } from "@/app/components/shared/OutputFolderSetting";
 import type { FilingContact } from "../../../../shared/user-preferences.mjs";
 import type { PdfProgress } from "@/app/lib/pdfPreparation";
-import type { PdfPages, PdfQuotePlacement, PdfRecognizedText } from "@/app/lib/api/documents";
+import type { PdfPages, PdfRecognizedText } from "@/app/lib/api/documents";
 
 /** `autoFetched`: found by auto-fetch rather than chosen, so its citation is checked before it is attached. */
 export type AuthoritiesFile = { file: File; input?: WorkProductInput; autoFetched?: boolean };
@@ -107,7 +107,7 @@ export interface AuthoritiesHost {
   sourcePages?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal): Promise<PdfPages>;
   readSourceText?(draft: AuthoritiesProduct, role: string, signal?: AbortSignal, pages?: number[]): Promise<PdfRecognizedText>;
   /** Where each quotation stands in a source PDF as the engine reads it: its page (from 1) and rectangles, or null. */
-  sourceQuotes?(draft: AuthoritiesProduct, role: string, quotes: string[], signal?: AbortSignal): Promise<PdfQuotePlacement[]>;
+  sourceQuotes?(draft: AuthoritiesProduct, role: string, quotes: string[], signal?: AbortSignal): Promise<Array<number | null>>;
   /** The pinpoints a selection of a unit's text holds, with their kinds, as a save would read them. */
   readPinpoints?(text: string, start: number, end: number): Promise<Array<{ kind: string; start: number; end: number }>>;
   sourceOcr?: AuthoritiesOcrPort;

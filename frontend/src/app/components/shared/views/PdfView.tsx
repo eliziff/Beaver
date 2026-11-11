@@ -23,7 +23,7 @@ export function PdfView({ doc, bytes, revision, ...props }: Omit<PdfCanvasProps,
   [bytes, doc?.document_id, doc?.version_id, revision]);
   // A stored document's quotations are found by the engine's reading of it.
   const locateQuotes = useMemo(() => doc ? async (quotes: string[], signal: AbortSignal) =>
-    (await getDocumentPdfQuotes(doc.document_id, doc.version_id, quotes, signal)).map((placed) => placed?.pageNumber ?? null)
+    getDocumentPdfQuotes(doc.document_id, doc.version_id, quotes, signal)
     : undefined, [doc?.document_id, doc?.version_id]);
   return <PdfCanvas locateQuotes={locateQuotes} {...props} pageLabels={props.pageLabels ?? (detected?.key === key ? detected.labels : undefined)} bytes={bytes} source={source} />;
 }

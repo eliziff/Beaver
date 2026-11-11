@@ -213,8 +213,8 @@ describe("Authorities final export", () => {
   it("abstains from duplicate filing text while retaining verified target pages in the report", async () => {
     const brief = await sourcePdf("2009 SCC 32 at para 12 repeated", [[612, 792]]);
     const original = await judgmentPdf(UP_TO_14), state = finalDraft(brief, original);
-    const geometry: PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v1", sourceSha256: sha256(brief),
-      parserVersion: "test-fixture", coordinateSpace: "visible_crop_box", coordinateOrigin: "top_left", rotationApplied: true, targets: [{ id: "filing:grant:0",
+    const geometry: PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v2", sourceSha256: sha256(brief),
+      parserVersion: "test-fixture", coordinateSpace: "visible_page_fraction", coordinateOrigin: "top_left", rotationApplied: true, targets: [{ id: "filing:grant:0",
       locatorKind: "page", locator: "1", status: "found", pages: [], quotes: [
         { text: "2009 SCC 32", status: "ambiguous", rects: [] },
         { text: "para 12", status: "ambiguous", rects: [] },
@@ -236,12 +236,12 @@ describe("Authorities final export", () => {
     const brief = Buffer.from(await plain.save()), original = await judgmentPdf(UP_TO_14);
     const state = finalDraft(brief, original);
     state.units[0].text += " [Tab 1]";
-    const filingGeometry: PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v1", sourceSha256: sha256(brief),
-      parserVersion: "test-fixture", coordinateSpace: "visible_crop_box", coordinateOrigin: "top_left", rotationApplied: true, targets: [{ id: "filing:grant:0",
+    const filingGeometry: PassageGeometry = { schemaVersion: "legalpdf.passage-geometry.v2", sourceSha256: sha256(brief),
+      parserVersion: "test-fixture", coordinateSpace: "visible_page_fraction", coordinateOrigin: "top_left", rotationApplied: true, targets: [{ id: "filing:grant:0",
       locatorKind: "page", locator: "1", status: "found", pages: [{ pageNumber: 1, width: 612, height: 792,
-        source: "native", passageRects: [[36, 50, 300, 80]] }], quotes: [
-        { text: "[Tab 1]", status: "found", pageNumber: 1, rects: [[190, 60, 240, 80]] },
-        { text: "para 12", status: "found", pageNumber: 1, rects: [[120, 60, 185, 80]] },
+        source: "native", passageRects: [[36 / 612, 50 / 792, 300 / 612, 80 / 792]] }], quotes: [
+        { text: "[Tab 1]", status: "found", pageNumber: 1, rects: [[190 / 612, 60 / 792, 240 / 612, 80 / 792]] },
+        { text: "para 12", status: "found", pageNumber: 1, rects: [[120 / 612, 60 / 792, 185 / 612, 80 / 792]] },
       ] }] };
     const result = await buildAuthorities({ draft: state, title: "Web link", workProduct: { id: "web-link", revision: 1 },
       sources: { source: { bytes: brief, passageGeometry: filingGeometry }, original: await read(original) } });

@@ -17,7 +17,7 @@ import { requiredFile, requiredUpload, singleFileUpload, uploadedDocument } from
 import { z } from "mike/shared/runtime/schema.mjs";
 import { openDocument, pdfTextLayer, PLAIN_PDF } from "../lib/sourceDocument";
 import { structureNative } from "../lib/structureNative";
-import { pdfQuotePlacements } from "../lib/pdfQuotes";
+import { pdfQuotePages } from "../lib/pdfQuotes";
 const scope = applicationScope, MAX_ZIP_FILES = 100;
 const researchVersion = textField(200);
 const revisionNumber = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -159,7 +159,7 @@ export function createDocumentsRouter(
     if (req.query.source_sha256 !== undefined && req.query.source_sha256 !== source.sourceSha256)
       reject(409, "This PDF changed. Open it again.");
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ quotes: await pdfQuotePlacements(await openDocument(source), quotes) });
+    res.json({ quotes: await pdfQuotePages(await openDocument(source), quotes) });
   }));
 
   router.get("/:documentId/pdf-page-labels", asyncRoute(async (req, res) => {
