@@ -361,12 +361,12 @@ async function scanReview(
       const { citation, source } = reviewItems[cursor++];
       if (source) {
         const localOrdinal = occurrenceIds.length;
-        const id = `${unit.key}:${localOrdinal}`;
+        const id = `${unit.id}:${localOrdinal}`;
         const local = (range: Span) => ({ start: range.start - start, end: range.end - start });
         const full = local(source);
         occurrenceIds.push(id);
         startOf.set(id, start + full.start);
-        occurrences[id] = { id, unitId: unit.key, ...full,
+        occurrences[id] = { id, unitId: unit.id, ...full,
           text: unit.text.slice(full.start, full.end),
           ...occurrenceSpans(unit.text, full, local(source.core), [], undefined),
           kind: source.kind, citation: source.citation, authorityId: source.authorityId,
@@ -377,7 +377,7 @@ async function scanReview(
       if (!citation) continue;
       if (citation.form === "unknown") continue;
       const localOrdinal = occurrenceIds.length;
-      const id = `${unit.key}:${localOrdinal}`;
+      const id = `${unit.id}:${localOrdinal}`;
       const authorityId = authorityOf.get(citation.index) ?? null;
       const local = (span: Span) => ({ start: Math.max(start, span.start) - start,
         end: Math.min(end, span.end) - start });
@@ -393,7 +393,7 @@ async function scanReview(
       occurrenceIds.push(id);
       occurrenceOf.set(citation.index, id);
       startOf.set(id, start + full.start);
-      occurrences[id] = { id, unitId: unit.key, ...full,
+      occurrences[id] = { id, unitId: unit.id, ...full,
         text: unit.text.slice(full.start, full.end),
         ...occurrenceSpans(unit.text, styled, core, pinpoints.map(({ span }) => local(span)),
           citation.fields.pinCite ? local(citation.fields.pinCite) : undefined),
@@ -407,13 +407,7 @@ async function scanReview(
           ({ kind, text: span.text, first, last, ...local(span) }))),
         evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: reference && Boolean(authorityId) };
     }
-    return { id: unit.key, kind: unit.kind, ordinal: unit.ordinal,
-      ...(unit.source && { source: unit.source }),
-      // A note prints its number, or none (an author's "*", its mark).
-      footnoteId: unit.footnote_id, ...(unit.footnote_id != null && { noteNumber: unit.note_number ?? null }),
-      ...(unit.note_mark && { noteMark: unit.note_mark }), ...(unit.restart_sequence && { restartSequence: unit.restart_sequence }),
-      ...(unit.links?.length && { authorLinks: unit.links }),
-      pageNumbers: unit.page_numbers, text: unit.text, footnoteRefs: unit.footnote_refs, occurrenceIds };
+    return { ...unit, occurrenceIds };
   });
   // Where the engine resolved each reference, as its citations of the authority: the one its chain ends at (its
   // origin) and the one it names directly, each the first of the authority's in the part the engine gives.
@@ -476,7 +470,7 @@ async function scanReview(
 
 function importedCover(units: AuthorityTextUnit[]): AuthoritiesCover {
   const body = units.filter(({ kind }) => kind === "body");
-  const firstPage = body.filter(({ page_numbers }) => page_numbers.includes(1));
+  const firstPage = body.filter(({ pageNumbers }) => pageNumbers.includes(1));
   const opening = (firstPage.length ? firstPage : body.slice(0, 80))
     .map(({ text }) => text).join("\n");
   const fields = sourceDocumentFields(opening ? [opening] : [])?.cover;

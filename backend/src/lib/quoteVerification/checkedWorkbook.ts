@@ -102,22 +102,12 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   model?: AlrModel, signal?: AbortSignal, attached: ReadonlyMap<string, NativeDocument> = new Map()): Promise<Row[]> {
   const propositions = footnotePropositions(draft.units, options.quoteContext);
   const wanted = footnoteFilter(options.footnotes);
-  // The article as one text; each note a note range, numbered as printed (unnumbered when the reader found
-  // no number), anchored where its marker stands in the body.
-  let text = "";
-  const anchors = new Map<number, number>();
-  const placed = draft.units.map((unit) => {
-    const start = text.length; text += `${unit.text}\n\n`;
-    for (const [id, offset] of unit.footnoteRefs) anchors.set(id, start + offset);
-    return { unit, start, end: start + unit.text.length };
-  });
+  // The article as one text and its notes as the citation engine reads them; each unit where it starts in it.
+  const { text, notes } = structureNative().briefText(draft.units);
+  let next = 0;
+  const placed = draft.units.map((unit) => ({ unit, start: next, end: (next += unit.text.length + 2) - 2 }));
   const ranges = placed.filter(({ unit }) => unit.kind === "footnote" && unit.footnoteId !== null)
     .map(({ unit: note, start, end }) => ({ note, start, end }));
-  const UNNUMBERED = 0xffff_ffff;
-  const notes = ranges.map(({ note, start, end }) => ({ start, end,
-    number: note.noteNumber === null ? UNNUMBERED : note.noteNumber ?? note.footnoteId!,
-    sequence: note.noteNumber === null ? UNNUMBERED : note.restartSequence ?? 0,
-    ...(anchors.has(note.footnoteId!) ? { anchor: anchors.get(note.footnoteId!) } : {}) }));
   const extracted = engine<{ citations: Citation[]; sourceParts: Part[] }>("extract", {
     text, offsetUnit: "utf16", options: { resolve: false, splitTier: draft.settings.supraLinking ?? "safe", notes } });
   const engineParts = extracted.sourceParts.map((part, source) => {
@@ -185,7 +175,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // _apply_author_provided_links): the part's own link, kept as written (_restore_author_provided_links) and carried
   // to its references as a link the author wrote out is; an editor's link, given since, comes first.
   const authorLinks = parts.map(() => "");
-  for (const range of ranges) for (const [start, end, url] of range.note.authorLinks ?? []) {
+  for (const range of ranges) for (const [start, end, url] of range.note.links ?? []) {
     const at = parts.findIndex((part) => part.range === range && Math.max(part.local, start) < Math.min(part.local + part.text.length, end));
     if (at >= 0 && !authorLinks[at]) authorLinks[at] = url;
   }
@@ -386,7 +376,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
       ? "Citation names a different case: " + mismatch.name + " (" + mismatch.citation + ")." : "";
     const hint = kinds[index].kind === "supra" ? engine<string>("supraHint", { text: part.text, aggressive: true }) : "";
     return [{
-      footnote_id: note.footnoteId!, footnote_internal_id: note.footnoteId!, footnote_display_id: note.noteNumber === null && note.noteMark ? note.noteMark : String(number),
+      footnote_id: note.footnoteId!, footnote_internal_id: note.footnoteId!, footnote_display_id: note.noteNumber === undefined && note.noteMark ? note.noteMark : String(number),
       footnote_full: note.text.trim(), proposition_text: propositions.get(note.footnoteId!)?.text ?? "",
       citation_part_index: indexInNote[index] + 1, citation_part_kind: field.kind, citation_part_text: part.text,
       citation_part_corrected: field.corrected, citation_part_link: partLinks[index],

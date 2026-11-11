@@ -1134,7 +1134,7 @@ describe("Authorities output builder", () => {
       version: { versionId: "v1", sha256: digest } } });
     const span = (text: string, start: number, end: number) => ({ start, end, text: text.slice(start, end) });
     Object.assign(state, { outputMode: "table", insertIntoDocument: true,
-      units: texts.map((text, ordinal) => ({ id: `body:${ordinal}`, kind: "body", ordinal, footnoteId: null, footnoteRefs: [],
+      units: texts.map((text, ordinal) => ({ id: `body:${ordinal}`, path: [ordinal], kind: "body", ordinal, footnoteId: null, footnoteRefs: [],
         pageNumbers: [], text, occurrenceIds: [`o${ordinal}`] })),
       occurrences: Object.fromEntries(spans.map(([authority, start, core, end], ordinal) => [`o${ordinal}`, {
         id: `o${ordinal}`, unitId: `body:${ordinal}`, start, end, text: texts[ordinal].slice(start, end),
@@ -1173,9 +1173,9 @@ describe("Authorities output builder", () => {
     const direct = createAuthoritiesDraft(imported, { source: { kind: "document",
       documentId: "factum", version: { versionId: "v3", sha256: digest } } });
     Object.assign(direct, { outputMode: "table", insertIntoDocument: true,
-      units: [{ id: "body:0", kind: "body", ordinal: 0, footnoteId: null,
+      units: [{ id: "body:0", path: [0], kind: "body", ordinal: 0, footnoteId: null,
         footnoteRefs: [], pageNumbers: [], text: citation, occurrenceIds: ["grant:0"] },
-      { id: "body:1", kind: "body", ordinal: 1, footnoteId: null,
+      { id: "body:1", path: [1], kind: "body", ordinal: 1, footnoteId: null,
         footnoteRefs: [], pageNumbers: [], text: reporter, occurrenceIds: ["grant:1"] }],
       occurrences: { "grant:0": { id: "grant:0", unitId: "body:0", start: 0,
         end: citation.length, text: citation, kind: "case", citation,

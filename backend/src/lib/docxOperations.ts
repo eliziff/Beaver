@@ -70,14 +70,14 @@ function setText(node: XNode, value: string) {
 
 /** Opens the package, indexes body/footnote units, and refuses stale reviewed text. */
 async function authorityUnitPackage(bytes: Buffer,
-  units: ReadonlyArray<{ id: string; text: string }>) {
+  units: ReadonlyArray<{ id: string; text: string; path?: number[] }>) {
   const session = await openDocxSession(bytes);
   const document = await session.document(), footnotes = await session.readXml("word/footnotes.xml");
   // The body's paragraphs as citation review numbered them, each found by the engine's path to it.
   const targets = new Map<string, XNode>();
   const elements = (node: XNode) => elChildren(node).filter((child) => !(elName(child) ?? "#").startsWith("#"));
-  for (const { key, path } of await structureNative().docxAuthorityTextUnits(bytes))
-    if (path) targets.set(key, path.reduce<XNode>((node, index) => elements(node)[index] ?? {}, document.body));
+  for (const { id, path } of units)
+    if (path) targets.set(id, path.reduce<XNode>((node, index) => elements(node)[index] ?? {}, document.body));
   if (footnotes) walk(footnotes, (node) => {
     if (elName(node) === "w:footnote") {
       const id = elAttrs(node)["@_w:id"];
@@ -244,7 +244,7 @@ function changedWords(before: string, after: string) {
  *  unit are replaced first, so each span is where review read it. Returns the bytes and the ids of
  *  the revisions written, which reject the correction again. */
 export async function applyAuthorityDiscrepancyCorrection(bytes: Buffer,
-  units: ReadonlyArray<{ id: string; text: string }>, corrections: DocxCorrection | readonly DocxCorrection[]) {
+  units: ReadonlyArray<{ id: string; text: string; path?: number[] }>, corrections: DocxCorrection | readonly DocxCorrection[]) {
   const { document, targets, save } = await authorityUnitPackage(bytes, units);
   const ordered = [...Array.isArray(corrections) ? corrections : [corrections as DocxCorrection]]
     .sort((left, right) => left.unitId.localeCompare(right.unitId) || right.start - left.start);
@@ -292,7 +292,7 @@ export type DocxSpanWrite = { unitId: string; start: number; end: number; expect
  *  changes by `author`, highlights, and links (in the document's Hyperlink style where it has one). A unit's writes go
  *  last first, so each span is where it was read. A write is left out, and said to be, where its span crosses a tab, a
  *  break or a field, a link would go inside a link, or its text is no longer what was read. */
-export async function writeDocxSpans(bytes: Buffer, units: ReadonlyArray<{ id: string; text: string }>,
+export async function writeDocxSpans(bytes: Buffer, units: ReadonlyArray<{ id: string; text: string; path?: number[] }>,
   writes: readonly DocxSpanWrite[], author: string) {
   const { session, document, footnotes, targets, save } = await authorityUnitPackage(bytes, units);
   let next = Math.max(highestId(document.body), ...[...targets.values()].map(highestId)) + 1;
@@ -736,7 +736,7 @@ function existingMarks(root: XNode) {
 /** Applies the selected Word-native or static linked Authorities delivery. */
 export async function applyTableOfAuthorities(
   bytes: Buffer,
-  units: ReadonlyArray<{ id: string; text: string }>,
+  units: ReadonlyArray<{ id: string; text: string; path?: number[] }>,
   marks: readonly DocxAuthorityMark[],
   delivery: DocxTableDelivery,
   linked: readonly DocxLinkedAuthority[] = [],

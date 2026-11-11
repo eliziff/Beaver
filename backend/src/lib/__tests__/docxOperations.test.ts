@@ -33,7 +33,7 @@ describe("native Word Table of Authorities output", () => {
     const source = await docxBytes([new Paragraph({ children: [
       new TextRun({ text: body.slice(0, 12), bold: true }), new TextRun(body.slice(12)), new FootnoteReferenceRun(7),
     ] })], { footnotes: { 7: { children: [new Paragraph(note)] } } });
-    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: body }, { id: "footnote:7", text: note }], [
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", path: [0], text: body }, { id: "footnote:7", text: note }], [
       { unitId: "body:0", offset: body.length, longName: "R v Grant", shortName: "Grant", category: 1,
         suffix: " [Book of authorities Tab 3]", pinpointLink: { start: body.indexOf("para 12"), end: body.length,
           url: "https://beaver-authorities.invalid/pinpoint/grant" } },
@@ -62,7 +62,7 @@ describe("native Word Table of Authorities output", () => {
       .replace(/<w:r>(?:(?!<w:r>).)*?<w:t[^>]*>second<\/w:t><\/w:r>/u, run("<w:t xml:space=\"preserve\">Cedar Act, supra note </w:t>") + simple);
     const bytes = await zip.file("word/document.xml", xml).generateAsync({ type: "nodebuffer" });
     const first = "Alder v Birch, supra note 3", second = "Cedar Act, supra note 4";
-    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: first }, { id: "body:1", text: second }], [
+    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", path: [0], text: first }, { id: "body:1", path: [1], text: second }], [
       { unitId: "body:0", offset: first.length, longName: "Alder v Birch", shortName: "Alder", category: 1, suffix: " [Tab 1]" },
       { unitId: "body:1", offset: second.length, longName: "Cedar Act", shortName: "Cedar Act", category: 2, suffix: " [Tab 2]" },
     ], "native-marks");
@@ -78,7 +78,7 @@ describe("native Word Table of Authorities output", () => {
     const cited = "Oak v Elm, 2031 ONCA 5 at para 9", body = `See ${cited}`;
     const source = await docxBytes([new Paragraph({ children: [new TextRun("See "),
       new ExternalHyperlink({ link: "https://example.test/oak-v-elm", children: [new TextRun(cited)] })] })]);
-    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: body }], [
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", path: [0], text: body }], [
       { unitId: "body:0", offset: body.length, longName: "Oak v Elm", shortName: "Oak", category: 1, suffix: " [Tab 2]",
         tabUrl: "https://beaver-authorities.invalid/tab/oak", pinpointLink: { start: body.indexOf("para 9"), end: body.length,
           url: "https://beaver-authorities.invalid/pinpoint/oak" } },
@@ -104,7 +104,7 @@ describe("native Word Table of Authorities output", () => {
     const xml = (await zip.file("word/document.xml")!.async("string"))
       .replace(/<w:r>(?:(?!<w:r>).)*?<w:t[^>]*>first<\/w:t><\/w:r>/u, run(`<w:t>${text}</w:t>`) + own + run("<w:t>.</w:t>"));
     const bytes = await zip.file("word/document.xml", xml).generateAsync({ type: "nodebuffer" });
-    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: `${text}.` }], [
+    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", path: [0], text: `${text}.` }], [
       { unitId: "body:0", offset: text.length, longName: text, shortName: "Fir", category: 1, suffix: " [Tab 1]" },
     ], "native-append");
     const document = await (await JSZip.loadAsync(marked)).file("word/document.xml")!.async("string");
@@ -124,7 +124,7 @@ describe("native Word Table of Authorities output", () => {
       ...notes.map((_, index) => new FootnoteReferenceRun(index + 1))] })],
     { footnotes: Object.fromEntries(notes.map((note, index) => [index + 1, { children: [new Paragraph(note)] }])) });
     const end = (text: string, cite: string) => text.indexOf(cite) + cite.length;
-    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: body },
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", path: [0], text: body },
       ...notes.map((text, index) => ({ id: `footnote:${index + 1}`, text }))], [
       { unitId: "body:0", offset: end(body, "2031 ONCA 5"), longName: "Oak v Elm, 2031 ONCA 5", shortName: "Oak", category: 1 },
       { unitId: "body:0", offset: end(body, "c L-2"), longName: "Larch Act, SA 2031, c L-2", shortName: "Larch Act", category: 2 },
@@ -155,7 +155,7 @@ describe("native Word Table of Authorities output", () => {
     const one = "Jo Pine, “The “Moss” Rule: A \"Draft\"” (2030) 1 Imag LJ 2", two = "R v Ash, 2030 ABKB 1", three = "R v Ash, 2031 ONCA 7";
     const body = `${one}; ${two}; ${three}.`;
     const source = await docxBytes([new Paragraph(body)]);
-    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", text: body }], [
+    const marked = await applyTableOfAuthorities(source, [{ id: "body:0", path: [0], text: body }], [
       { unitId: "body:0", offset: one.length, longName: one, shortName: "Pine", category: 5 },
       { unitId: "body:0", offset: body.indexOf(two) + two.length, longName: two, shortName: "R v Ash", category: 1 },
       { unitId: "body:0", offset: body.indexOf(three) + three.length, longName: three, shortName: "R v Ash", category: 1 },
@@ -175,7 +175,7 @@ describe("native Word Table of Authorities output", () => {
     ]);
     const mark = { unitId: "body:0", offset: body.length, longName: body,
       shortName: "R v Grant", category: 1 as const };
-    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: body }],
+    const marked = await applyTableOfAuthorities(bytes, [{ id: "body:0", path: [0], text: body }],
       [mark], "native-marks");
     const markedXml = await (await JSZip.loadAsync(marked))
       .file("word/document.xml")!.async("string");
@@ -183,7 +183,7 @@ describe("native Word Table of Authorities output", () => {
     expect(markedXml).not.toContain(" TOA \\h");
     expect(markedXml).not.toContain("Table of Authorities");
 
-    const linked = await applyTableOfAuthorities(bytes, [{ id: "body:0", text: body }],
+    const linked = await applyTableOfAuthorities(bytes, [{ id: "body:0", path: [0], text: body }],
       [mark], "linked-append", [
         { label: body, italic: 9, url: "https://decisions.example.test/grant?a=1&b=2" },
         { label: "Unlinked authority", italic: 0, url: null },
@@ -211,7 +211,7 @@ describe("native Word Table of Authorities output", () => {
       footnotes: { 7: { children: [new Paragraph(footnote)] } },
     });
     const result = await applyTableOfAuthorities(bytes, [
-      { id: "body:0", text: body }, { id: "footnote:7", text: footnote },
+      { id: "body:0", path: [0], text: body }, { id: "footnote:7", text: footnote },
     ], [
       { unitId: "body:0", offset: body.length, longName: body,
         shortName: "R v Grant", category: 1 },

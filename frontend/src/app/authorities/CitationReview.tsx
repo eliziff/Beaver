@@ -19,17 +19,11 @@ import './citationReview.css';
 type Unit = AuthoritiesProduct['state']['units'][number];
 const SCROLLERS = '.beaver-pdf-scroll,.docx-view-scroll,.citation-fallback>div';
 /** Each footnote's number as the document prints it. A note with the author's own mark (a "*") shows
- * that mark and takes no number. A draft imported before the printed number was kept counts the
- * marks its notes' text shows. */
+ * that mark and takes no number. */
 export function noteLabels(units: Unit[]) {
   const labels = new Map<string, string>();
-  let marked = 0;
-  for (const unit of units) if (unit.kind === 'footnote') {
-    const mark = /^\s*([*†‡§¶]+)\s/u.exec(unit.text)?.[1];
-    if (mark) marked++;
-    labels.set(unit.id, unit.noteNumber === undefined ? mark ?? String((unit.footnoteId ?? unit.ordinal + 1) - marked)
-      : unit.noteNumber === null ? mark ?? '*' : String(unit.noteNumber));
-  }
+  for (const unit of units) if (unit.kind === 'footnote') labels.set(unit.id, unit.noteNumber === undefined
+    ? unit.noteMark ?? /^\s*([*†‡§¶]+)\s/u.exec(unit.text)?.[1] ?? '*' : String(unit.noteNumber));
   return labels;
 }
 /** The citations read before `until`, in the order the brief is read: each paragraph's citations

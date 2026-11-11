@@ -281,9 +281,9 @@ const unitSource = closed<NonNullable<AuthoritiesReviewUnit["source"]>>({
   mappings: list(100_000, closed<NonNullable<AuthoritiesReviewUnit["source"]>["mappings"][number]>({ start: integer, end: integer, sourceStart: integer, sourceEnd: integer, lineId: text })),
 });
 const unitFields = { source: maybe(unitSource), id: text, kind: oneOf(["body", "footnote"]), ordinal: integer,
-  footnoteId: nullable(integer), noteNumber: maybe(nullable(integer)), noteMark: maybe(text),
-  restartSequence: maybe(integer),
-  authorLinks: maybe(list(50_000, linkSpan)), footnoteRefs: list(50_000, pair),
+  footnoteId: nullable(integer), noteNumber: maybe(integer), noteMark: maybe(text),
+  restartSequence: maybe(integer), path: maybe(list(1_000, integer)),
+  links: maybe(list(50_000, linkSpan)), footnoteRefs: list(50_000, pair),
   pageNumbers: list(50_000, integer), text,
 } satisfies FieldTable<Omit<AuthoritiesReviewUnit, "occurrenceIds">>;
 const reviewUnit = closed<AuthoritiesReviewUnit>({ ...unitFields, occurrenceIds: strings });
@@ -446,17 +446,10 @@ function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) 
   const occurrences: Record<string, AuthorityOccurrence> = {};
   for (const item of ledger.occurrences) {
     const authority = requireRecord(authorities, item.authorityKey, "ledger authority");
-    const unit = units.get(item.unit.id) ?? { id: item.unit.id, kind: item.unit.kind,
-      ordinal: item.unit.ordinal, footnoteId: item.unit.footnoteId,
-      ...(item.unit.source && { source: item.unit.source }),
-      footnoteRefs: item.unit.footnoteRefs, pageNumbers: item.unit.pageNumbers,
-      text: item.unit.text, occurrenceIds: [] };
-    if (units.has(item.unit.id) && !same({ ...unit, occurrenceIds: [] }, {
-      id: item.unit.id, kind: item.unit.kind, ordinal: item.unit.ordinal,
-      ...(item.unit.source && { source: item.unit.source }),
-      footnoteId: item.unit.footnoteId, footnoteRefs: item.unit.footnoteRefs,
-      pageNumbers: item.unit.pageNumbers, text: item.unit.text, occurrenceIds: [],
-    })) throw new AuthoritiesDomainError(`Citation ledger changes unit ${item.unit.id}.`);
+    const { sourceTextSha256: _, ...fields } = item.unit;
+    const unit = units.get(item.unit.id) ?? { ...fields, occurrenceIds: [] };
+    if (units.has(item.unit.id) && !same({ ...unit, occurrenceIds: [] }, { ...fields, occurrenceIds: [] }))
+      throw new AuthoritiesDomainError(`Citation ledger changes unit ${item.unit.id}.`);
     unit.occurrenceIds.push(item.id);
     units.set(unit.id, unit);
     occurrences[item.id] = {

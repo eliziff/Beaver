@@ -1,6 +1,6 @@
 /** Shared Authorities state and public commands; resolved reducer actions remain server-side. */
 import type { AuthoritiesBookParts, AuthoritySourceDecision } from "./authorities-sources.mjs";
-import type { AuthoritySource } from "./engine-types/AuthoritySource";
+import type { AuthorityTextUnit } from "./engine-types/AuthorityTextUnit";
 import type { PdfAnnotationSet, PdfAnnotationSets } from "./pdf-annotations.mjs";
 import type { WorkProductBuildReceipt, WorkProductInput,
   WorkProductState } from "./work-products.mjs";
@@ -198,27 +198,8 @@ export type AuthorityIdentity = {
   historyOf?: string;
 };
 
-export type AuthoritiesReviewUnit = {
-  source?: AuthoritySource;
-  id: string;
-  kind: "body" | "footnote";
-  ordinal: number;
-  footnoteId: number | null;
-  /** The number the brief prints for this footnote, or null where it prints the author's own mark
-   * (a "*") instead. */
-  noteNumber?: number | null;
-  /** That mark, as the brief prints it, where it prints one. */
-  noteMark?: string;
-  /** How many times the brief has started counting its notes afresh before this one (a section printing its notes in
-   * another format), so the "supra note 1" of the body after a starred author note names the body's first. */
-  restartSequence?: number;
-  /** A note's hyperlinks, as its author gave them: where each lies in `text`, and its address. */
-  authorLinks?: Array<[number, number, string]>;
-  footnoteRefs: Array<[number, number]>;
-  pageNumbers: number[];
-  text: string;
-  occurrenceIds: string[];
-};
+/** A unit of the brief as the engine reads it, and the citations found in it. */
+export type AuthoritiesReviewUnit = AuthorityTextUnit & { occurrenceIds: string[] };
 
 export type AuthorityTextSpan = { start: number; end: number; text: string };
 /** What a pinpoint locates in the cited source, as the citation engine names it. */

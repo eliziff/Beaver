@@ -61,7 +61,7 @@ it("keeps the number Word prints for each footnote, past an author's note drawn 
     .generateAsync({ type: "nodebuffer" });
   const state = await importStandaloneAuthoritiesFile({ filename: "Brief.docx", fileType: "docx", bytes, modified: 0 });
   const notes = state.units.filter(({ kind }) => kind === "footnote");
-  expect(notes.map(({ noteNumber }) => noteNumber)).toEqual([null, 1, 2, 3, 4]);
+  expect(notes.map(({ noteNumber }) => noteNumber)).toEqual([undefined, 1, 2, 3, 4]);
   const first = state.occurrences[notes[1].occurrenceIds[0]].authorityId;
   for (const note of notes.slice(3)) {
     const reference = state.occurrences[note.occurrenceIds[0]];

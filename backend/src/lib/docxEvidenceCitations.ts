@@ -216,7 +216,7 @@ function textPositions(units: AuthorityTextUnit[], kind: "body" | "footnote",
   // advances past the end of the unit: the ledger abstains instead of spinning.
   if (!text) return positions;
   for (const unit of units) {
-    if (unit.kind !== kind || (noteId !== undefined && unit.footnote_id !== noteId)) continue;
+    if (unit.kind !== kind || (noteId !== undefined && unit.footnoteId !== noteId)) continue;
     for (let start = unit.text.indexOf(text); start >= 0;
       start = unit.text.indexOf(text, start + text.length)) {
       positions.push({ unit, start });
@@ -263,16 +263,12 @@ export async function createDocxAuthorityLedger(state: LegalEvidenceTurnState | 
       if (!source) return undefined;
       if (index) offset += 2;
       const text = renderedSource.text, start = offset; offset += text.length;
-      const localOrdinal = localOrdinals.get(position.unit.key) ?? 0;
-      localOrdinals.set(position.unit.key, localOrdinal + 1);
-      occurrences.push({ id: `${position.unit.key}:ledger:${localOrdinal}`,
+      const localOrdinal = localOrdinals.get(position.unit.id) ?? 0;
+      localOrdinals.set(position.unit.id, localOrdinal + 1);
+      occurrences.push({ id: `${position.unit.id}:ledger:${localOrdinal}`,
         markerId: appearance.markerId, targetId: source.authorityKey,
         authorityKey: source.authorityKey,
-        unit: { id: position.unit.key, kind: position.unit.kind,
-          ordinal: position.unit.ordinal, footnoteId: position.unit.footnote_id,
-          footnoteRefs: position.unit.footnote_refs,
-          pageNumbers: position.unit.page_numbers, text: position.unit.text,
-          sourceTextSha256: sha256(position.unit.text) }, start, end: offset, text,
+        unit: { ...position.unit, sourceTextSha256: sha256(position.unit.text) }, start, end: offset, text,
         displayedForm: renderedSource.displayedForm,
         pinpoints: source.pinpoints.map(({ kind, text }) => ({ kind, text })),
         evidenceIds: source.evidenceIds, localOrdinal });
