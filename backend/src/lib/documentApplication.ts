@@ -717,12 +717,12 @@ export function createDocumentApplication(repository: DocumentRepository,
         sourceSha256: version.sourceSha256, readBytes: () => bytes });
       const sheets = new Map<string, DocumentSpreadsheet["sheets"][number]["cells"]>();
       for (const cell of structureNative().documentTableCells(document)) {
-        const values = sheets.get(cell.tableName) ?? [];
-        values.push({ address: cell.address, value: cell.displayValue,
+        const values = sheets.get(cell.tableName!) ?? [];
+        values.push({ address: cell.address!, value: cell.displayValue!,
           row: cell.row, column: cell.column,
           ...(cell.rowSpan ? { rowSpan: cell.rowSpan } : {}),
           ...(cell.columnSpan ? { columnSpan: cell.columnSpan } : {}) });
-        sheets.set(cell.tableName, values);
+        sheets.set(cell.tableName!, values);
       }
       return { version_id: version.id,
         sheets: [...sheets].map(([name, cells]) => ({ name, cells })) };

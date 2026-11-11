@@ -22,7 +22,6 @@ import type { DocumentRangeLookup } from "./DocumentRangeLookup";
 import type { DocumentTextWindow } from "./DocumentTextWindow";
 import type { DocumentViewer } from "./DocumentViewer";
 import type { DocxLintReport } from "./DocxLintReport";
-import type { Excerpt } from "./Excerpt";
 import type { FilingCover } from "./FilingCover";
 import type { FilingEntry } from "./FilingEntry";
 import type { FinalPlan } from "./FinalPlan";
@@ -64,6 +63,7 @@ import type { PropositionUnit } from "./PropositionUnit";
 import type { ProviderCitationMatch } from "./ProviderCitationMatch";
 import type { ProviderTextSourceKind } from "./ProviderTextSourceKind";
 import type { Provision } from "./Provision";
+import type { ProvisionExcerpt } from "./ProvisionExcerpt";
 import type { ProvisionLookup } from "./ProvisionLookup";
 import type { Query } from "./Query";
 import type { QuotationDiff } from "./QuotationDiff";
@@ -362,7 +362,7 @@ export interface EngineOperations {
    * One provision of a statute, from the records A2AJ's API answered a lookup of it with, as an excerpt of the
    * document `excerpt` describes; null where no record of the collection and address asked for holds its text.
    */
-  a2ajRecordProvision(records: ReadonlyArray<unknown>, lookup: ProvisionLookup, excerpt: Excerpt): Promise<NativeDocument | null>;
+  a2ajRecordProvision(records: ReadonlyArray<unknown>, lookup: ProvisionLookup, excerpt: ProvisionExcerpt): Promise<NativeDocument | null>;
   /**
    * A record A2AJ's API answered with, as a search lists it; null for one without a citation.
    */
@@ -376,7 +376,7 @@ export interface EngineOperations {
    * One provision of a statute the store holds, as an excerpt of the document `excerpt` describes, or that the store
    * lacks the provision or the statute.
    */
-  a2ajSection(store: string, lookup: Lookup, section: string, excerpt: Excerpt): Promise<Provision>;
+  a2ajSection(store: string, lookup: Lookup, section: string, excerpt: ProvisionExcerpt): Promise<Provision>;
   /**
    * Each citation's exact aliases and authored forms in the store's inventory; its own key alone where there is
    * no store.

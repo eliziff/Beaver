@@ -11,10 +11,10 @@ import { isUnitedStatesSearch } from ".";
 import type { LegalSourceProvider, LegalSourceSearchRequest, LegalSourceReference } from ".";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
 import { sourceUrl } from "../legalSourceLinks";
+import type { JournalPageLabel } from "mike/shared/engine-types/JournalPageLabel";
 
 type Row = Record<string, unknown>;
 type FinalContractPages = { filename: string; signature: string };
-type JournalPageRow = { page_label: unknown; pdf_page: unknown };
 
 export type JournalArticleSearchResult = {
   provider: "journal";
@@ -407,7 +407,7 @@ async function document(identifier: string): Promise<JournalArticleDocument | nu
               CAST(pdf_page AS INTEGER) AS pdf_page FROM article_pages
        WHERE article_id = ? ORDER BY page_order`,
     )
-    .all(articleId) as JournalPageRow[];
+    .all(articleId) as JournalPageLabel[];
   const native = await structureNative().deriveDocumentStructure({
     kind: "journal", article_id: articleId, url, page_rows: pageRows,
     ...(registered ? { filename: registered.filename } : { text: publicText }),

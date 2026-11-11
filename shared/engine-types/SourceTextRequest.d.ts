@@ -3,4 +3,4 @@
 /**
  * What text is read of a source: with `drafting`, a Word document's drafting text; at most `limit` UTF-16 units.
  */
-export type SourceTextRequest = { fileType: string, sourceSha256: string, drafting?: boolean, limit?: number, };
+export type SourceTextRequest = { fileType: string, sourceSha256: string, drafting?: boolean, limit?: number | null, };

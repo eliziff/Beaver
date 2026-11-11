@@ -90,9 +90,13 @@ thread_local! {
     static REPLY_BYTES: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Bytes as they cross to and from JavaScript: `{"$bytes": [offset, length]}` in the bytes after the JSON, which
-/// structure-engine.mjs writes for each Uint8Array a request holds and revives as its buffer in a reply.
+/// Bytes a request holds: each Uint8Array its arguments hold, which structure-engine.mjs writes as
+/// `{"$bytes": [offset, length]}` and puts after the JSON.
+#[derive(Clone)]
 pub struct Bytes(pub Vec<u8>);
+
+/// Bytes a reply holds, put after its JSON the same way, which structure-engine.mjs revives as the host's buffer.
+pub struct Buffer(pub Vec<u8>);
 
 impl std::ops::Deref for Bytes {
     type Target = [u8];
@@ -115,7 +119,7 @@ impl<'de> Deserialize<'de> for Bytes {
     }
 }
 
-impl Serialize for Bytes {
+impl Serialize for Buffer {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let start = REPLY_BYTES.with_borrow_mut(|reply| {
             reply.extend_from_slice(&self.0);
@@ -125,18 +129,24 @@ impl Serialize for Bytes {
     }
 }
 
+/// What TypeScript is told of bytes: any Uint8Array in a request, Node's buffer in a reply.
 #[cfg(feature = "binding-types")]
-impl ts_rs::TS for Bytes {
-    type WithoutGenerics = Self;
-    type OptionInnerType = Self;
-    /// Node's buffer, as structure-engine.mjs revives it there; an operation's argument takes any Uint8Array.
-    fn name(_: &ts_rs::Config) -> String {
-        "Buffer".to_owned()
-    }
-    fn inline(config: &ts_rs::Config) -> String {
-        Self::name(config)
-    }
+macro_rules! bytes_ts {
+    ($($type:ty => $name:literal),*) => {$(
+        impl ts_rs::TS for $type {
+            type WithoutGenerics = Self;
+            type OptionInnerType = Self;
+            fn name(_: &ts_rs::Config) -> String {
+                $name.to_owned()
+            }
+            fn inline(config: &ts_rs::Config) -> String {
+                Self::name(config)
+            }
+        }
+    )*};
 }
+#[cfg(feature = "binding-types")]
+bytes_ts!(Bytes => "Uint8Array", Buffer => "Buffer");
 
 impl Serialize for Handle {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -226,7 +236,7 @@ impl<T> ts_rs::TS for Untyped<T> {
 #[derive(Serialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub(crate) struct WrittenPdf {
-    bytes: Bytes,
+    bytes: Buffer,
 }
 
 #[cfg(feature = "legalpdf")]
@@ -234,7 +244,7 @@ pub(crate) struct WrittenPdf {
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RenderedPdf {
-    bytes: Bytes,
+    bytes: Buffer,
     page_count: usize,
 }
 
@@ -243,7 +253,7 @@ pub(crate) struct RenderedPdf {
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SourcePdf {
-    bytes: Bytes,
+    bytes: Buffer,
     page_count: usize,
     outline: Vec<legalpdf::compose::Outline>,
 }
@@ -253,14 +263,14 @@ pub(crate) struct SourcePdf {
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub(crate) struct RenderedBook {
     books: Vec<crate::assembly::book::BuiltBook>,
-    bytes: Bytes,
+    bytes: Buffer,
 }
 
 #[cfg(feature = "docx")]
 #[derive(Serialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub(crate) struct SupraCleanup {
-    bytes: Bytes,
+    bytes: Buffer,
     #[serde(flatten)]
     cleanup: legalpdf::DocxSupraCleanup,
 }
@@ -333,7 +343,7 @@ operations! { progress;
     #[cfg(feature = "docx")]
     off "fixDocxSupraCrossReferences" (bytes: Bytes) -> SupraCleanup {
         let mut cleanup = legalpdf::fix_docx_supra_cross_references(&bytes).map_err(|error| error.to_string())?;
-        SupraCleanup { bytes: Bytes(std::mem::take(&mut cleanup.bytes)), cleanup }
+        SupraCleanup { bytes: Buffer(std::mem::take(&mut cleanup.bytes)), cleanup }
     }
     #[cfg(feature = "docx")]
     off "docxAuthorityTextUnits" (bytes: Bytes) -> Vec<legal_structure_model::AuthorityTextUnit> {
@@ -348,27 +358,27 @@ operations! { progress;
     now "pdfWriteAnnotations" (bytes: Bytes, marks: Vec<legalpdf::AnnotationMark>, namespace: String, disarm: Option<bool>)
         -> WrittenPdf {
         let written = legalpdf::write_annotations(&bytes, &marks, &namespace, disarm.unwrap_or(true)).map_err(|error| error.to_string())?;
-        WrittenPdf { bytes: Bytes(written) }
+        WrittenPdf { bytes: Buffer(written) }
     }
     /// A source's own PDF set from its provider's text (assembly/statute.rs): a statute by its provisions, a judgment by
     /// its paragraphs.
     #[cfg(feature = "legalpdf")]
     off "renderSourcePdf" (source: crate::assembly::statute::SourceText) -> SourcePdf {
         let (bytes, page_count, outline) = crate::assembly::statute::render_source_pdf(&source)?;
-        SourcePdf { bytes: Bytes(bytes), page_count, outline }
+        SourcePdf { bytes: Buffer(bytes), page_count, outline }
     }
     /// A book of authorities' volumes from its plan and its PDFs' bytes, in the order it names them (assembly/book.rs):
     /// each volume `bytes` long in the reply's bytes.
     #[cfg(feature = "legalpdf")]
     off "renderAuthoritiesBook" (bytes: Bytes, book: crate::assembly::book::PreparedBook) -> RenderedBook {
         let (books, bytes) = crate::assembly::book::render_book(book, &bytes)?;
-        RenderedBook { books, bytes: Bytes(bytes) }
+        RenderedBook { books, bytes: Buffer(bytes) }
     }
     /// A filing PDF (its first `filing` bytes) with its table of authorities, and the PDFs appended after it.
     #[cfg(feature = "legalpdf")]
     off "renderFilingPdf" (bytes: Bytes, filing: usize, entries: Vec<crate::assembly::book::FilingEntry>) -> RenderedPdf {
         let (bytes, page_count) = crate::assembly::book::render_filing(filing, &entries, &bytes)?;
-        RenderedPdf { bytes: Bytes(bytes), page_count }
+        RenderedPdf { bytes: Buffer(bytes), page_count }
     }
     /// Each page's crop box ([x, y, width, height]), rotation, and links to web addresses ([index, uri, rect]).
     #[cfg(feature = "legalpdf")]
@@ -379,7 +389,7 @@ operations! { progress;
     #[cfg(feature = "legalpdf")]
     off "renderFinalPdf" (bytes: Bytes, plan: crate::assembly::book::FinalPlan) -> RenderedPdf {
         let (bytes, page_count) = crate::assembly::book::render_final(&plan, &bytes)?;
-        RenderedPdf { bytes: Bytes(bytes), page_count }
+        RenderedPdf { bytes: Buffer(bytes), page_count }
     }
     /// A PDF read and cached where another engine reopens it by its cache key (a page's parse workers): its summary.
     #[cfg(feature = "legalpdf")]

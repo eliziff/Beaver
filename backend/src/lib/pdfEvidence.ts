@@ -75,7 +75,7 @@ type LookupSource = {
 async function finishLookup(input: PdfLookupInput, lookup: PdfStructureLookup,
   options: LookupSource) {
   if (lookup.status !== "found") {
-    return lookup;
+    return { ...lookup, status: lookup.status };
   }
   const source: ReceiptSource = {
     document_id: options.documentId,
@@ -89,9 +89,9 @@ async function finishLookup(input: PdfLookupInput, lookup: PdfStructureLookup,
     source,
     lookup: { ...input },
     evidence: {
-      payload_sha256: lookup.payload_sha256,
+      payload_sha256: lookup.payload_sha256!,
       page_numbers: lookup.pages.map(({ page_number }) => page_number),
-      page_text_sha256: lookup.page_text_sha256,
+      page_text_sha256: lookup.page_text_sha256!,
     },
   };
   const handle = evidenceHandle(receiptIdentity);
@@ -106,6 +106,7 @@ async function finishLookup(input: PdfLookupInput, lookup: PdfStructureLookup,
 
   return {
     ...lookup,
+    status: lookup.status,
     source: { ...source, handle: `mike-source:sha256:${options.sourceSha256}`,
       schema_version: LEGAL_PDF_RESULT_SCHEMA },
     evidence: { handle, ...receipt.evidence },

@@ -53,13 +53,14 @@ impl From<legalpdf::Error> for Failure {
 }
 
 #[derive(Deserialize)]
-#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StructureRequest {
     Instrument {
         text: String,
         id: String,
         #[serde(default)]
+        #[cfg_attr(feature = "binding-types", ts(as = "Option<Vec<AuthoritativeTableCell>>", optional))]
         table_cells: Vec<AuthoritativeTableCell>,
         reconstruct_lineation: bool,
     },
@@ -73,6 +74,7 @@ pub enum StructureRequest {
         filename: Option<String>,
         text: Option<String>,
         #[serde(default)]
+        #[cfg_attr(feature = "binding-types", ts(as = "Option<Vec<JournalPageLabel>>", optional))]
         page_rows: Vec<JournalPageLabel>,
     },
 }

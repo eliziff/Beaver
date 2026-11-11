@@ -7,4 +7,4 @@ export type CitationOccurrence = { text: string, start: number, end: number, sty
 /**
  * The pinpoints as written, with the words that introduce them: "at para 105".
  */
-pinpointPhrase?: CitationTextSpan, kind: string, shortForm?: string, explicitShortForm?: string, reasons: Array<string>, };
+pinpointPhrase?: CitationTextSpan, kind: "case" | "statute" | "journal" | "book" | "parliamentary" | "other", shortForm?: string, explicitShortForm?: string, reasons: Array<string>, };

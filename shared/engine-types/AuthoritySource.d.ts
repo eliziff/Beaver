@@ -6,4 +6,4 @@ import type { SourceMapping } from "./SourceMapping";
  * A PDF unit's place in its document's source text (UTF-16): its nodes and lines, the source ranges its words come from,
  * and each run of its text that is a source line's text unchanged.
  */
-export type AuthoritySource = { documentId: string, textSha256: string, coordinateSpace: string, nodeIds: Array<string>, lineIds: Array<string>, ranges: Array<ScalarRange>, mappings: Array<SourceMapping>, };
+export type AuthoritySource = { documentId: string, textSha256: string, coordinateSpace: "source_utf16", nodeIds: Array<string>, lineIds: Array<string>, ranges: Array<ScalarRange>, mappings: Array<SourceMapping>, };

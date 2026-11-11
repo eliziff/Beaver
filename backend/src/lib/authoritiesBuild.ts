@@ -27,6 +27,7 @@ import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, entryOrder, type DocxAuthorityMark } from "./docxOperations";
 import { structureNative } from "./structureNative";
+import type { Outline } from "mike/shared/engine-types/Outline";
 import type { OutlineEntry } from "mike/shared/engine-types/OutlineEntry";
 import type { PassageTarget } from "mike/shared/engine-types/PassageTarget";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
@@ -705,8 +706,7 @@ async function prepareAuthorityBook(
       source.parts.push({ kind: "pdf", bytes: rebuilt.bytes, headings: [] });
       excerpt!.push(...Array.from({ length: rebuilt.pageCount }, (_, index) => offset + index));
       // Each rebuilt provision is bookmarked where its section opens in the rebuilt pages.
-      type Mark = { title: string; pageIndex?: number; children?: unknown[] };
-      const flat = (items: Mark[]): Mark[] => items.flatMap((item) => [item, ...flat((item.children ?? []) as Mark[])]);
+      const flat = (items: Outline[]): Outline[] => items.flatMap((item) => [item, ...flat(item.children ?? [])]);
       const sections = flat(rebuilt.outline);
       rebuiltBookmarks = missing.map(({ kind, label }) => ({ title: locatorLabel(kind, label),
         pageIndex: offset + (sections.find((item) => item.title === label.split("(")[0] ||

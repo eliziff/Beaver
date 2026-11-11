@@ -9,7 +9,7 @@ key: string,
 /**
  * "body" or "footnote".
  */
-kind: string, ordinal: number, 
+kind: "body" | "footnote", ordinal: number, 
 /**
  * A note's ordinal among the notes; none for a body unit.
  */

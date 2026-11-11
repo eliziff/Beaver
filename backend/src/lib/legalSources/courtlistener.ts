@@ -128,7 +128,7 @@ async function compactOpinion(opinion: JsonRecord, cluster: JsonRecord = {}, cit
   };
   const renditions = RENDITIONS.flatMap(([file, ...fields]) => {
     const text = firstString(opinion, ...fields);
-    return text ? [[file, text]] : [];
+    return text ? [[file, text] as [string, string]] : [];
   });
   if (!renditions.length) return compacted;
   const native = await structureNative().deriveDocumentStructure({
@@ -140,7 +140,7 @@ async function compactOpinion(opinion: JsonRecord, cluster: JsonRecord = {}, cit
       page_count: asNumber(opinion.page_count) ?? asNumber(opinion.pageCount),
       renditions,
       citations,
-      cluster: Object.entries(cluster).flatMap(([field, value]) => typeof value === "string" && value ? [[field, value]] : []),
+      cluster: Object.entries(cluster).flatMap(([field, value]) => typeof value === "string" && value ? [[field, value] as [string, string]] : []),
     },
     url: compacted.url,
   });

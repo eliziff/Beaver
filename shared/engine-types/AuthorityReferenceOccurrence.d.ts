@@ -2,4 +2,4 @@
 import type { CitationPinpoint } from "./CitationPinpoint";
 import type { CitationTextSpan } from "./CitationTextSpan";
 
-export type AuthorityReferenceOccurrence = { text: string, start: number, end: number, token: CitationTextSpan, pinpoints: Array<CitationPinpoint>, pinpointPhrase?: CitationTextSpan, kind: string, noteNumber?: number, };
+export type AuthorityReferenceOccurrence = { text: string, start: number, end: number, token: CitationTextSpan, pinpoints: Array<CitationPinpoint>, pinpointPhrase?: CitationTextSpan, kind: "ibid" | "supra", noteNumber?: number, };

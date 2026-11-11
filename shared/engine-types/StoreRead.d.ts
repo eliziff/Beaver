@@ -4,4 +4,4 @@ import type { Language } from "./Language";
 /**
  * A document of the store as the engine reads it, by its id.
  */
-export type StoreRead = { id: number, text: string, provisions: Array<[string, string]> | null, docType: string, dataset: string, citation: string, alternateCitation: string | null, name: string | null, date: string | null, url: string | null, publisherUrl: string | null, language: Language, upstreamLicense: string | null, };
+export type StoreRead = { id: number, text: string, provisions: Array<[string, string]> | null, docType: "cases" | "laws", dataset: string, citation: string, alternateCitation: string | null, name: string | null, date: string | null, url: string | null, publisherUrl: string | null, language: Language, upstreamLicense: string | null, };

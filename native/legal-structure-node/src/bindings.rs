@@ -67,8 +67,8 @@ impl Table<'_> {
     }
 
     pub fn argument<T: TS + 'static>(&mut self, name: &str) -> Result<(), ExportError> {
-        // An argument is only read: any array, and any Uint8Array for a buffer.
-        let ts = self.named::<T>()?.replace("Array<", "ReadonlyArray<").replace("Buffer", "Uint8Array");
+        // An argument is only read: any array will do.
+        let ts = self.named::<T>()?.replace("Array<", "ReadonlyArray<");
         let bytes = self.reached::<T>();
         let operation = self.operation.as_mut().expect("an argument of an operation");
         operation.arguments.push(Argument { name: crate::dispatch::camel(name), ts, optional: T::IS_OPTION, bytes });

@@ -5,4 +5,4 @@ import type { NativeMarkupInput } from "./NativeMarkupInput";
 import type { OpinionRecord } from "./OpinionRecord";
 import type { ProviderTextInput } from "./ProviderTextInput";
 
-export type StructureRequest = { "kind": "instrument", text: string, id: string, table_cells: Array<AuthoritativeTableCell>, reconstruct_lineation: boolean, } | { "kind": "provider_text", input: ProviderTextInput, } | { "kind": "native_markup", input: NativeMarkupInput, } | { "kind": "opinion", record: OpinionRecord, url: string | null, } | { "kind": "journal", article_id: number, url: string | null, filename: string | null, text: string | null, page_rows: Array<JournalPageLabel>, };
+export type StructureRequest = { "kind": "instrument", text: string, id: string, table_cells?: Array<AuthoritativeTableCell>, reconstruct_lineation: boolean, } | { "kind": "provider_text", input: ProviderTextInput, } | { "kind": "native_markup", input: NativeMarkupInput, } | { "kind": "opinion", record: OpinionRecord, url?: string | null, } | { "kind": "journal", article_id: number, url?: string | null, filename?: string | null, text?: string | null, page_rows?: Array<JournalPageLabel>, };

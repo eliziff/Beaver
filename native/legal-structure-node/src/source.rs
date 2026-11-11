@@ -48,7 +48,7 @@ pub struct TextRequest {
     #[serde(default)]
     #[cfg_attr(feature = "binding-types", ts(as = "Option<bool>", optional))]
     drafting: bool,
-    #[cfg_attr(feature = "binding-types", ts(optional))]
+    #[cfg_attr(feature = "binding-types", ts(optional = nullable))]
     limit: Option<u32>,
 }
 
