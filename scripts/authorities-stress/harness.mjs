@@ -212,6 +212,7 @@ export async function openApp(record, { browser, html, serve, mode = "file", net
   // Leptonica and Tesseract's layout analysis, inside the bundled OCR engine, print their own
   // diagnostics to the console as errors.
   page.on("console", async (message) => {
+    if (/\[probe\]|\[authorities\]/u.test(message.text())) console.log("  CONSOLE", JSON.stringify(await Promise.all(message.args().map(a => a.jsonValue().catch(() => "?")))).slice(0, 800));
     if (message.type() !== "error" || /^Error in (?:pix|bmf)\w+:|^Detected \d+ diacritics$/u.test(message.text())) return;
     errors.push(message.text());
     for (const argument of message.args()) {

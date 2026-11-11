@@ -12,6 +12,10 @@ export type PassageTarget = { id: string, physicalPages?: Array<number>, locator
  */
 instrument?: string, 
 /**
+ * An item of the paragraph's list the locator names ("b" of "para 12, item (b)").
+ */
+item?: string, 
+/**
  * The quotations to place in the passage: each whole, or the part of its text a selection names.
  */
 exactQuotes?: Array<string>, quoteSelections?: Array<QuoteSelection>, };
