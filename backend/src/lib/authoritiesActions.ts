@@ -134,11 +134,11 @@ export function caseNameMismatch(authority: AuthorityIdentity,
   const parties = source.searchText ? captionParties(source.searchText()) : [];
   // A caption whose parties give no distinctive name (the Crown alone) tells nothing.
   const caption = parties.length ? agreement(parties.join("\n")) : null;
-  return caption?.agrees && caption.other.length ? null : {
-    id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, source.citation, source.name]),
-    citation: source.citation, name: source.name, named: null,
-  };
+  return caption?.agrees && caption.other.length ? null : otherCase(authority, source.citation, source.name);
 }
+/** The other case an authority's citation or PDF names, as a decision to make. */
+const otherCase = (authority: AuthorityIdentity, citation: string, name: string): AuthorityCitedCase =>
+  ({ id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, citation, name]), citation, name, named: null });
 
 /** The case still without a PDF that a PDF found in the watched folder is, when exactly one: by
  *  the citation its native opening prints, else by exact agreement
@@ -192,8 +192,8 @@ export async function authorityPdfCaption(draft: AuthoritiesDraft, authorityId: 
   const name = other ? null : captionStyleOfCause(pages[0] ?? "", native.a2ajAliasGroups(a2ajStorePath(),
     native.citationLookupKeys(authorityCitationForms(draft, authorityId))).flatMap(({ keys }) => keys));
   if (!other && !name) return draft;
-  const mismatch = other ? { id: canonicalJsonSha256(["beaver.authorities-cited-case.v1", authority.id, other.citation, other.name]),
-    ...other, named: null } : caseNameMismatch(authority, { citation: authority.citation, name, searchText: () => pages.join("\n") });
+  const mismatch = other ? otherCase(authority, other.citation, other.name)
+    : caseNameMismatch(authority, { citation: authority.citation, name, searchText: () => pages.join("\n") });
   const checked = mismatch || authority.citedCase
     ? updateAuthoritiesDraft(draft, { type: "set-cited-case", authorityId, citedCase: mismatch }) : draft;
   return name && !authority.name && !authority.displayName
@@ -255,12 +255,14 @@ const textAuthority = (citation: string): AuthorityIdentity => ({
   displayName: null, excluded: false, evidenceIds: [], locators: [], sourceIdentity: null,
   source: { kind: "unresolved" }, scanOnly: true,
 });
+/** The name a citation's style of cause gives it, where the brief styles it as a name. */
+const styledName = (match: CitationOccurrence) =>
+  match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null;
 const parsedAuthority = (match: CitationOccurrence, key: string): AuthorityIdentity => ({
   id: key, key, kind: parsedKind(match), citation: match.coreCitation.text,
   ...(["database", "docket"].includes(match.format ?? "")
     ? { citationFormat: match.format as "database" | "docket" } : {}),
-  name: match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null,
-  displayName: null, excluded: false, evidenceIds: [], locators: [],
+  name: styledName(match), displayName: null, excluded: false, evidenceIds: [], locators: [],
   sourceIdentity: null,
   source: { kind: "unresolved" }, scanOnly: true,
 });
@@ -314,8 +316,7 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
   };
   const discovered = match && key && !authority ? parsedAuthority(match, key) : null;
   if (discovered) occurrence.authorityId = discovered.id;
-  return { occurrence, discovered, parsedName: match?.reasons.includes("same_text_style")
-    ? match.shortForm?.trim() || null : null };
+  return { occurrence, discovered, parsedName: match && styledName(match) };
 }
 
 type ResolvedCitation = { form: string; span: { start: number; end: number }; antecedent?: number; key?: string };
@@ -363,6 +364,14 @@ function selectedRange(draft: AuthoritiesDraft, occurrenceId: string, start: num
   const unit = occurrence && draft.units.find(({ id }) => id === occurrence.unitId);
   if (!occurrence || !unit) throw new ApplicationError(400, "Select text inside this citation unit");
   return { occurrence, unit, ...trimmedRange(unit, start, end) };
+}
+
+/** A citation on the review list and the unit it is in. */
+function reviewItem(draft: AuthoritiesDraft, occurrenceId: string) {
+  const occurrence = draft.occurrences[occurrenceId];
+  const unit = occurrence && draft.units.find(({ id }) => id === occurrence.unitId);
+  if (!occurrence || !unit) throw new ApplicationError(400, "Citation review item not found");
+  return { occurrence, unit };
 }
 
 const intersects = (start: number, end: number, span: { start: number; end: number }) =>
@@ -456,8 +465,7 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
     const discovered = known ?? parsedAuthority(match, key);
     if (!known) changed = updateAuthoritiesDraft(draft,
       { type: "add-authority", authority: discovered });
-    const selectedName = match.reasons.includes("same_text_style")
-      ? match.shortForm?.trim() : "";
+    const selectedName = styledName(match);
     if (known && selectedName && !known.name && !known.displayName) changed = updateAuthoritiesDraft(changed,
       { type: "rename-authority", authorityId: known.id, displayName: selectedName });
     Object.assign(occurrence, nativeOccurrenceSpans(match, selected.unit.text, selected.start), {
@@ -526,9 +534,7 @@ function placePinpoints(draft: AuthoritiesDraft, current: AuthorityOccurrence,
  *  citation's keeps its value, and a new one takes the value and kind written there. A kind given
  *  replaces the one found. */
 function setPinpoints(draft: AuthoritiesDraft, action: Extract<AuthoritiesUserAction, { type: "set-pinpoints" }>) {
-  const current = draft.occurrences[action.occurrenceId];
-  const unit = current && draft.units.find(({ id }) => id === current.unitId);
-  if (!current || !unit) throw new ApplicationError(400, "Citation review item not found");
+  const { occurrence: current, unit } = reviewItem(draft, action.occurrenceId);
   const pinpoints = action.pinpoints.flatMap(({ start, end, kind }) => {
     if (start < 0 || end > unit.text.length || end <= start)
       throw new ApplicationError(400, "Select the pinpoint in this citation's paragraph or footnote");
@@ -568,12 +574,7 @@ function setCitationRange(draft: AuthoritiesDraft,
         replacements.push(manualOccurrence(draft, selected.unit, start, end, [donor], sources));
     }
   }
-  let changed = draft;
-  for (const { discovered } of replacements) {
-    if (discovered && !changed.authorities[discovered.id]) changed = updateAuthoritiesDraft(changed,
-      { type: "add-authority", authority: discovered });
-  }
-  changed = updateAuthoritiesDraft(changed, { type: "replace-occurrences",
+  const changed = updateAuthoritiesDraft(withDiscovered(draft, replacements), { type: "replace-occurrences",
     occurrenceIds: donors.map(({ id }) => id), replacements: replacements.map(({ occurrence }) => occurrence) });
   const editor = editAuthoritiesDraft(changed);
   for (const { occurrence, parsedName } of replacements) {
@@ -586,12 +587,18 @@ function setCitationRange(draft: AuthoritiesDraft,
   return removeUnusedDetections(editor.result(), donors, replacement.occurrence.authorityId);
 }
 
+/** The draft with the authorities its replacement citations found listed. */
+function withDiscovered(draft: AuthoritiesDraft, replacements: ReturnType<typeof manualOccurrence>[]) {
+  let changed = draft;
+  for (const { discovered } of replacements) if (discovered && !changed.authorities[discovered.id])
+    changed = updateAuthoritiesDraft(changed, { type: "add-authority", authority: discovered });
+  return changed;
+}
+
 /** The counterpart of set-pinpoint-span: a pinpoint that belongs to another citation. The
  *  citation keeps its range. */
 function clearPinpoint(draft: AuthoritiesDraft, occurrenceId: string) {
-  const current = draft.occurrences[occurrenceId];
-  const unit = current && draft.units.find(({ id }) => id === current.unitId);
-  if (!current || !unit) throw new ApplicationError(400, "Citation review item not found");
+  const { occurrence: current, unit } = reviewItem(draft, occurrenceId);
   if (!current.pinpointSpan && !current.pinpoints.length) throw new ApplicationError(400, "This citation has no pinpoint");
   return placePinpoints(draft, current, unit, []);
 }
@@ -660,10 +667,8 @@ function detectedSpan(text: string, start: number, end: number, sources: Citatio
 function editOccurrences(draft: AuthoritiesDraft,
   action: Extract<AuthoritiesUserAction,
     { type: "split-occurrence" | "merge-occurrence" }>, sources: CitationServices) {
-  const occurrence = draft.occurrences[action.occurrenceId];
   // Body sentences hold several citations as often as footnotes do: same rules, either unit.
-  const unit = occurrence && draft.units.find(({ id }) => id === occurrence.unitId);
-  if (!occurrence || !unit) throw new ApplicationError(400, "Citation review item not found");
+  const { occurrence, unit } = reviewItem(draft, action.occurrenceId);
   let replacements: ReturnType<typeof manualOccurrence>[], ids: [string, string];
   if (action.type === "split-occurrence") {
     if (!Number.isSafeInteger(action.cursor) || action.cursor <= occurrence.start ||
@@ -687,11 +692,7 @@ function editOccurrences(draft: AuthoritiesDraft,
       [previous, occurrence], sources)];
     ids = [previous.id, occurrence.id];
   }
-  let changed = draft;
-  for (const { discovered } of replacements) {
-    if (discovered && !changed.authorities[discovered.id]) changed = updateAuthoritiesDraft(changed,
-      { type: "add-authority", authority: discovered });
-  }
+  const changed = withDiscovered(draft, replacements);
   return action.type === "split-occurrence"
     ? updateAuthoritiesDraft(changed, { type: "split-occurrence", occurrenceId: action.occurrenceId,
       replacements: [replacements[0].occurrence, replacements[1].occurrence] })
@@ -733,8 +734,7 @@ export function applyAuthoritiesUserAction(
   if (action.type === "set-pinpoints") return setPinpoints(draft, action);
   if (action.type === "add-occurrence") return addOccurrence(draft, action, sources);
   if (action.type === "remove-occurrence") {
-    const occurrence = draft.occurrences[action.occurrenceId];
-    if (!occurrence) throw new ApplicationError(400, "Citation review item not found");
+    const { occurrence } = reviewItem(draft, action.occurrenceId);
     return removeUnusedDetections(updateAuthoritiesDraft(draft, action), [occurrence], null);
   }
   return action.type === "split-occurrence" || action.type === "merge-occurrence"
