@@ -21,7 +21,6 @@
     },
     "dependencies": {
         "@modelcontextprotocol/ext-apps": "^1.7.5",
-        "@pdf-lib/fontkit": "^1.1.1",
         "@tiptap/core": "3.31.4",
         "@tiptap/extension-link": "3.31.4",
         "@tiptap/extension-table": "3.31.4",

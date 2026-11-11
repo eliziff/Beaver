@@ -42,7 +42,7 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(selected["frontend"])
         self.assertTrue(selected["application"])
         self.assertFalse(selected["authorities"])
-        for path in ("shared/contracts/pdfAssembly.mts", "AuthoritiesHelper", "legal-pdf-parser"):
+        for path in ("AuthoritiesHelper", "legal-pdf-parser"):
             self.assertTrue(ci.scope([path])["authorities"])
         self.assertFalse(ci.scope(["shared/contracts/assistantWire.mts"])["authorities"])
         self.assertTrue(ci.scope(["shared/pdf/viewer.ts"])["authorities"])

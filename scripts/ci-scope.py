@@ -26,7 +26,6 @@ AUTHORITIES_PATHS = (
     'native/legal-structure-node/**',
     'legal-structure',
     '.github/workflows/authorities-parity.yml',
-    'shared/contracts/pdfAssembly.mts',
     'shared/contracts/canliiPageUrls.mts',
     'shared/contracts/canliiLawUrls.mts',
     'shared/contracts/researchContract.mts',

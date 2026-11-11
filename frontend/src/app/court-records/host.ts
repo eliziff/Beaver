@@ -34,7 +34,7 @@ export type PreparationContext = { workProductId?: string; destination?: Documen
 
 export type PreparedFile = Pick<RecordEntry,
   "file" | "pdfRendition" | "pageCount" | "searchable" | "encrypted" | "textlessPageCount" |
-  "textlessPages" | "sourceBookmarks" | "pageLabels" | "ocrTextByPage" | "ocrAttemptedPages" | "origin" | "binding" | "inspectionError" |
+  "textlessPages" | "pageLabels" | "ocrTextByPage" | "ocrAttemptedPages" | "origin" | "binding" | "inspectionError" |
   "sourceFields">;
 
 export type SelectedFile = { file: File; input?: WorkProductInput };

@@ -10,6 +10,7 @@ export const OPERATIONS = {
   pdfWriteAnnotations: { args: ["bytes", "marks", "namespace", "disarm"], mode: "now", bytes: true },
   renderSourcePdf: { args: ["source"], mode: "off" },
   renderAuthoritiesBook: { args: ["book"], mode: "off", bytes: true },
+  renderCourtRecord: { args: ["record"], mode: "off", bytes: true },
   renderFilingPdf: { args: ["filing", "entries"], mode: "off", bytes: true },
   pdfPages: { args: ["bytes"], mode: "off", bytes: true },
   renderFinalPdf: { args: ["bytes", "plan"], mode: "off", bytes: true },

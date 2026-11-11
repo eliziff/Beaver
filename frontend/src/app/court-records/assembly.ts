@@ -1,82 +1,21 @@
-import { pdfAssembly, type PdfAssemblyInput, type PdfOutline as Outline } from "mike/shared/runtime/pdfAssembly.mjs";
-import * as pdf from "pdf-lib";
-import {
-  PDFDocument,
-  PDFHexString,
-  PDFName,
-  StandardFonts,
-  rgb,
-  type PDFFont,
-  type PDFPage,
-} from "pdf-lib";
-import { drawCourtCover, drawCourtExhibitCertificate, drawFederalForm344 } from "./courtForms";
+import { apiRequest } from "@/app/lib/api/client";
 import { acceptedSourceFormats, DOCX_MIME, needsPdfRendition, sourceFormat } from "./formats";
-import { indexChunks, indexPageCount } from "./layout";
 import { outputFilename, sortedEntries, validateCourtRecord } from "./validation";
 import { courtProfileForCover } from "./profiles";
-import { exhibitName, hasMatchingExhibitCertificate } from "./types";
-import type {
-  BuildArtifact,
-  BuildResult,
-  CourtProfile,
-  CourtRecordReceipt,
-  CoverValues,
-  RecordEntry,
-  SourceBookmark,
-} from "./types";
+import { ap5BookTitle, ap5PartyGroups, ap5PartyLabel, captionPartyGroups, contactGroups, coverPartyGroups, exhibitName,
+  filingPartyNames, groupNames, hasMatchingExhibitCertificate, partyNames } from "./types";
+import type { BuildArtifact, BuildResult, CasePartyGroup, CourtProfile, CourtRecordReceipt, CoverValues,
+  RecordEntry } from "./types";
+import type { CourtCover } from "../../../../shared/engine-types/CourtCover";
+import type { CourtItem } from "../../../../shared/engine-types/CourtItem";
+import type { CourtRecord } from "../../../../shared/engine-types/CourtRecord";
+import type { FederalHeading } from "../../../../shared/engine-types/FederalHeading";
 import { canonicalJson } from "../../../../shared/canonical-json.mjs";
-import {
-  courtPdfText as latin,
-  courtPdfTextWidth,
-  wrapCourtPdfText as wrap,
-  drawCourtPdfText,
-  registerCourtPdfFonts,
-} from "./pdfText";
-
-const engine = pdfAssembly(pdf);
-const COURT_FONTS = { regular: StandardFonts.TimesRoman, bold: StandardFonts.TimesRomanBold,
-  sans: StandardFonts.Helvetica, sansBold: StandardFonts.HelveticaBold };
-
-const LETTER: [number, number] = [612, 792];
-const GENERATED_OVERHEAD_BYTES = 160_000;
 
 type Progress = (message: string, completed: number, total: number) => void;
-
-type AssemblyItem = {
-  id: string;
-  tab: number;
-  kindId: string;
-  title: string;
-  baseTitle?: string;
-  group?: string;
-  date?: string;
-  pageCount: number;
-  bytes: number;
-  entry?: RecordEntry;
-  sourcePageStart?: number;
-  sourcePageEnd?: number;
-  generated?: "federal-form-344-certificate" | "exhibit-certificate";
-  exhibitLabel?: string;
-  descriptionOnly?: boolean;
-  indexLines?: string[];
-  indexChildren?: Array<{ id: string; title: string; pageOffset: number; lines: string[] }>;
-  indexParentId?: string;
-  indexPageOffset?: number;
-  descriptionLines?: string[];
-};
-
-type IndexTarget = {
-  page: PDFPage;
-  rect: [number, number, number, number];
-  targetPageIndex: number;
-};
-
-type VolumePlan = {
-  items: AssemblyItem[];
-  startNumber: number;
-  number: number;
-  count: number;
-};
+/** A record as the engine lays it out (assembly/court.rs), its sources and fonts as the files they are. */
+type RecordPlan = Omit<CourtRecord, "items" | "fonts"> & {
+  items: Array<Omit<CourtItem, "bytes"> & { bytes?: Blob | null }>; fonts: Blob[] | null };
 
 export type BuildCourtRecordInput = {
   profile: CourtProfile;
@@ -126,38 +65,6 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
   }
   const separateEntries = entries.filter((entry) => allowedKinds.get(entry.kindId)?.separateFile);
   const recordEntries = entries.filter((entry) => !allowedKinds.get(entry.kindId)?.separateFile);
-  const uploadItems = recordEntries.map<AssemblyItem>((entry) => {
-    const kind = allowedKinds.get(entry.kindId);
-    return {
-      id: entry.id,
-      tab: 0,
-      kindId: entry.kindId,
-      title: entry.title.trim() || kind!.label,
-      baseTitle: entry.title.trim() || kind!.label,
-      group: kind!.group,
-      date: entry.date,
-      pageCount: entry.descriptionOnly ? (kind!.renderDescriptionPage ? 1 : 0) : entry.pageCount ?? 0,
-      bytes: entry.descriptionOnly ? 0 : (entry.pdfRendition ?? entry.file).size,
-      entry: entry.descriptionOnly ? undefined : entry,
-      descriptionOnly: entry.descriptionOnly,
-    };
-  });
-  const generated = profile.documentKinds.flatMap<AssemblyItem>((kind) =>
-    kind.generated && !entries.some((entry) => entry.kindId === kind.id) ? [{
-    id: `generated:${kind.id}`,
-    tab: 0,
-    kindId: kind.id,
-    title: kind.label,
-    group: kind.group,
-    pageCount: 1,
-    bytes: 0,
-    generated: kind.generated,
-  }] : []);
-  const order = new Map(profile.documentKinds.map((kind) => [kind.id, kind.order]));
-  const items = [...uploadItems, ...generated].sort((left, right) =>
-    (order.get(left.kindId) ?? Number.MAX_SAFE_INTEGER) -
-    (order.get(right.kindId) ?? Number.MAX_SAFE_INTEGER))
-    .map((item, index) => ({ ...item, tab: index + 1 }));
 
   const sourceReceipts = await Promise.all(entries.filter((entry) => !entry.descriptionOnly).map(async (entry, order) => ({
     order,
@@ -178,9 +85,9 @@ export async function buildCourtRecord(input: BuildCourtRecordInput): Promise<Bu
   if (profile.outputMode === "separate-files") {
     outputArtifacts = await buildSeparateFiles(profile, entries, cover, input.onProgress);
   } else {
-    const records = profile.outputMode === "affidavit-with-exhibits"
-      ? [await buildAffidavit(profile, recordEntries, cover, input.onProgress)]
-      : await buildMeasuredVolumes(profile, items, cover, input.onProgress);
+    input.onProgress?.("Building the record", 0, 1);
+    const records = await render(profile, profile.outputMode === "affidavit-with-exhibits"
+      ? affidavit(profile, recordEntries, cover) : record(profile, recordEntries, cover));
     volumeCount = records.length;
     const separate = await buildSeparateFiles(profile, separateEntries, cover, input.onProgress);
     outputArtifacts = [
@@ -257,54 +164,26 @@ async function buildSeparateFiles(
       ? entry.file.name : patterned.replace(/\.[^.]+$/u, `.${format}`), filenames);
     const attachments = entries.filter((candidate) =>
       kinds.get(candidate.kindId)?.appendTo === entry.kindId);
-    if (attachments.length) {
-      if (format !== "pdf") throw new Error(`${entry.file.name} must be converted to PDF before attaching related filing material.`);
-      artifacts.push(await buildAttachedPdf(profile, entry, attachments, filename));
-      continue;
-    }
-    const raw = await fileBytes(input);
     if (format === "docx") {
-      artifacts.push(await fileArtifact(filename, DOCX_MIME, raw));
-      continue;
-    }
-    if (!entry.ocrTextByPage?.some((text) => text?.trim())) {
-      artifacts.push(await pdfArtifact(filename, raw, entry.pageCount ?? 0));
+      if (attachments.length) throw new Error(`${entry.file.name} must be converted to PDF before attaching related filing material.`);
+      artifacts.push(await fileArtifact(filename, DOCX_MIME, await fileBytes(input)));
+    } else if (!attachments.length && !entry.ocrTextByPage?.some((text) => text?.trim())) {
+      artifacts.push(await pdfArtifact(filename, await fileBytes(input), entry.pageCount ?? 0));
     } else {
-      const result = await engine.assemble({ document: await PDFDocument.load(raw),
-        fonts: { regular: StandardFonts.Helvetica }, parts: [],
-        before: ({ document, fonts }) => document.getPages().forEach((page, pageIndex) =>
-          engine.applyOcrText(page, fonts.regular, entry.ocrTextByPage?.[pageIndex])) });
-      artifacts.push(await pdfArtifact(filename, result.bytes, result.pageCount));
+      // Related filing material follows in the same bookmarked PDF; recognized text goes under its pages.
+      const sources = [entry, ...attachments];
+      artifacts.push(...await render(profile, { layout: "pdf", filename,
+        title: attachments.length ? `${profile.label} — ${entry.title}` : entry.title,
+        items: sources.map((source) => {
+          const pdf = filingInput(profile, source);
+          if (!pdf || sourceFormat(pdf) !== "pdf") throw new Error(`${source.file.name} must be prepared as a PDF before it can be attached.`);
+          return item(source, !attachments.length ? "" : source === entry ? source.title
+            : kinds.get(source.kindId)?.label ?? source.title, pdf);
+        }) }));
     }
   }
   return artifacts.map((artifact, index) => ({ ...artifact,
     role: entryOutputRole(filingEntries[index], index) }));
-}
-
-async function buildAttachedPdf(
-  profile: CourtProfile,
-  entry: RecordEntry,
-  attachments: RecordEntry[],
-  filename: string,
-) {
-  const sources = [entry, ...attachments];
-  const result = await engine.assemble({ fonts: { regular: StandardFonts.Helvetica },
-    parts: await Promise.all(sources.map(async (sourceEntry) => {
-      const input = filingInput(profile, sourceEntry);
-      if (!input || sourceFormat(input) !== "pdf") throw new Error(
-        `${sourceEntry.file.name} must be prepared as a PDF before it can be attached.`);
-      return { id: sourceEntry.id, source: await fileBytes(input),
-        ocrFont: "regular" as const, ocrTextByPage: sourceEntry.ocrTextByPage };
-    })),
-    outlines: ({ starts }) => sources.map((sourceEntry) => ({
-      title: sourceEntry === entry ? sourceEntry.title
-        : profile.documentKinds.find(({ id }) => id === sourceEntry.kindId)?.label ?? sourceEntry.title,
-      pageIndex: starts.get(sourceEntry.id)!,
-      children: sourceOutlines(sourceEntry.sourceBookmarks, starts.get(sourceEntry.id)!) })),
-    openBookmarks: profile.technical.bookmarksPanelOpen,
-    after: ({ document }) => setMetadata(document, `${profile.label} — ${entry.title}`),
-  });
-  return pdfArtifact(filename, result.bytes, result.pageCount);
 }
 
 function filingInput(profile: CourtProfile, entry: RecordEntry) {
@@ -312,245 +191,127 @@ function filingInput(profile: CourtProfile, entry: RecordEntry) {
     ? entry.pdfRendition : entry.file;
 }
 
-async function buildAffidavit(
-  profile: CourtProfile,
-  entries: RecordEntry[],
-  cover: CoverValues,
-  progress?: Progress,
-) {
-  const outlines: Outline[] = [];
-  const result = await engine.assemble({ fonts: COURT_FONTS,
-    before: ({ document, fonts }) => registerCourtPdfFonts(document, Object.values(fonts),
-      { profile, deponent: cover.deponent, swornDate: cover.swornDate,
-        exhibitLabels: entries.map(({ exhibitLabel }) => exhibitLabel) }, profile.jurisdiction !== "ca"),
-    parts: await Promise.all(entries.map(async (entry, entryIndex) => ({
-      id: entry.id, source: await fileBytes(entry.pdfRendition ?? entry.file),
-      ocrFont: "regular" as const, ocrTextByPage: entry.ocrTextByPage,
-      draw: ({ document, fonts: { regular, bold } }) => {
-        progress?.(`Adding ${entry.title}`, entryIndex, entries.length);
-        const label = entry.exhibitLabel?.trim() || exhibitName(entries.slice(0, entryIndex)
-          .filter((item) => item.kindId === "exhibit").length);
-        if (entry.kindId === "exhibit" && profile.exhibitCertificate && !hasMatchingExhibitCertificate(entry)) {
-          outlines.push({ title: `Exhibit ${label} certificate`, pageIndex: document.getPageCount() });
-          drawCourtExhibitCertificate(document.addPage(LETTER), regular, bold, profile, cover, label);
-        }
-        const pageIndex = document.getPageCount();
-        outlines.push({ title: entry.kindId === "exhibit" ? `Exhibit ${label} — ${entry.title}` : entry.title,
-          pageIndex, children: sourceOutlines(entry.sourceBookmarks, pageIndex) });
-      },
-    }))),
-    pageNumbers: pageNumbers(profile, 1), pageLabels: 1, outlines: () => outlines,
-    openBookmarks: profile.technical.bookmarksPanelOpen,
-    after: ({ document }) => setMetadata(document, profile.label),
-  });
-  return pdfArtifact(outputFilename(profile, cover), result.bytes, result.pageCount);
+const item = (entry: RecordEntry | undefined, title: string, bytes = entry && (entry.pdfRendition ?? entry.file)) => ({
+  title, tab: 0, bytes, ocrTextByPage: entry?.ocrTextByPage ?? [], output: entry?.binding?.kind === "work-product-output",
+  described: false, form344: false });
+
+const BLANK = "____________________________";
+
+/** An affidavit and its exhibits, each exhibit behind its certificate where it carries none of its own. */
+function affidavit(profile: CourtProfile, entries: RecordEntry[], cover: CoverValues): Omit<RecordPlan, "technical" | "colour" | "fonts"> {
+  return { layout: "affidavit", filename: outputFilename(profile, cover), title: profile.label,
+    certificate: { deponent: cover.deponent || BLANK, date: cover.swornDate || BLANK, alberta: profile.jurisdiction === "ab" },
+    items: entries.map((entry, index) => {
+      if (entry.kindId !== "exhibit") return item(entry, entry.title);
+      const label = entry.exhibitLabel?.trim() || exhibitName(entries.slice(0, index).filter(({ kindId }) => kindId === "exhibit").length);
+      return { ...item(entry, `Exhibit ${label} — ${entry.title}`),
+        certificate: profile.exhibitCertificate && !hasMatchingExhibitCertificate(entry) ? label : null };
+    }) };
 }
 
-async function buildMeasuredVolumes(
-  profile: CourtProfile,
-  items: AssemblyItem[],
-  cover: CoverValues,
-  progress?: Progress,
-) {
-  items = await measureIndexItems(profile, items);
-  const plans = planVolumes(profile, items);
-  const built = await engine.volumes(plans, async (plans) => {
-    const global = numberVolumePlans(profile, plans);
-    return Promise.all(plans.map((plan) => {
-      progress?.(plan.count > 1 ? `Building volume ${plan.number} of ${plan.count}` : "Building the record",
-        plan.number - 1, plan.count);
-      return combinedVolume(profile, plan, cover, global);
+/** A record with its cover and index, its documents in the court's order behind their tabs. */
+function record(profile: CourtProfile, entries: RecordEntry[], cover: CoverValues): Omit<RecordPlan, "technical" | "colour" | "fonts"> {
+  const kinds = new Map(profile.documentKinds.map((kind) => [kind.id, kind]));
+  const order = (kindId: string) => kinds.get(kindId)?.order ?? Number.MAX_SAFE_INTEGER;
+  const documents = [...entries, ...profile.documentKinds.filter((kind) => kind.generated &&
+    !entries.some((entry) => entry.kindId === kind.id)).map((kind) => ({ kindId: kind.id, title: kind.label }))]
+    .sort((left, right) => order(left.kindId) - order(right.kindId));
+  return { layout: "record", filename: outputFilename(profile, cover), title: profile.label,
+    cover: profile.cover.generated ? courtCover(profile, cover) : null,
+    form344: { heading: federalHeading(profile, cover), name: cover.counselName || filingPartyNames(profile, cover) || BLANK,
+      contact: [cover.counselName, cover.counselAddress, cover.counselPhone && `Telephone: ${cover.counselPhone}`,
+        cover.counselFax && `Fax: ${cover.counselFax}`].filter((value): value is string => !!value) },
+    items: documents.map((document, index) => {
+      const kind = kinds.get(document.kindId)!, entry = "file" in document && !document.descriptionOnly ? document : undefined;
+      return { ...item(entry, document.title.trim() || kind.label), tab: index + 1, group: kind.group, date: "date" in document ? document.date : null,
+        described: "descriptionOnly" in document && !!document.descriptionOnly && !!kind.renderDescriptionPage,
+        form344: kind.generated === "federal-form-344-certificate" };
+    }) };
+}
+
+const coverGroup = (group: CasePartyGroup) => ({ names: partyNames(group) || BLANK, role: group.role });
+
+function federalHeading(profile: CourtProfile, cover: CoverValues): FederalHeading {
+  return { number: cover.courtFileNumber || "________________",
+    court: profile.courtAbbreviation === "FCA" ? "FEDERAL COURT OF APPEAL" : "FEDERAL COURT",
+    groups: captionPartyGroups(profile, cover).map(coverGroup),
+    under: (cover.partyStyleId ?? profile.cover.partyStyles?.[0]?.id) === "application" ? cover.applicationUnder : null };
+}
+
+function courtCover(profile: CourtProfile, cover: CoverValues): CourtCover {
+  const [filing, others] = contactGroups(profile, cover);
+  const lines = (...values: Array<string | undefined>) => values.map((value) => value ?? "");
+  if (profile.cover.template === "federal-record") {
+    const column = (strong: string, ...values: Array<string | undefined>) =>
+      [[strong, true], ...lines(...values).map((value) => [value, false])] as Array<[string, boolean]>;
+    const tagged = (prefix: string, value?: string) => value && `${prefix}: ${value}`;
+    return { template: "federal-record", heading: federalHeading(profile, cover),
+      title: cover.recordTitle || profile.cover.title,
+      subtitles: [cover.recordSubtitle, tagged("Hearing date", cover.hearingDate)].filter((value): value is string => !!value),
+      contacts: [column(groupNames(filing), filing?.role, cover.counselName, cover.counselAddress, tagged("Tel", cover.counselPhone),
+        tagged("Fax", cover.counselFax), tagged("Email", cover.counselEmail)),
+      column(groupNames(...others), others.map((group) => group.role).join(" / "), cover.otherCounselName, cover.otherCounselAddress,
+        tagged("Tel", cover.otherCounselPhone), tagged("Fax", cover.otherCounselFax), tagged("Email", cover.otherCounselEmail))] };
+  }
+  if (profile.cover.template === "abca-ap5") {
+    const parties = others.flatMap((group) => group.parties).filter(({ name }) => name.trim());
+    return { template: "abca-ap5",
+      rows: [["COURT OF APPEAL FILE NUMBER:", cover.courtFileNumber], ["TRIAL COURT FILE NUMBER:", cover.lowerCourtFileNumber],
+        ["REGISTRY OFFICE:", cover.registry], ...ap5PartyGroups(profile, cover).flatMap((group) =>
+          [[ap5PartyLabel(group), partyNames(group)], ["STATUS ON APPEAL:", group.role]]), ["DOCUMENT:", profile.cover.title]]
+        .map(([label, value]): [string, string] => [label ?? "", value ?? ""]),
+      rule: `[${profile.cover.ruleReference ?? "Rule 14.87"}]`,
+      decision: ["Appeal from the Decision of", cover.decisionMaker || BLANK,
+        cover.decisionDate ? `Dated ${legalDate(cover.decisionDate)}` : "Dated ____________________________",
+        cover.decisionFileDate ? `Filed ${legalDate(cover.decisionFileDate)}` : "Filed _____________________________"],
+      title: ap5BookTitle(profile, cover),
+      filing: lines(`Lawyer for ${groupNames(filing) || "________________"}`, cover.counselName, cover.counselAddress,
+        cover.counselPhone, cover.counselFax, cover.counselEmail),
+      others: parties.length ? parties.map(({ name, contact }) => lines(`Lawyer for ${name}`, contact?.name, contact?.address,
+        contact?.phone, contact?.fax, contact?.email)) : [["Lawyer for ________________"]] };
+  }
+  return { template: "generic", court: cover.courtName || profile.court, groups: coverPartyGroups(profile, cover).map(coverGroup),
+    title: cover.recordTitle || profile.cover.title, number: cover.courtFileNumber || "", filer: filingPartyNames(profile, cover) };
+}
+
+function legalDate(value: string) {
+  const prose = value.trim().match(/^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/u);
+  const iso = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+  if (!prose && !iso) return value;
+  const day = Number(prose?.[2] ?? iso?.[3]);
+  const month = prose?.[1] ?? ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"][Number(iso?.[2]) - 1];
+  const year = prose?.[3] ?? iso?.[1];
+  const suffix = day % 10 === 1 && day !== 11 ? "st"
+    : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
+  return `the ${day}${suffix} day of ${month}, ${year}`;
+}
+
+/** The fonts set what the court's standard fonts cannot, where its pages allow them (the Federal Courts' do not). */
+const FALLBACK_FONTS: Array<[string, RegExp]> = [
+  ["NotoSansCanadianAboriginal-Regular.ttf", /[᐀-ᙿᢰ-᣿]/u],
+  ["NotoNaskhArabic-Regular.ttf", /\p{Script_Extensions=Arabic}/u],
+  ["NotoSerifSC-Regular.ttf", /\p{Script_Extensions=Han}/u],
+  ["NotoSerif-Regular.ttf", /[^\s\x20-\x7e\xa0-\xff€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]/u],
+];
+
+/** The record's PDFs, laid out by the engine. */
+async function render(profile: CourtProfile, plan: Omit<RecordPlan, "technical" | "colour" | "fonts">) {
+  const drawn = JSON.stringify(plan, (key, value) => key === "ocrTextByPage" || value instanceof Blob ? undefined : value);
+  const fonts = profile.jurisdiction === "ca" ? null : await Promise.all(FALLBACK_FONTS
+    .filter(([, script]) => script.test(drawn)).map(async ([file]) => {
+      const response = await fetch(new URL(`/court-fonts/${file}`, globalThis.location?.origin ?? "http://localhost"));
+      if (!response.ok) throw new Error(`The bundled court PDF font ${file} could not be loaded.`);
+      return response.blob();
     }));
-  }, { maxPages: profile.technical.maxOutputPages, maxBytes: profile.technical.maxOutputBytes },
-  (plan, output) => {
-    const split = profile.technical.volumeInstructions && splitVolumePlan(plan);
-    if (!split) throw outputLimitError(profile, { ...output, filename: volumeFilename(profile, cover, plan) });
-    return split;
-  });
-  return Promise.all(built.map((output, index) =>
-    pdfArtifact(volumeFilename(profile, cover, plans[index]), output.bytes, output.pageCount)));
-}
-
-function volumeFilename(profile: CourtProfile, cover: CoverValues, plan: VolumePlan) {
-  const base = outputFilename(profile, cover);
-  return plan.count > 1 ? base.replace(/\.pdf$/iu, `-Volume-${plan.number}-of-${plan.count}.pdf`) : base;
-}
-
-function pageNumbers(profile: CourtProfile, start: number): NonNullable<PdfAssemblyInput<keyof typeof COURT_FONTS>["pageNumbers"]> {
-  return { font: profile.technical.indexStyle === "abca" ? "sans" : "regular", start,
-    position: profile.technical.pageNumberPosition, size: profile.technical.pageNumberSize,
-    inset: profile.technical.pageNumberInset, offset: profile.technical.pageNumberOffset };
-}
-
-async function measureIndexItems(profile: CourtProfile, items: AssemblyItem[]) {
-  const document = await PDFDocument.create();
-  const { regular, sans } = await engine.embedFonts(document,
-    { regular: StandardFonts.TimesRoman, sans: StandardFonts.Helvetica });
-  await registerCourtPdfFonts(document, [regular, sans], { profile, items },
-    profile.jurisdiction !== "ca");
-  const style = profile.technical.indexStyle;
-  const font = style === "federal" ? regular : sans;
-  const width = style === "federal" ? 297 : style === "abca" ? 400 : 322;
-  const size = style === "federal" || style === "abca" ? 12 : 8.5;
-  const described = new Set(profile.documentKinds.filter(({ renderDescriptionPage }) =>
-    renderDescriptionPage).map(({ id }) => id));
-  return items.map((item) => {
-    const descriptionLines = item.descriptionOnly && described.has(item.kindId)
-      ? wrap(latin(item.title), regular, 12, 612 - 198.42) : undefined;
-    const sourceStart = item.sourcePageStart ?? 0;
-    const sourceEnd = item.sourcePageEnd ?? item.entry?.pageCount ?? item.pageCount;
-    const bookmarks = (item.entry?.sourceBookmarks ?? []).filter(({ pageIndex }) =>
-      pageIndex >= sourceStart && pageIndex < sourceEnd);
-    const compound = bookmarks.length > 1 && (item.entry?.binding?.kind === "work-product-output" ||
-      bookmarks.some(({ title }) => /^Exhibit\b/iu.test(title)));
-    const indexChildren = compound ? bookmarks.map((bookmark, index) => ({
-      id: `${item.id}:bookmark:${index}`,
-      title: latin(bookmark.title),
-      pageOffset: bookmark.pageIndex - sourceStart,
-      lines: wrap(latin(bookmark.title), font, size, width - 14),
-    })) : undefined;
-    return { ...item,
-      ...(descriptionLines && { descriptionLines,
-        pageCount: Math.ceil(descriptionLines.length / 36) }),
-      ...(indexChildren?.length && { indexChildren }),
-      indexLines: [
-        ...wrap(latin(item.title), font, size, width),
-        ...(item.date && (style === "abca" ||
-          style === "federal" && profile.technical.indexDate !== "none")
-          ? [`Dated ${latin(item.date)}`] : []),
-      ] };
-  });
-}
-
-function expandedIndexItems(profile: CourtProfile, items: AssemblyItem[]) {
-  const maxLines = profile.technical.indexStyle === "federal" ||
-    profile.technical.indexStyle === "abca" ? 20 : 40;
-  const split = (item: AssemblyItem) => {
-    if (item.indexLines?.length && item.indexLines.length <= maxLines) return [item];
-    const lines = item.indexLines ?? [latin(item.title)];
-    const parts = Array.from({ length: Math.ceil(lines.length / maxLines) }, (_, index) =>
-      lines.slice(index * maxLines, (index + 1) * maxLines));
-    return parts.map((indexLines) => ({ ...item, indexLines }));
-  };
-  return items.flatMap((item) => [...split(item), ...(item.indexChildren ?? []).flatMap((child) =>
-    split({ ...item, id: child.id, title: child.title, date: undefined, bytes: 0,
-      pageCount: 1, indexLines: child.lines, indexChildren: undefined,
-      indexParentId: item.id, indexPageOffset: child.pageOffset }))]);
-}
-
-function indexRange(item: AssemblyItem, ranges: Map<string, { start: number; end: number }>) {
-  const range = ranges.get(item.indexParentId ?? item.id)!;
-  return item.indexPageOffset === undefined ? range : {
-    start: range.start + item.indexPageOffset,
-    end: range.start + item.indexPageOffset,
-  };
-}
-
-const indexIsLocal = (item: AssemblyItem, localIds: Set<string>) =>
-  localIds.has(item.indexParentId ?? item.id);
-
-function indexRowUnits(profile: CourtProfile, item: AssemblyItem) {
-  const lines = Math.max(1, item.indexLines?.length ?? 1);
-  if (profile.technical.indexStyle === "federal") return Math.max(32, lines * 15 + 10) / 32;
-  if (profile.technical.indexStyle === "abca") return 1 + Math.max(0, lines - 2) * 16 / 39.6;
-  return Math.max(24, lines * 11 + 13) / 24;
-}
-
-function plannedIndexChunks(profile: CourtProfile, items: AssemblyItem[]) {
-  const groupRows = profile.technical.indexStyle === "federal" ? 22 / 32
-    : profile.technical.indexStyle === "abca" ? 1 : 21 / 24;
-  return indexChunks(expandedIndexItems(profile, items), profile.technical.indexRowsPerPage,
-    (item) => indexRowUnits(profile, item), groupRows);
-}
-
-function plannedIndexPageCount(profile: CourtProfile, items: AssemblyItem[]) {
-  const groupRows = profile.technical.indexStyle === "federal" ? 22 / 32
-    : profile.technical.indexStyle === "abca" ? 1 : 21 / 24;
-  return indexPageCount(expandedIndexItems(profile, items), profile.technical.indexRowsPerPage,
-    (item) => indexRowUnits(profile, item), groupRows);
-}
-
-function numberVolumePlans(profile: CourtProfile, plans: VolumePlan[]) {
-  const allItems = plans.flatMap(({ items }) => items);
-  const ranges = new Map<string, { start: number; end: number }>();
-  const indexChunksByItems = new Map<AssemblyItem[], AssemblyItem[][]>();
-  let nextNumber = 1;
-  plans.forEach((plan, index) => {
-    plan.number = index + 1;
-    plan.count = plans.length;
-  });
-  for (const plan of plans) {
-    plan.startNumber = nextNumber;
-    const indexItems = profile.technical.completeIndexEachVolume ? allItems : plan.items;
-    let chunks = indexChunksByItems.get(indexItems);
-    if (!chunks) {
-      chunks = plannedIndexChunks(profile, indexItems);
-      indexChunksByItems.set(indexItems, chunks);
-    }
-    let next = plan.startNumber + ((profile.cover.generated ? 1 : 0) + chunks.length);
-    for (const item of plan.items) {
-      ranges.set(item.id, { start: next, end: next + item.pageCount - 1 });
-      next += item.pageCount;
-    }
-    nextNumber = next + backCoverPageCount(profile, plan);
-  }
-  return { allItems, ranges, indexChunksByItems };
-}
-
-function splitVolumePlan(plan: VolumePlan): [VolumePlan, VolumePlan] | undefined {
-  const sources = plan.items.filter((item) => !item.generated);
-  const generated = plan.items.filter((item) => item.generated);
-  let halves: [AssemblyItem[], AssemblyItem[]] | undefined;
-  if (sources.length > 1) {
-    const total = sources.reduce((sum, item) => sum + Math.max(1, item.bytes), 0);
-    let running = 0;
-    let splitAt = 1;
-    let distance = Number.POSITIVE_INFINITY;
-    for (let index = 1; index < sources.length; index += 1) {
-      running += Math.max(1, sources[index - 1].bytes);
-      const candidate = Math.abs(total - (2 * running));
-      if (candidate < distance) {
-        distance = candidate;
-        splitAt = index;
-      }
-    }
-    halves = [sources.slice(0, splitAt), sources.slice(splitAt)];
-  } else if (sources.length === 1) {
-    halves = splitAssemblyItem(sources[0]);
-  }
-  if (!halves || !halves[0].length || !halves[1].length) return undefined;
-  return [
-    { ...plan, items: halves[0] },
-    { ...plan, items: [...halves[1], ...generated] },
-  ];
-}
-
-function splitAssemblyItem(item: AssemblyItem): [AssemblyItem[], AssemblyItem[]] | undefined {
-  if (item.descriptionLines && item.pageCount > 1) {
-    const middle = Math.ceil(item.pageCount / 2) * 36;
-    const part = (lines: string[], suffix: string): AssemblyItem => ({ ...item,
-      id: `${item.id}:${suffix}`, descriptionLines: lines,
-      pageCount: Math.ceil(lines.length / 36) });
-    return [[part(item.descriptionLines.slice(0, middle), "part-1")],
-      [part(item.descriptionLines.slice(middle), "part-2")]];
-  }
-  if (!item.entry || item.pageCount < 2) return undefined;
-  const start = item.sourcePageStart ?? 0;
-  const end = item.sourcePageEnd ?? item.entry.pageCount ?? item.pageCount;
-  const middle = start + Math.ceil((end - start) / 2);
-  if (middle <= start || middle >= end) return undefined;
-  const baseTitle = item.baseTitle ?? item.title;
-  const part = (from: number, to: number): AssemblyItem => ({
-    ...item,
-    id: `${item.entry!.id}:source-pages-${from + 1}-${to}`,
-    title: `${baseTitle} — source pages ${from + 1}–${to}`,
-    baseTitle,
-    sourcePageStart: from,
-    sourcePageEnd: to,
-    pageCount: to - from,
-    bytes: Math.ceil(item.bytes * ((to - from) / (end - start))),
-  });
-  return [[part(start, middle)], [part(middle, end)]];
+  const files: Blob[] = [], body = new FormData();
+  body.append("record", JSON.stringify({ ...plan, technical: profile.technical, colour: profile.cover.colourHex, fonts } satisfies RecordPlan,
+    (_key, value) => value instanceof Blob ? files.push(value) - 1 : value));
+  files.forEach((file) => body.append("files", file));
+  const built = await apiRequest<Array<{ filename: string; pageCount: number; bytes: string }>>("/court-records/assembly",
+    { method: "POST", body });
+  return Promise.all(built.map(({ filename, pageCount, bytes }) =>
+    pdfArtifact(filename, Uint8Array.from(atob(bytes), (character) => character.charCodeAt(0)), pageCount)));
 }
 
 function exceedsOutputLimit(profile: CourtProfile, artifact: BuildArtifact) {
@@ -562,385 +323,11 @@ function exceedsOutputLimit(profile: CourtProfile, artifact: BuildArtifact) {
 function enforceOutputLimits(profile: CourtProfile, artifacts: BuildArtifact[]) {
   const oversized = artifacts.find((artifact) => artifact.mimeType !== "text/markdown" &&
     exceedsOutputLimit(profile, artifact));
-  if (oversized) throw outputLimitError(profile, oversized);
-}
-
-function outputLimitError(profile: CourtProfile, artifact: { filename: string; bytes: Uint8Array }) {
+  if (!oversized) return;
   const byteLimit = profile.technical.maxOutputBytes;
-  if (byteLimit && artifact.bytes.byteLength > byteLimit) {
-    return new Error(`${artifact.filename} is larger than the court's ${Math.round(byteLimit / (1024 * 1024))} MB filing limit. Reduce that source file before building.`);
-  }
-  const pageLimit = profile.technical.maxOutputPages;
-  return new Error(`${artifact.filename} exceeds the court's ${pageLimit}-page limit. Reduce or divide the source material before building.`);
-}
-
-async function combinedVolume(
-  profile: CourtProfile, plan: VolumePlan, cover: CoverValues,
-  global: ReturnType<typeof numberVolumePlans>,
-): Promise<PdfAssemblyInput<keyof typeof COURT_FONTS>> {
-  const indexItems = profile.technical.completeIndexEachVolume ? global.allItems : plan.items;
-  const chunks = global.indexChunksByItems.get(indexItems)!;
-  const localIds = new Set(plan.items.map(({ id }) => id));
-  const links: IndexTarget[] = [];
-  return {
-    fonts: COURT_FONTS,
-    before: async ({ document, fonts: { regular, bold, sans, sansBold } }) => {
-      await registerCourtPdfFonts(document, [regular, bold, sans, sansBold], { profile, cover,
-        items: global.allItems.map(({ title, group, date, exhibitLabel }) =>
-          ({ title, group, date, exhibitLabel })) }, profile.jurisdiction !== "ca");
-      if (profile.cover.generated) {
-        const sansCover = profile.cover.template === "abca-ap5";
-        drawCourtCover(document.addPage(LETTER), sansCover ? sans : regular,
-          sansCover ? sansBold : bold, profile, cover, plan);
-      }
-      chunks.forEach((chunk, index) => drawIndexPage(document.addPage(LETTER), regular, bold,
-        sans, sansBold, profile, plan, chunk, global.ranges, localIds, links, index, chunks.length));
-    },
-    parts: await Promise.all(plan.items.filter((item) => !item.descriptionOnly || item.descriptionLines)
-      .map(async (item) => ({
-        id: item.id,
-        source: item.entry ? await fileBytes(item.entry.pdfRendition ?? item.entry.file) : undefined,
-        pageIndices: item.entry ? Array.from({ length: item.pageCount },
-          (_, index) => (item.sourcePageStart ?? 0) + index) : undefined,
-        ocrFont: "sans" as const, ocrTextByPage: item.entry?.ocrTextByPage,
-        draw: ({ document, fonts: { regular, bold } }) => {
-          if (item.descriptionLines) for (let index = 0; index < item.pageCount; index++)
-            drawPhysicalExhibitDescription(document.addPage(LETTER), regular, bold,
-              item.descriptionLines.slice(index * 36, (index + 1) * 36), index);
-          else if (item.generated === "federal-form-344-certificate")
-            drawFederalForm344(document.addPage(LETTER), regular, bold, profile, cover);
-        },
-      }))),
-    after: ({ document, fonts: { bold } }) => {
-      if (backCoverPageCount(profile, plan)) {
-        const page = document.addPage(LETTER);
-        page.drawRectangle({ x: 0, y: 0, width: page.getWidth(), height: page.getHeight(),
-          color: hex(profile.cover.colourHex) });
-        centredText(page, `VOLUME ${plan.number} OF ${plan.count}`, page.getHeight() / 2, bold, 12);
-      }
-      setMetadata(document, profile.label);
-    },
-    outlines: ({ starts }) => {
-      const outlines: Outline[] = [{ title: profile.technical.indexTitle ?? "Table of contents",
-        pageIndex: profile.cover.generated ? 1 : 0 }];
-      const groups = new Map<string, Outline>();
-      for (const item of plan.items) {
-        const pageIndex = starts.get(item.id);
-        if (pageIndex === undefined) continue;
-        const outline = { title: item.title, pageIndex, children: sourceOutlinesForItem(item, pageIndex) };
-        if (!item.group) { outlines.push(outline); continue; }
-        let group = groups.get(item.group);
-        if (!group) {
-          group = { title: item.group, pageIndex, children: [] };
-          groups.set(item.group, group); outlines.push(group);
-        }
-        group.children!.push(outline);
-      }
-      return outlines;
-    },
-    links, pageNumbers: pageNumbers(profile, plan.startNumber), pageLabels: plan.startNumber,
-    openBookmarks: profile.technical.bookmarksPanelOpen,
-  };
-}
-
-function planVolumes(profile: CourtProfile, items: AssemblyItem[]): VolumePlan[] {
-  const maxPages = profile.technical.maxOutputPages;
-  const totalBytes = items.reduce((sum, item) => sum + item.bytes, 0) + GENERATED_OVERHEAD_BYTES;
-  const maxBytes = profile.technical.maxOutputBytes && totalBytes > profile.technical.maxOutputBytes
-    ? Math.floor(profile.technical.maxOutputBytes * 0.92)
-    : undefined;
-  if (!maxPages && !maxBytes) return [{ items, startNumber: 1, number: 1, count: 1 }];
-  const generatedTail = items.filter((item) => item.generated);
-  const sourceItems = items.filter((item) => !item.generated);
-  const volumes: AssemblyItem[][] = [];
-  let current: AssemblyItem[] = [];
-  let currentPages = 0;
-  let currentBytes = GENERATED_OVERHEAD_BYTES;
-  for (const item of sourceItems) {
-    const front = (profile.cover.generated ? 1 : 0) +
-      plannedIndexPageCount(profile, [...current, item]);
-    const tooManyPages = maxPages !== undefined && current.length > 0 &&
-      currentPages + item.pageCount + front > maxPages;
-    const tooManyBytes = maxBytes !== undefined && current.length > 0 &&
-      currentBytes + item.bytes > maxBytes;
-    if (tooManyPages || tooManyBytes) {
-      volumes.push(current);
-      current = [];
-      currentPages = 0;
-      currentBytes = GENERATED_OVERHEAD_BYTES;
-    }
-    current.push(item);
-    currentPages += item.pageCount;
-    currentBytes += item.bytes;
-  }
-  if (current.length) volumes.push(current);
-  if (!volumes.length) volumes.push([]);
-  volumes[volumes.length - 1].push(...generatedTail);
-  return volumes.map((volumeItems) => ({
-    items: volumeItems,
-    startNumber: 1,
-    number: 1,
-    count: volumes.length,
-  }));
-}
-
-function backCoverPageCount(profile: CourtProfile, plan: VolumePlan) {
-  return plan.count > 1 && profile.technical.volumeLabelOnBackCover ? 1 : 0;
-}
-
-function drawPhysicalExhibitDescription(
-  page: PDFPage,
-  regular: PDFFont,
-  bold: PDFFont,
-  lines: string[],
-  index: number,
-) {
-  page.drawRectangle({ x: 0, y: 0, width: 612, height: 792, color: rgb(1, 1, 1) });
-  centredText(page, `DESCRIPTION OF PHYSICAL EXHIBIT${index ? " — CONTINUED" : ""}`,
-    708, bold, 12);
-  lines.forEach((text, lineIndex) => drawCourtPdfText(page, text, {
-    x: 99.21, y: 660 - lineIndex * 16, font: regular, size: 12,
-  }));
-}
-
-function drawIndexPage(
-  page: PDFPage,
-  regular: PDFFont,
-  bold: PDFFont,
-  sans: PDFFont,
-  sansBold: PDFFont,
-  profile: CourtProfile,
-  plan: VolumePlan,
-  items: AssemblyItem[],
-  ranges: Map<string, { start: number; end: number }>,
-  localIds: Set<string>,
-  links: IndexTarget[],
-  indexPage: number,
-  indexPageCount: number,
-) {
-  if (profile.technical.indexStyle === "federal") {
-    drawFederalIndexPage(page, regular, bold, profile, plan, items, ranges, localIds, links);
-    return;
-  }
-  if (profile.technical.indexStyle === "abca") {
-    drawAbcaIndexPage(page, sans, sansBold, profile, plan, items, ranges, localIds, links);
-    return;
-  }
-  const { width, height } = page.getSize();
-  page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) });
-  page.drawRectangle({ x: 44, y: height - 92, width: 8, height: 40,
-    color: hex(profile.cover.colourHex) });
-  drawCourtPdfText(page, profile.technical.indexTitle ?? "TABLE OF CONTENTS", {
-    x: 64, y: height - 70, font: bold, size: 15,
-  });
-  const suffix = [plan.count > 1 ? `Volume ${plan.number} of ${plan.count}` : "",
-    indexPageCount > 1 ? `Page ${indexPage + 1} of ${indexPageCount}` : ""]
-    .filter(Boolean).join(" · ");
-  if (suffix) drawRight(page, suffix, width - 48, height - 69, regular, 9, rgb(0.3, 0.3, 0.3));
-  const top = height - 112;
-  page.drawRectangle({ x: 48, y: top - 19, width: width - 96, height: 22,
-    color: rgb(0.12, 0.14, 0.17) });
-  page.drawText("TAB", { x: 56, y: top - 12, font: sansBold, size: 8, color: rgb(1, 1, 1) });
-  drawCourtPdfText(page, profile.technical.indexDocumentLabel ?? "DOCUMENT", {
-    x: 96, y: top - 12, font: sansBold, size: 8, color: rgb(1, 1, 1),
-  });
-  page.drawText("DATE", { x: 430, y: top - 12, font: sansBold, size: 8, color: rgb(1, 1, 1) });
-  drawRight(page, "PAGE", width - 56, top - 12, sansBold, 8, rgb(1, 1, 1));
-  let y = top - 37;
-  let lastGroup: string | undefined;
-  for (const item of items) {
-    if (item.group && item.group !== lastGroup) {
-      page.drawRectangle({ x: 48, y: y - 3, width: width - 96, height: 18,
-        color: rgb(0.94, 0.95, 0.96) });
-      drawCourtPdfText(page, latin(item.group), { x: 56, y: y + 2, font: sansBold, size: 8,
-        color: rgb(0.22, 0.24, 0.27) });
-      y -= 21;
-      lastGroup = item.group;
-    }
-    const range = indexRange(item, ranges);
-    const rowTop = y + 10;
-    const lines = item.indexLines ?? [latin(item.title)];
-    const rowHeight = Math.max(24, lines.length * 11 + 13);
-    const visible = !item.pageCount ? "" : range.start === range.end
-      ? `${range.start}` : `${range.start}–${range.end}`;
-    page.drawText(item.indexParentId ? "" : String(item.tab), { x: 57, y, font: sans, size: 8.5 });
-    lines.forEach((text, index) => drawCourtPdfText(page, text, {
-      x: 96 + (item.indexParentId ? 12 : 0), y: y - index * 11, font: sans, size: 8.5,
-    }));
-    drawCourtPdfText(page, latin(item.date ?? ""), { x: 430, y, font: sans, size: 8.2 });
-    drawRight(page, visible, width - 56, y, sans, 8.5, rgb(0.12, 0.12, 0.12));
-    const bottom = y - (lines.length - 1) * 11 - 7;
-    line(page, 48, bottom, width - 48, bottom, rgb(0.86, 0.87, 0.89), 0.5);
-    if (item.pageCount && indexIsLocal(item, localIds)) links.push({
-      page, rect: [48, bottom, width - 48, rowTop],
-      targetPageIndex: range.start - plan.startNumber,
-    });
-    y -= rowHeight;
-  }
-}
-
-function drawFederalIndexPage(
-  page: PDFPage,
-  regular: PDFFont,
-  bold: PDFFont,
-  profile: CourtProfile,
-  plan: VolumePlan,
-  items: AssemblyItem[],
-  ranges: Map<string, { start: number; end: number }>,
-  localIds: Set<string>,
-  links: IndexTarget[],
-) {
-  const { width, height } = page.getSize();
-  const left = 99.21;
-  const right = width - left;
-  const tabWidth = 48;
-  const pageWidth = 50;
-  page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) });
-  centredText(page, profile.technical.indexTitle ?? "TABLE OF CONTENTS", height - 78, bold, 12);
-  let top = height - 110;
-  const headerBottom = top - 24;
-  page.drawRectangle({ x: left, y: headerBottom, width: right - left, height: 24,
-    color: rgb(0.82, 0.82, 0.82), borderColor: rgb(0.25, 0.25, 0.25), borderWidth: 0.7 });
-  vertical(page, left + tabWidth, headerBottom, top);
-  vertical(page, right - pageWidth, headerBottom, top);
-  page.drawText("TAB", { x: left + 8, y: headerBottom + 7, font: bold, size: 12 });
-  drawCourtPdfText(page, profile.technical.indexDocumentLabel ?? "DOCUMENT", {
-    x: left + tabWidth + 8, y: headerBottom + 7, font: bold, size: 12,
-  });
-  drawRight(page, "PAGE", right - 8, headerBottom + 7, bold, 12, rgb(0.05, 0.05, 0.05));
-  top = headerBottom;
-  let lastGroup: string | undefined;
-  for (const item of items) {
-    if (item.group && item.group !== lastGroup) {
-      const bottom = top - 22;
-      page.drawRectangle({ x: left, y: bottom, width: right - left, height: 22,
-        color: rgb(0.93, 0.93, 0.93), borderColor: rgb(0.25, 0.25, 0.25), borderWidth: 0.7 });
-      centredText(page, latin(item.group), bottom + 6, bold, 12);
-      top = bottom;
-      lastGroup = item.group;
-    }
-    const range = indexRange(item, ranges);
-    const lines = item.indexLines ?? [latin(item.title)];
-    const rowHeight = Math.max(32, lines.length * 15 + 10);
-    const bottom = top - rowHeight;
-    page.drawRectangle({ x: left, y: bottom, width: right - left, height: rowHeight,
-      borderColor: rgb(0.25, 0.25, 0.25), borderWidth: 0.7 });
-    vertical(page, left + tabWidth, bottom, top);
-    vertical(page, right - pageWidth, bottom, top);
-    centredAt(page, item.indexParentId ? "" : String(item.tab), left + (tabWidth / 2), top - 20,
-      regular, 12);
-    lines.forEach((text, index) => drawCourtPdfText(page, text, {
-      x: left + tabWidth + 8 + (item.indexParentId ? 12 : 0),
-      y: top - 20 - index * 15, font: regular, size: 12,
-    }));
-    const visible = !item.pageCount ? "" : range.start === range.end
-      ? `${range.start}` : `${range.start}-${range.end}`;
-    centredAt(page, visible, right - (pageWidth / 2), top - 20, regular, 12);
-    if (item.pageCount && indexIsLocal(item, localIds)) links.push({ page, rect: [left, bottom, right, top],
-      targetPageIndex: range.start - plan.startNumber });
-    top = bottom;
-  }
-}
-
-function drawAbcaIndexPage(
-  page: PDFPage,
-  regular: PDFFont,
-  bold: PDFFont,
-  profile: CourtProfile,
-  plan: VolumePlan,
-  items: AssemblyItem[],
-  ranges: Map<string, { start: number; end: number }>,
-  localIds: Set<string>,
-  links: IndexTarget[],
-) {
-  const { width, height } = page.getSize();
-  const left = 76.08;
-  const pageRight = 533.26;
-  page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) });
-  centredAt(page, profile.technical.indexTitle ?? "Table of Contents", 315.35,
-    height - 49.44, regular, 12);
-  let y = height - 80.64;
-  page.drawText("Page", { x: 512.64, y, font: regular, size: 12 });
-  let lastGroup: string | undefined;
-  let first = true;
-  for (const item of items) {
-    if (item.group && item.group !== lastGroup) {
-      if (!first) y -= 32.4;
-      centredAt(page, latin(item.group), 279.06, y, bold, 12);
-      y -= first ? 33.12 : 39.84;
-      lastGroup = item.group;
-    } else if (first) y -= 33.12;
-    else y -= 39.6;
-    first = false;
-    const range = indexRange(item, ranges);
-    const lines = item.indexLines ?? [latin(item.title)];
-    const top = y + 12;
-    lines.forEach((text, index) => drawCourtPdfText(page, text, {
-      x: left + (item.indexParentId ? 12 : 0), y: y - index * 16, font: regular, size: 12,
-    }));
-    const visible = !item.pageCount ? "" : range.start === range.end
-      ? `${range.start}` : `${range.start}-${range.end}`;
-    drawRight(page, visible, pageRight, y, regular, 12, rgb(0.05, 0.05, 0.05));
-    const bottom = y - (Math.max(1, lines.length) * 16) - 8;
-    if (item.pageCount && indexIsLocal(item, localIds)) links.push({ page, rect: [left, bottom, pageRight, top],
-      targetPageIndex: range.start - plan.startNumber });
-    y -= Math.max(0, lines.length - 2) * 16;
-  }
-}
-
-function centredText(page: PDFPage, value: string, y: number, font: PDFFont, size: number) {
-  drawCourtPdfText(page, value, { x: (page.getWidth() - courtPdfTextWidth(value, font, size)) / 2,
-    y, font, size });
-}
-
-function centredAt(
-  page: PDFPage,
-  value: string,
-  x: number,
-  y: number,
-  font: PDFFont,
-  size: number,
-) {
-  drawCourtPdfText(page, value, { x: x - (courtPdfTextWidth(value, font, size) / 2),
-    y, font, size });
-}
-
-function vertical(page: PDFPage, x: number, bottom: number, top: number) {
-  line(page, x, bottom, x, top, rgb(0.25, 0.25, 0.25), 0.7);
-}
-
-function sourceOutlines(bookmarks: SourceBookmark[] | undefined, offset: number): Outline[] {
-  return (bookmarks ?? []).flatMap((bookmark) => bookmark.pageIndex < 0 ? [] : [{
-    title: bookmark.title,
-    pageIndex: offset + bookmark.pageIndex,
-    children: sourceOutlines(bookmark.children, offset),
-  }]);
-}
-
-function sourceOutlinesForItem(item: AssemblyItem, offset: number): Outline[] {
-  const start = item.sourcePageStart ?? 0;
-  const end = item.sourcePageEnd ?? item.entry?.pageCount ?? item.pageCount;
-  const select = (bookmarks: SourceBookmark[] | undefined): Outline[] =>
-    (bookmarks ?? []).flatMap((bookmark) => {
-      const children = select(bookmark.children);
-      if (bookmark.pageIndex < start || bookmark.pageIndex >= end) return children;
-      return [{
-        title: bookmark.title,
-        pageIndex: offset + bookmark.pageIndex - start,
-        children,
-      }];
-    });
-  return select(item.entry?.sourceBookmarks);
-}
-
-function setMetadata(document: PDFDocument, title: string) {
-  document.setTitle(title);
-  document.setSubject("Court filing record assembled from user-selected source PDFs");
-  document.setCreator("Beaver Court Record Builder");
-  document.setProducer("Beaver Court Record Builder · pdf-lib");
-  const preferences = document.catalog.getOrCreateViewerPreferences();
-  preferences.setDisplayDocTitle(true);
-  document.catalog.set(PDFName.of("Lang"), PDFHexString.fromText("en-CA"));
+  throw new Error(byteLimit && oversized.bytes.byteLength > byteLimit
+    ? `${oversized.filename} is larger than the court's ${Math.round(byteLimit / (1024 * 1024))} MB filing limit. Reduce that source file before building.`
+    : `${oversized.filename} exceeds the court's ${profile.technical.maxOutputPages}-page limit. Reduce or divide the source material before building.`);
 }
 
 function automaticSteps(profile: CourtProfile, entries: RecordEntry[], volumes: number) {
@@ -1032,38 +419,4 @@ async function sha256Bytes(bytes: Uint8Array) {
 
 async function fileBytes(file: File) {
   return new Uint8Array(await file.arrayBuffer());
-}
-
-function drawRight(
-  page: PDFPage,
-  text: string,
-  right: number,
-  y: number,
-  font: PDFFont,
-  size: number,
-  color: ReturnType<typeof rgb>,
-) {
-  drawCourtPdfText(page, text, { x: right - courtPdfTextWidth(text, font, size),
-    y, font, size, color });
-}
-
-function line(
-  page: PDFPage,
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-  color: ReturnType<typeof rgb>,
-  thickness: number,
-) {
-  page.drawLine({ start: { x: startX, y: startY }, end: { x: endX, y: endY },
-    color, thickness });
-}
-
-
-function hex(value: string) {
-  const match = value.match(/^#([0-9a-f]{6})$/iu);
-  if (!match) return rgb(1, 1, 1);
-  const number = Number.parseInt(match[1], 16);
-  return rgb(((number >> 16) & 255) / 255, ((number >> 8) & 255) / 255, (number & 255) / 255);
 }

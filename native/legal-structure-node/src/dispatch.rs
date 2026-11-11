@@ -346,7 +346,7 @@ operations! { progress;
     #[cfg(feature = "legalpdf")]
     off "pdfOpening" (bytes: Bytes) -> legalpdf::PdfOpening { legalpdf::pdf_opening(&bytes)? }
     /// `marks` (as decodeAnnotationSet returns them) appended to the PDF as an incremental update: the original bytes
-    /// unchanged, then the annotations; with `disarm` (default true) also what removeActiveContent takes out.
+    /// unchanged, then the annotations; with `disarm` (default true) also what the PDF would run, launch, submit or fetch.
     #[cfg(feature = "legalpdf")]
     now "pdfWriteAnnotations" (bytes: Bytes, marks: Vec<legalpdf::AnnotationMark>, namespace: String, disarm: Option<bool>)
         -> WrittenPdf {
@@ -365,6 +365,12 @@ operations! { progress;
     #[cfg(feature = "legalpdf")]
     off "renderAuthoritiesBook" (book: crate::assembly::book::PreparedBook) -> Vec<crate::assembly::book::BuiltBook> {
         crate::assembly::book::render_book(book)?
+    }
+    /// A court record's PDFs (assembly/court.rs): its parts joined, an affidavit with its exhibits, or a record's
+    /// volumes; each `bytes` long in the reply's bytes.
+    #[cfg(feature = "legalpdf")]
+    off "renderCourtRecord" (record: crate::assembly::court::CourtRecord) -> Vec<crate::assembly::court::CourtPdf> {
+        crate::assembly::court::render_court_record(&record)?
     }
     /// A filing PDF with its table of authorities, and the PDFs appended after it.
     #[cfg(feature = "legalpdf")]

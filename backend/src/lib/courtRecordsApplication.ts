@@ -1,5 +1,7 @@
 import { courtRecordPageText, prepareCourtRecordPdf } from "./courtRecordPdfPreparation";
 import { openDocument } from "./sourceDocument";
+import { structureNative } from "./structureNative";
+import type { CourtRecord } from "mike/shared/engine-types/CourtRecord";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { ApplicationError, type ApplicationScope } from "./applicationError";
@@ -284,6 +286,16 @@ export function createCourtRecordsApplication(
       return { filled, entryId, product: await workProducts.save(scope, record.id, {
         revision: input.revision, state: nextState,
       }) };
+    },
+    async assemble(record: string, files: Array<{ path: string }>) {
+      const bytes = await Promise.all(files.map(({ path }) => readFile(path)));
+      let plan: CourtRecord;
+      try {
+        plan = JSON.parse(record, (key, value) => key === "bytes" && typeof value === "number" ? bytes[value]
+          : key === "fonts" && Array.isArray(value) ? value.map((index) => bytes[index]) : value);
+      } catch { throw new ApplicationError(400, "record must be JSON"); }
+      return (await structureNative().renderCourtRecord(plan)).map(({ filename, pageCount, bytes }) =>
+        ({ filename, pageCount, bytes: bytes.toString("base64") }));
     },
     prepareUploadedPdf: (file: DocumentFile, pages: unknown) => prepareCourtRecordPdf(file, pages),
     async preparedPageText(

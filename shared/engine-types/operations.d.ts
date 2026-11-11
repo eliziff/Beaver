@@ -15,6 +15,8 @@ import type { BriefUnit } from "./BriefUnit";
 import type { CitationOccurrence } from "./CitationOccurrence";
 import type { CitedBlock } from "./CitedBlock";
 import type { Court } from "./Court";
+import type { CourtPdf } from "./CourtPdf";
+import type { CourtRecord } from "./CourtRecord";
 import type { Derivation } from "./Derivation";
 import type { DocumentAddressResolution } from "./DocumentAddressResolution";
 import type { DocumentLookup } from "./DocumentLookup";
@@ -102,7 +104,7 @@ export interface EngineOperations {
   pdfOpening(bytes: Uint8Array): Promise<PdfOpening>;
   /**
    * `marks` (as decodeAnnotationSet returns them) appended to the PDF as an incremental update: the original bytes
-   * unchanged, then the annotations; with `disarm` (default true) also what removeActiveContent takes out.
+   * unchanged, then the annotations; with `disarm` (default true) also what the PDF would run, launch, submit or fetch.
    */
   pdfWriteAnnotations(bytes: Uint8Array, marks: ReadonlyArray<AnnotationMark>, namespace: string, disarm?: boolean | null): WrittenPdf;
   /**
@@ -115,6 +117,11 @@ export interface EngineOperations {
    * each volume `bytes` long in the reply's bytes.
    */
   renderAuthoritiesBook(book: PreparedBook): Promise<Array<BuiltBook>>;
+  /**
+   * A court record's PDFs (assembly/court.rs): its parts joined, an affidavit with its exhibits, or a record's
+   * volumes; each `bytes` long in the reply's bytes.
+   */
+  renderCourtRecord(record: CourtRecord): Promise<Array<CourtPdf>>;
   /**
    * A filing PDF (its first `filing` bytes) with its table of authorities, and the PDFs appended after it.
    */

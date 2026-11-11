@@ -3,9 +3,7 @@
 // the earlier pdf-lib writer gave them.
 import { annotatePdf } from 'mike/shared/pdf-annotation-writer.mjs';
 import { ANNOTATION_SCHEMA, quadBounds, rectToPdfQuad, type PdfAnnotation } from 'mike/shared/pdf-annotations.mjs';
-import { removeActiveContent } from 'mike/shared/runtime/pdfAssembly.mjs';
 import { describe, expect, it } from 'vitest';
-import * as pdf from 'pdf-lib';
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFRawStream, PDFRef, PDFString, StandardFonts, decodePDFRawStream, degrees } from 'pdf-lib';
 import { structureNative } from './structureNative';
 
@@ -85,18 +83,13 @@ describe('engine PDF annotation writer', () => {
     expect(written.getPage(4).node.lookup(PDFName.of('Annots'), PDFArray).size()).toBe(2);
   });
 
-  it('disarms like removeActiveContent and keeps links that only move the reader', async () => {
+  it('disarms the PDF and keeps links that only move the reader', async () => {
     const bytes = await fixture();
     const out = annotatePdf(structureNative(), bytes, { schemaVersion: ANNOTATION_SCHEMA, sourceSha256: HASH, marks }, 'ns', { disarm: true });
     const disarmed = await PDFDocument.load(out, { parseSpeed: Infinity });
     expect(disarmed.catalog.has(PDFName.of('OpenAction'))).toBe(false);
-    const viaLib = await PDFDocument.load(bytes, { parseSpeed: Infinity });
-    removeActiveContent(pdf, viaLib);
-    expect(viaLib.catalog.has(PDFName.of('OpenAction'))).toBe(false);
-    const link = (d: PDFDocument) => d.context.lookup(d.getPage(4).node.lookup(PDFName.of('Annots'), PDFArray).get(0) as PDFRef, PDFDict)
-      .lookup(PDFName.of('A'), PDFDict).lookup(PDFName.of('URI'), PDFString).decodeText();
-    expect(link(disarmed)).toBe('https://example.com');
-    expect(link(viaLib)).toBe('https://example.com');
+    expect(disarmed.context.lookup(disarmed.getPage(4).node.lookup(PDFName.of('Annots'), PDFArray).get(0) as PDFRef, PDFDict)
+      .lookup(PDFName.of('A'), PDFDict).lookup(PDFName.of('URI'), PDFString).decodeText()).toBe('https://example.com');
   });
 
   it('rejects a mark on a missing page', async () => {

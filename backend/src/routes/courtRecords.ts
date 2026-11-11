@@ -25,6 +25,11 @@ export function createCourtRecordsRouter(application: CourtRecordsApplication) {
         file: uploadedDocument(file), receipt: receipts[index],
       }))));
     }));
+  // A record's PDFs from its plan (`record`, its sources' bytes and fonts named by their place in `files`).
+  router.post("/assembly", multipleFileUpload("files", MAX_COURT_BUILD_OUTPUTS, 64 * 1024 * 1024),
+    asyncRoute(async (req, res) => {
+      res.json(await application.assemble(String(req.body?.record ?? ""), Array.isArray(req.files) ? req.files : []));
+    }));
   router.post("/docx-rendition", singleFileUpload("file"), asyncRoute(async (req, res) => {
     const pdf = await application.pdfRendition(requiredUpload(req));
     res.type("application/pdf").send(pdf);

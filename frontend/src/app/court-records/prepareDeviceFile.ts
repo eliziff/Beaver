@@ -16,7 +16,6 @@ export async function prepareDeviceFile(
       encrypted: null,
       textlessPageCount: 0,
       textlessPages: [],
-      sourceBookmarks: [],
       origin: { kind: "device" },
     };
   }
@@ -28,7 +27,6 @@ export async function prepareDeviceFile(
       encrypted: null,
       textlessPageCount: 0,
       textlessPages: [],
-      sourceBookmarks: [],
       origin: { kind: "device" },
       inspectionError: "Use a PDF or Word (.docx) file allowed by this document slot.",
     };
@@ -43,7 +41,6 @@ export async function prepareDeviceFile(
       encrypted: inspection.encrypted,
       textlessPageCount: inspection.textless_pages.length,
       textlessPages: inspection.textless_pages,
-      sourceBookmarks: inspection.bookmarks,
       pageLabels: inspection.page_labels,
       sourceFields: sourceDocumentFields(texts),
       origin: { kind: "device" },
@@ -56,7 +53,6 @@ export async function prepareDeviceFile(
       encrypted: null,
       textlessPageCount: 0,
       textlessPages: [],
-      sourceBookmarks: [],
       origin: { kind: "device" },
       inspectionError: error instanceof Error ? error.message : "The PDF could not be inspected.",
     };

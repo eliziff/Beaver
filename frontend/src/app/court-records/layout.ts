@@ -1,48 +1,10 @@
-export const INDEX_ROWS_PER_PAGE = 25;
-
-export function indexChunks<T extends { group?: string }>(
-  items: T[],
-  rowsPerPage = INDEX_ROWS_PER_PAGE,
-  itemRows: (item: T) => number = () => 1,
-  groupRows = 1,
-): T[][] {
-  const chunks: T[][] = [];
-  let chunk: T[] = [];
-  let rows = 0;
-  let lastGroup: string | undefined;
+/** The index's pages at one row a document, a group's heading a row of its own (the engine measures the built one). */
+export function indexPageCount<T extends { group?: string }>(items: T[], rowsPerPage = 25) {
+  let pages = 1, rows = 0, lastGroup: string | undefined;
   for (const item of items) {
-    const groupRow = item.group && item.group !== lastGroup ? groupRows : 0;
-    if (chunk.length && rows + groupRow + itemRows(item) > rowsPerPage) {
-      chunks.push(chunk);
-      chunk = [];
-      rows = 0;
-      lastGroup = undefined;
-    }
-    const nextGroupRow = item.group && item.group !== lastGroup ? groupRows : 0;
-    chunk.push(item);
-    rows += nextGroupRow + itemRows(item);
-    lastGroup = item.group;
-  }
-  if (chunk.length) chunks.push(chunk);
-  return chunks.length ? chunks : [[]];
-}
-
-export function indexPageCount<T extends { group?: string }>(items: T[],
-  rowsPerPage = INDEX_ROWS_PER_PAGE, itemRows: (item: T) => number = () => 1, groupRows = 1) {
-  let pages = 1;
-  let hasItems = false;
-  let rows = 0;
-  let lastGroup: string | undefined;
-  for (const item of items) {
-    const groupRow = item.group && item.group !== lastGroup ? groupRows : 0;
-    if (hasItems && rows + groupRow + itemRows(item) > rowsPerPage) {
-      pages += 1;
-      rows = 0;
-      lastGroup = undefined;
-    }
-    const nextGroupRow = item.group && item.group !== lastGroup ? groupRows : 0;
-    rows += nextGroupRow + itemRows(item);
-    hasItems = true;
+    const groupRow = item.group && item.group !== lastGroup ? 1 : 0;
+    if (rows && rows + groupRow + 1 > rowsPerPage) { pages += 1; rows = 0; lastGroup = undefined; }
+    rows += (item.group && item.group !== lastGroup ? 1 : 0) + 1;
     lastGroup = item.group;
   }
   return pages;

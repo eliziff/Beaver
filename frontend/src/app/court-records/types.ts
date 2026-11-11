@@ -120,7 +120,6 @@ export interface RecordEntry {
   nonTextPagesConfirmed?: boolean;
   rule70CountedPages?: number;
   exhibitLabel?: string;
-  sourceBookmarks?: SourceBookmark[];
   pageLabels?: string[] | null;
   sourceTitle?: string;
   sourceFields?: SourceDocumentFields;
@@ -165,12 +164,6 @@ export function sourceExhibitSlots(entries: RecordEntry[]): SourceExhibits | und
 export function hasMatchingExhibitCertificate(entry: RecordEntry) {
   const assigned = entry.exhibitLabel?.trim().toUpperCase();
   return !!assigned && entry.sourceFields?.explicitExhibitLabel?.trim().toUpperCase() === assigned;
-}
-
-export interface SourceBookmark {
-  title: string;
-  pageIndex: number;
-  children: SourceBookmark[];
 }
 
 export interface ComplianceFinding {

@@ -7,7 +7,7 @@ import { sha256 } from "./hash";
 import { pdfFailureKind, structureNative, type NativeDocument } from "./structureNative";
 
 /** A PDF of a court record read by the engine: its pages' text (with `requestedPages`, those pages recognized), which
- *  pages need recognizing (from 1), its own bookmarks as a tree and its page labels. An encrypted PDF is reported as
+ *  pages need recognizing (from 1) and its page labels. An encrypted PDF is reported as
  *  such, with no pages. */
 export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: unknown) {
   const pages = requestedPages === undefined ? undefined : selectedOcrPages(requestedPages);
@@ -34,14 +34,13 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
       parser_status: prepared.status, encrypted: false,
       ocr_pages: prepared.ocrRoutedPages.map((page) => page + 1),
       textless_pages: prepared.pagesNeedingOcr.map((page) => page + 1),
-      bookmarks: bookmarkTree(prepared.outline),
       page_labels: labels.some((label) => label !== null) ? labels.map((label, index) => label ?? String(index + 1)) : null,
       pages: pageText };
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
     const kind = pdfFailureKind(error);
     if (kind === "encrypted") return { source_sha256: digest, page_count: 0, parser_status: "degraded" as const,
-      encrypted: true, ocr_pages: [], textless_pages: [], bookmarks: [], page_labels: null, pages: [] };
+      encrypted: true, ocr_pages: [], textless_pages: [], page_labels: null, pages: [] };
     if (kind === "corrupt" || kind === "parser") throw new ApplicationError(400, (error as Error).message);
     throw error;
   }
@@ -51,19 +50,6 @@ export async function prepareCourtRecordPdf(file: DocumentFile, requestedPages: 
 export function courtRecordPageText(document: NativeDocument) {
   return structureNative().pdfPageTexts(document)
     .map((text, index) => ({ page_number: index + 1, text }));
-}
-
-export type CourtRecordBookmark = { title: string; pageIndex: number; children: CourtRecordBookmark[] };
-/** The engine's outline, its entries in order with their levels, as the tree it is. */
-function bookmarkTree(outline: ReadonlyArray<{ title: string; level: number; page_index: number }>) {
-  const roots: CourtRecordBookmark[] = [], open: Array<{ level: number; children: CourtRecordBookmark[] }> = [];
-  for (const { title, level, page_index: pageIndex } of outline) {
-    while (open.length && open.at(-1)!.level >= level) open.pop();
-    const bookmark = { title, pageIndex, children: [] };
-    (open.at(-1)?.children ?? roots).push(bookmark);
-    open.push({ level, children: bookmark.children });
-  }
-  return roots;
 }
 
 function selectedOcrPages(value: unknown) {
