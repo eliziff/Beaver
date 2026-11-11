@@ -17,6 +17,10 @@ of behaviour that should belong to all of them, and no translation layers betwee
 Since we control both sides of the equation, we should just make things simple and direct, with fine-grained
 APIs/decoupled producers/modules so that whichever thing can just take what it needs.
 
+## Zero users
+These apps have effectively 0 users. We do not need to be concerned about migrations or big refactors.
+This codebase is yours to shape and mold: how it's built is your call, and you'll keep building on it.
+
 ## Rust layer gets the heavy duty stuff, not typescript
 If you notice that typescript is doing heavy processing somewhere, that's usually a mistake
 and it should be done in rust instead. Flag these things for the user to see if it shoudl be fixed.
