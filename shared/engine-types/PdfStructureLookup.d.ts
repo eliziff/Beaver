@@ -4,8 +4,8 @@ import type { PdfLookupRequest } from "./PdfLookupRequest";
 import type { PdfLookupStatus } from "./PdfLookupStatus";
 import type { PdfLookupUnit } from "./PdfLookupUnit";
 
-export type PdfStructureLookup = { schema_version: "legalpdf.structure-lookup.v1", requested: PdfLookupRequest, 
+export type PdfStructureLookup = { requested: PdfLookupRequest, 
 /**
  * The kind of unit the request asks for: a page, a transcript's line, a paragraph, a note or a provision.
  */
-kind: "page" | "line" | "paragraph" | "footnote" | "section", units: Array<PdfLookupUnit>, before: Array<PdfLookupUnit>, after: Array<PdfLookupUnit>, matches: Array<string>, pages: Array<PdfLookupPage>, status: PdfLookupStatus, exact: boolean, payload_sha256?: string, page_text_sha256?: string, error?: string, };
+kind: "page" | "line" | "paragraph" | "footnote" | "section", units: Array<PdfLookupUnit>, before: Array<PdfLookupUnit>, after: Array<PdfLookupUnit>, matches: Array<string>, pages: Array<PdfLookupPage>, status: PdfLookupStatus, payload_sha256?: string, page_text_sha256?: string, error?: string, };
