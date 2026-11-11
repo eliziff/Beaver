@@ -1,11 +1,9 @@
-// The engine's annotation writer (shared/pdf-annotation-writer.mjs `annotatePdf`, an incremental update).
-import { annotatePdf } from 'mike/shared/pdf-annotation-writer.mjs';
-import { ANNOTATION_SCHEMA, type PdfAnnotation } from 'mike/shared/pdf-annotations.mjs';
+// The engine's annotation writer (pdfWriteAnnotations, an incremental update).
+import type { PdfAnnotation } from 'mike/shared/pdf-annotations.mjs';
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRef, PDFString, StandardFonts, degrees } from 'pdf-lib';
 import { structureNative } from './structureNative';
 
-const HASH = 'a'.repeat(64);
 const marks: PdfAnnotation[] = [
   { id: 'one', kind: 'highlight', origin: 'manual', label: 'Para 1', excerpt: 'x', rgb: [1, .93, .45], opacity: .3,
     fragments: [{ pageNumber: 1, rects: [[.1, .2, .9, .25], [.1, .26, .6, .31]] }, { pageNumber: 2, rects: [[.05, .05, .5, .1]] },
@@ -33,7 +31,7 @@ async function fixture() {
 describe('engine PDF annotation writer', () => {
   it('disarms the PDF and keeps links that only move the reader', async () => {
     const bytes = await fixture();
-    const out = annotatePdf(structureNative(), bytes, { schemaVersion: ANNOTATION_SCHEMA, sourceSha256: HASH, marks }, 'ns', { disarm: true });
+    const out = structureNative().pdfWriteAnnotations(bytes, marks, 'ns', true).bytes;
     const disarmed = await PDFDocument.load(out, { parseSpeed: Infinity });
     expect(disarmed.catalog.has(PDFName.of('OpenAction'))).toBe(false);
     expect(disarmed.context.lookup(disarmed.getPage(4).node.lookup(PDFName.of('Annots'), PDFArray).get(0) as PDFRef, PDFDict)
@@ -43,6 +41,6 @@ describe('engine PDF annotation writer', () => {
   it('rejects a mark on a missing page', async () => {
     const bytes = await fixture(), value = structuredClone(marks[0]);
     value.fragments = [{ pageNumber: 9, rects: [[.1, .1, .2, .2]] }];
-    expect(() => annotatePdf(structureNative(), bytes, { schemaVersion: ANNOTATION_SCHEMA, sourceSha256: HASH, marks: [value] }, 'ns')).toThrow(/missing PDF page/);
+    expect(() => structureNative().pdfWriteAnnotations(bytes, [value], 'ns')).toThrow(/missing PDF page/);
   });
 });

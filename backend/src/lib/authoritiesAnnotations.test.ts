@@ -1,4 +1,3 @@
-import { annotatePdf } from 'mike/shared/pdf-annotation-writer.mjs';
 import { structureNative } from './structureNative';
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, StandardFonts, degrees } from 'pdf-lib';
@@ -108,7 +107,7 @@ describe('persistent visual PDF annotations',()=>{
     const document=await PDFDocument.create();document.addPage();
     const value=mark();value.fragments[0].pageNumber=2;
     const bytes=await document.save();
-    expect(()=>annotatePdf(structureNative(),bytes,set('a'.repeat(64),[value]),'source')).toThrow(/missing PDF page/);
+    expect(()=>structureNative().pdfWriteAnnotations(bytes,[value],'source')).toThrow(/missing PDF page/);
   });
 });
 

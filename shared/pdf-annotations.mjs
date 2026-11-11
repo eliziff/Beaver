@@ -32,13 +32,12 @@ export function decodeAnnotationSet(value) {
   });
   return { schemaVersion: ANNOTATION_SCHEMA, sourceSha256: value.sourceSha256, marks };
 }
-export function emptyAnnotationSet(sourceSha256) {
-  return decodeAnnotationSet({ schemaVersion: ANNOTATION_SCHEMA, sourceSha256, marks: [] });
-}
-/** Missing means not edited; an empty saved set means the user deliberately removed every mark. */
+export const emptyAnnotationSet = (sourceSha256) => ({ schemaVersion: ANNOTATION_SCHEMA, sourceSha256, marks: [] });
+/** Missing means not edited; an empty saved set means the user deliberately removed every mark. The draft's sets were
+ *  decoded where the draft entered. */
 export function annotationSetForSource(sets, role, sourceSha256) {
   if (!sets || !Object.hasOwn(sets, role)) return undefined;
-  const value = decodeAnnotationSet(sets[role]);
+  const value = sets[role];
   if (value.sourceSha256 !== sourceSha256)
     throw new Error('This PDF changed. Return to Sources to review highlights for the replacement PDF before building.');
   return value;

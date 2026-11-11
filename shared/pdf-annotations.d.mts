@@ -1,10 +1,8 @@
+import type { AnnotationMark } from './engine-types/AnnotationMark';
+export type { AnnotationFragment } from './engine-types/AnnotationFragment';
 export type AnnotationRect = [number, number, number, number];
-export type AnnotationFragment = { pageNumber: number; rects: AnnotationRect[] };
-export type PdfAnnotation = {
-  id: string; kind: 'highlight' | 'margin'; origin: 'automatic' | 'manual';
-  label: string; excerpt: string; rgb: [number, number, number]; opacity: number;
-  fragments: AnnotationFragment[];
-};
+/** A mark as the engine places and writes it. */
+export type PdfAnnotation = AnnotationMark;
 export type PdfAnnotationSet = {
   schemaVersion: 'beaver.pdf-annotations.v1'; sourceSha256: string; marks: PdfAnnotation[];
 };

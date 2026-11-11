@@ -43,7 +43,6 @@ export async function authorityAnnotations(state: AuthoritiesDraft, input: {
   const source = authority && attachedAuthoritySources(authority.source).find((item) =>
     item.bindingRole === input.bindingRole);
   if (!authority || !source) return reject(400, "The authority PDF is not attached");
-  if (sha256(input.bytes) !== source.sourceSha256) return reject(409, "This PDF changed. Relink it before editing highlights.");
   const reading = input.recognize ? state
     : { ...state, settings: { ...state.settings, scannedPdfPolicy: "page-margin" as const } };
   const read = state.settings.passageMarking !== "none" && authorityPassageTargets(state, authority.id).length

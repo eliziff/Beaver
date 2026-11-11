@@ -6,14 +6,13 @@ import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
 import { excerptPageCounts } from "./authoritiesBuild";
 import { structureNative } from "./structureNative";
-import { attachedAuthoritySources } from "./authoritiesDomain";
 import { authoritySourceServices, authorityStatuteText, resolveAuthoritiesSources } from "./authoritiesSourceResolution";
 import { gatherAuthoritySources } from "./authoritiesCore";
 import { authoritiesSourceText, createAuthoritiesPreparation } from "./authoritiesPreparation";
 import { attachBookFile, authoritiesBookFrontPdf, authorityAnnotations, buildAuthoritiesDraft } from "./authoritiesBookCore";
 import { sha256 } from "./hash";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
-import { createAuthoritiesSourceOperations, draft, draftResult, fileResult, inRuns, json, keptByPage, requiredSource,
+import { createAuthoritiesSourceOperations, draft, draftResult, fileResult, givenSource, inRuns, json, keptByPage, requiredSource,
   sourceBytes, standaloneSource, value, type OperationContext, type OperationsOptions } from "./authoritiesSourceOperations";
 import { text } from "./authoritiesActionContract";
 import type { AuthoritiesOperationInput, AuthoritiesRuntimeResult } from "mike/shared/runtime/authoritiesRuntime.mjs";
@@ -49,20 +48,19 @@ export function createAuthoritiesOperations(options: OperationsOptions = {}) {
       const progress = context.progress;
     const state = draft(json(input?.draft, "draft"));
     const role = String(input?.role), bytes = sourceBytes(requiredSource(input));
-    const source = Object.values(state.authorities).flatMap(authority =>
-      attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
-    if (!source || sha256(bytes) !== source.sourceSha256)
-      return reject(409, "The PDF no longer matches this authority source");
+    const { source } = givenSource(state, role, bytes);
     await createAuthoritiesPreparation(state).prepareText(role, { bytes, sourceSha256: source.sourceSha256,
       signal: context.signal, ...(progress ? { progress: (done: number, total: number) => progress(`${done}/${total}`) } : {}) });
     return value({});
     },
     // The source is read as a build reads it, so a source read ahead or built is not read again; the page has no
     // recognition queue of its own, so reading it recognizes what the draft's scan setting asks for.
-    "annotations": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
-      value(await authorityAnnotations(draft(json(input?.draft, "draft")), { authorityId: String(input?.authorityId),
-        bindingRole: String(input?.bindingRole), bytes: sourceBytes(requiredSource(input)), recognize: true,
-        signal: context.signal })),
+    "annotations": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
+    const state = draft(json(input?.draft, "draft")), bytes = sourceBytes(requiredSource(input));
+    const { authority, source } = givenSource(state, String(input?.bindingRole), bytes);
+    return value(await authorityAnnotations(state, { authorityId: authority.id, bindingRole: source.bindingRole, bytes,
+      recognize: true, signal: context.signal }));
+    },
     "book-front": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const actions = Array.isArray(input?.actions) && input.actions.length <= 3 ? input.actions as unknown[]
       : reject(400, "actions are invalid");
@@ -80,11 +78,7 @@ export function createAuthoritiesOperations(options: OperationsOptions = {}) {
     "excerpt-pages": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const state = draft(json(input?.draft, "draft"));
     const role = String(input?.role), bytes = sourceBytes(requiredSource(input));
-    const authority = Object.values(state.authorities).find(item =>
-      attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
-    const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
-    if (!authority || !source || sha256(bytes) !== source.sourceSha256)
-      return reject(409, "The PDF no longer matches this authority source");
+    const { authority, source } = givenSource(state, role, bytes);
     const read = authoritiesSourceText(state);
     const own = await read(role, { bytes, sourceSha256: source.sourceSha256, signal: context.signal });
     const counts = await excerptPageCounts(state, async (item) => item.bindingRole === role ? own : read(item.bindingRole,

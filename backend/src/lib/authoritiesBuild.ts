@@ -1,4 +1,3 @@
-import { annotatePdf } from 'mike/shared/pdf-annotation-writer.mjs';
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 import { legalSourceLocatorAnchor, sourceUrl as legalSourceUrl } from "./legalSourceLinks";
 import type { A2AJLocatorKind } from "./legalSources/a2aj";
@@ -17,7 +16,7 @@ import {
   type AuthoritiesDraft,
   type AuthorityIdentity,
 } from "./authoritiesDomain";
-import { ANNOTATION_SCHEMA, annotationSetForSource, decodeAnnotationSet } from "mike/shared/pdf-annotations.mjs";
+import { annotationSetForSource, emptyAnnotationSet } from "mike/shared/pdf-annotations.mjs";
 import { locatorLabel } from "./authoritiesAnnotations";
 import type { AuthorityPdfReading } from "./authorityPdfText";
 import type { BookPart } from "mike/shared/engine-types/BookPart";
@@ -502,8 +501,8 @@ export async function prepareAuthorityAnnotations(draft: AuthoritiesDraft, autho
   if (saved) return { annotations: saved, pageMarked: [] };
   const [part] = reading ? (await readAuthoritySource(draft, authority, [source], { [source.bindingRole]: { reading } },
     { regenerate: true })).parts : [];
-  return { annotations: decodeAnnotationSet({ schemaVersion: ANNOTATION_SCHEMA, sourceSha256: source.sourceSha256,
-    marks: part?.marks ?? [] }), pageMarked: part?.pageMarked ?? [] };
+  return { annotations: { ...emptyAnnotationSet(source.sourceSha256), marks: part?.marks ?? [] },
+    pageMarked: part?.pageMarked ?? [] };
 }
 
 /** An authority's PDFs as the book joins them, each with its marks written in (`editing`: what the engine read of the
@@ -532,8 +531,8 @@ async function loadAuthorityPdf(
     // The engine appends the marks to the source's own bytes (as Authorities-lite exports them); the book takes its
     // pages from that copy.
     return { kind: "pdf", headings: (attached[source.bindingRole]?.outline ?? []).map(({ title, level, pageIndex }) =>
-      ({ title, level, pageIndex })), bytes: marks.length ? annotatePdf(structureNative(), item.bytes, decodeAnnotationSet({
-      schemaVersion: ANNOTATION_SCHEMA, sourceSha256: source.sourceSha256, marks }), source.bindingRole) : item.bytes };
+      ({ title, level, pageIndex })), bytes: marks.length
+      ? structureNative().pdfWriteAnnotations(item.bytes, marks, source.bindingRole).bytes : item.bytes };
   });
   return { parts, read };
 }

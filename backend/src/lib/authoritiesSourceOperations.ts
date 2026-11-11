@@ -54,13 +54,19 @@ export const sourceBytes = (file: AuthoritiesRuntimeFile) => Buffer.from(file.by
 export const value = (data: unknown): AuthoritiesRuntimeResult => ({ data });
 export const draftResult = (data: AuthoritiesDraft, attachments: PreparedAuthoritySource[]): AuthoritiesRuntimeResult => ({ data, attachments });
 export const fileResult = (data: unknown, files: Array<{ role: string; mimeType: string; bytes: Uint8Array; filename?: string }>): AuthoritiesRuntimeResult => ({ data, files });
+/** The authority source a request's PDF is, checked once here, where the page hands the bytes over. */
+export function givenSource(state: AuthoritiesDraft, role: string, bytes: Buffer) {
+  const authority = Object.values(state.authorities).find(item =>
+    attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
+  const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
+  if (!authority || !source || sha256(bytes) !== source.sourceSha256)
+    return reject(409, "The PDF no longer matches this authority source");
+  return { authority, source };
+}
 /** The attached authority PDF `input.role` names, its bytes checked against it, and the reference it is read under. */
 function authoritySource(input: AuthoritiesOperationInput) {
   const state = draft(json(input?.draft, "draft"));
-  const role = String(input?.role), bytes = sourceBytes(requiredSource(input));
-  const source = Object.values(state.authorities).flatMap(authority =>
-    attachedAuthoritySources(authority.source)).find(source => source.bindingRole === role);
-  if (!source || sha256(bytes) !== source.sourceSha256) return reject(409, "The PDF no longer matches this authority source");
+  const bytes = sourceBytes(requiredSource(input)), { source } = givenSource(state, String(input?.role), bytes);
   return { bytes, reference: { documentId: `standalone-authority:${source.sourceSha256}`,
     versionId: source.sourceSha256, sourceSha256: source.sourceSha256 } };
 }

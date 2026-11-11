@@ -545,9 +545,8 @@ async function documentDraft(
   options: Pick<AuthoritiesDocumentImport, "sourceMode" | "supraLinking"> = {},
 ) {
   const latest = binding.version === "latest";
-  const requestedVersion = binding.version === "latest" ? null : binding.version.versionId;
   const [source, current, history] = await Promise.all([
-    documents.documentSource(scope, binding.documentId, requestedVersion),
+    documents.documentSource(scope, binding.documentId, latest ? null : binding.version.versionId),
     latest ? documents.metadata(scope, binding.documentId) : null,
     latest ? null : documents.versions(scope, binding.documentId),
   ]);
@@ -564,10 +563,7 @@ async function documentDraft(
   if (fileType !== "docx" && fileType !== "pdf") {
     throw new ApplicationError(409, "Authorities sources must be PDF or Word documents");
   }
-  const bytes = await source.readBytes();
-  if (sha256(bytes) !== source.sourceSha256)
-    throw new ApplicationError(409, "Document bytes do not match their version");
-  return importAuthoritiesDocument({ ...options, filename, fileType, bytes, binding,
+  return importAuthoritiesDocument({ ...options, filename, fileType, bytes: await source.readBytes(), binding,
     reference: { documentId: source.documentId, versionId: source.versionId },
     snapshot: { documentId: source.documentId, versionId: source.versionId, sha256: source.sourceSha256 },
     ledger: source.provenance?.actor === "assistant" ? source.provenance.generation?.authorityLedger : undefined,
