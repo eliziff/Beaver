@@ -4,10 +4,11 @@ import type { NativeDocument } from "./NativeDocument";
 
 /**
  * One of the source's PDFs, in the order the book joins them: its reading (the pages recognition read, where only
- * some were, are read from it and the rest from `native`), else its count of pages where its text could not be read;
- * and its marks where they were reviewed. None: a page the book adds in place of a missing PDF.
+ * some were, are read from it and the rest from `native`), else, where its text could not be read, its count of pages
+ * as attached or its bytes to count them in; and its marks where they were reviewed. None: a page the book adds in
+ * place of a missing PDF.
  */
-export type Part = { document?: NativeDocument, pages?: number, native?: NativeDocument, recognizedPages?: Array<number>, saved?: Array<AnnotationMark>, 
+export type Part = { document?: NativeDocument, pages?: number, bytes?: Uint8Array, native?: NativeDocument, recognizedPages?: Array<number>, saved?: Array<AnnotationMark>, 
 /**
  * Its marks place a paragraph only where its number is printed on it (a PDF the filer attached).
  */

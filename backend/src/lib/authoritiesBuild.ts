@@ -482,13 +482,13 @@ function authoritySourceRequest(draft: AuthoritiesDraft, authority: AuthorityIde
  *  the page the book holds in its place. */
 function readAuthoritySource(draft: AuthoritiesDraft, authority: AuthorityIdentity, sources: AttachedAuthoritySource[],
   attached: NonNullable<AuthoritiesBuildInput["sources"]>, { placeholders = false, regenerate = false, extraPages = 0,
-    pages = [] as Array<number | undefined> } = {}) {
+    bytes = [] as Array<Uint8Array | undefined> } = {}) {
   const parts = sources.map((source, index) => {
     const read = attached[source.bindingRole], reading = read?.reading;
     if (placeholders && read?.bytes === undefined) return null;
     const saved = regenerate ? undefined : annotationSetForSource(authority.annotations, source.bindingRole, source.sourceSha256);
     return { ...reading ? { document: reading.document, native: reading.native, recognizedPages: reading.recognizedPages,
-      pagesOnly: !!reading.plain } : { pages: pages[index] ?? source.pageCount ?? 1 },
+      pagesOnly: !!reading.plain } : { pages: source.pageCount, bytes: bytes[index] },
       requirePrinted: source.origin === "manual", ...saved && { saved: saved.marks } };
   });
   return structureNative().authorityReading(parts, authoritySourceRequest(draft, authority, sources, extraPages));
@@ -513,16 +513,11 @@ async function loadAuthorityPdf(
   editing?: { draft: AuthoritiesDraft; authority: AuthorityIdentity; extraPages?: number },
   allowIncomplete = !!editing?.draft.settings.allowIncomplete,
 ) {
-  const loaded = await Promise.all(sources.map(async (source) => {
-    const given = attached[source.bindingRole];
-    if (allowIncomplete && given?.bytes === undefined) return null;
-    // A PDF read is one that opens; one whose text was not read is counted here, where its attaching did not.
-    if (given?.reading && given.bytes) return { bytes: given.bytes, pages: undefined };
-    const bytes = boundPdf(source, label.name, attached);
-    return { bytes, pages: source.pageCount ?? (await structureNative().pdfPages(bytes)).length };
-  }));
+  const loaded = sources.map((source) => allowIncomplete && attached[source.bindingRole]?.bytes === undefined ? null
+    : { bytes: boundPdf(source, label.name, attached) });
+  // A PDF whose text was not read is counted where the engine joins it.
   const read = editing && await readAuthoritySource(editing.draft, editing.authority, sources, attached,
-    { placeholders: allowIncomplete, extraPages: editing.extraPages, pages: loaded.map((item) => item?.pages) });
+    { placeholders: allowIncomplete, extraPages: editing.extraPages, bytes: loaded.map((item) => item?.bytes) });
   const parts = loaded.map((item, index): BookPart => {
     const source = sources[index];
     if (!item) return { kind: "missing", federal: false, ...(sources.length > 1

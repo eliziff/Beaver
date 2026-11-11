@@ -214,10 +214,10 @@ function finalContractDatabase() {
 }
 
 /** McGill's form of an article row: byline, title, year, volume and issue, journal, first page. */
-const displayCitation = (row: Row) => structureNative().citationEngineCall("formatArticle", {
+const displayCitation = (row: Row) => structureNative().formatArticle({
   authors: (string(row, "authors") ?? "").split(/\s*;\s*/u).filter(Boolean), title: string(row, "name_en") ?? "",
   year: string(row, "document_date_en"), volume: string(row, "volume"), issue: string(row, "issue"),
-  journal: string(row, "journal_abbrev"), firstPage: string(row, "first_page") }) as string;
+  journal: string(row, "journal_abbrev"), firstPage: string(row, "first_page") });
 
 function result(row: Row, query: string): JournalArticleSearchResult {
   const articleId = integer(row.article_id)!;

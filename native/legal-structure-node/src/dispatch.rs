@@ -9,6 +9,7 @@
 use legal_structure_features::a2aj_store as a2aj;
 use crate::engine::{self, Failure, NativeDocument};
 use crate::source;
+use legal_structure::citations as cite;
 use serde::de::{DeserializeOwned, Error as _};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -203,8 +204,7 @@ pub(crate) enum Provision {
     MissingStatute,
 }
 
-/// A value TypeScript is not told the shape of (`unknown`): the citation engine's own API, a PDF's parse request, a
-/// record A2AJ's API answered with.
+/// A value TypeScript is not told the shape of (`unknown`): a PDF's parse request, a record A2AJ's API answered with.
 pub struct Untyped<T>(pub T);
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Untyped<T> {
@@ -228,6 +228,35 @@ impl<T> ts_rs::TS for Untyped<T> {
     }
     fn inline(config: &ts_rs::Config) -> String {
         Self::name(config)
+    }
+}
+
+/// A value read with its type's defaults where the request leaves fields out (its type's serde default): TypeScript's
+/// `Partial<T>`.
+pub struct Defaulted<T>(pub T);
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Defaulted<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        T::deserialize(deserializer).map(Defaulted)
+    }
+}
+
+#[cfg(feature = "binding-types")]
+impl<T: ts_rs::TS> ts_rs::TS for Defaulted<T> {
+    type WithoutGenerics = Defaulted<ts_rs::Dummy>;
+    type OptionInnerType = Self;
+    fn name(config: &ts_rs::Config) -> String {
+        format!("Partial<{}>", T::name(config))
+    }
+    fn inline(config: &ts_rs::Config) -> String {
+        format!("Partial<{}>", T::inline(config))
+    }
+    fn visit_dependencies(visitor: &mut impl ts_rs::TypeVisitor) where Self: 'static {
+        T::visit_dependencies(visitor);
+    }
+    fn visit_generics(visitor: &mut impl ts_rs::TypeVisitor) where Self: 'static {
+        T::visit_generics(visitor);
+        visitor.visit::<T>();
     }
 }
 
@@ -342,6 +371,14 @@ macro_rules! operations {
     };
 }
 
+/// Each key's exact aliases and authored forms in the A2AJ store's inventory; its own key alone where there is no store.
+fn alias_groups(store: &std::path::Path, keys: &[String]) -> Result<Vec<engine::AliasGroup>, String> {
+    #[cfg(feature = "a2aj")]
+    return a2aj::alias_groups(store, keys);
+    #[cfg(not(feature = "a2aj"))]
+    { let _ = store; Ok(keys.iter().map(|key| engine::AliasGroup::own(key)).collect()) }
+}
+
 #[cfg(feature = "a2aj")]
 fn language(language: Option<legal_structure_features::a2aj::Language>) -> legal_structure_features::a2aj::Language {
     language.unwrap_or(legal_structure_features::a2aj::Language::En)
@@ -404,11 +441,6 @@ operations! { progress;
     off "renderFilingPdf" (filing: Bytes, entries: Vec<crate::assembly::book::FilingEntry>) -> RenderedPdf {
         let (bytes, page_count) = crate::assembly::book::render_filing(&filing, &entries)?;
         RenderedPdf { bytes: Buffer(bytes), page_count }
-    }
-    /// Each page's crop box ([x, y, width, height]), rotation, and links to web addresses ([index, uri, rect]).
-    #[cfg(feature = "legalpdf")]
-    off "pdfPages" (bytes: Bytes) -> Vec<legalpdf::compose::PageFrame> {
-        legalpdf::compose::page_frames(&bytes).map_err(|error| error.to_string())?
     }
     /// The brief and its book as one PDF, and each of the plan's links not made, and why.
     #[cfg(feature = "legalpdf")]
@@ -541,10 +573,86 @@ operations! { progress;
         legal_structure_features::document_outline(document.structure())
     }
     now "documentTableCells" (document: Handle) -> Vec<legal_structure::AuthoritativeTableCell> { document.query.table_cells(document.structure()) }
-    /// A call of the citation engine's API (legal-citations `api::call_value`): its method and its request as it reads it.
-    now "citationEngineCall" (method: String, request: Untyped<Value>) -> Untyped<Value> {
-        Untyped(legal_structure::citations::api::call_value(&method, request.0).map_err(|error| error.to_string())?)
+    /// The citations a text holds, as the citation engine extracts them: with `options` (each left out its default),
+    /// offsets in `offsetUnit` (bytes by default).
+    now "citationExtract" (text: String, options: Defaulted<cite::Options>, offset_unit: Option<cite::OffsetUnit>)
+        -> cite::api::ExtractResponse {
+        cite::api::extract(&cite::api::ExtractRequest { text, markup_text: None, options: options.0,
+            offset_unit: offset_unit.unwrap_or_default() }).map_err(|error| error.to_string())?
     }
+    /// What the host knows of how far works run, for every later extraction: a works pack (shared/work-extents-data.mjs).
+    now "registerExtents" (pack: String) -> () { cite::register_extents(&pack) }
+    /// The identity key of the one full citation a text holds, and every citation's key.
+    now "citationKeyForText" (text: String) -> cite::api::KeyForTextResponse {
+        cite::api::key_for_text(&cite::api::TextRequest { text, ..Default::default() }).map_err(|error| error.to_string())?
+    }
+    /// Whether a page's running head ("[2019] 4 R.C.S. / CANADA c. VAVILOV / 653") prints the volume and first page of
+    /// one of the citations' reports.
+    now "matchesReporterHeader" (text: String, citations: Vec<cite::Citation>) -> bool {
+        cite::cues::matches_reporter_header(&text, &citations)
+    }
+    /// Whether names written for a case can name the case another name names, and each one's distinctive words.
+    now "caseNamesAgree" (written: Vec<String>, other: String) -> cite::format::CaseNamesAgreement {
+        cite::format::case_names_agree(&cite::format::CaseNamesRequest { written, other })
+    }
+    /// The style of cause a decision prints before its own citation, which one of `keys` names; null where its caption
+    /// is not a plain "Name, citation".
+    now "captionStyleOfCause" (text: String, keys: Vec<String>) -> Option<String> {
+        cite::authorities::caption_style_of_cause(&cite::authorities::CaptionRequest { text, keys })
+    }
+    /// The pinpoints written in `start..end` (UTF-16) of a text, each with its kind and place; with `strict`, none where
+    /// the selection has no locator words, else a bare value is a page.
+    now "pinpointsAt" (text: String, start: usize, end: usize, strict: Option<bool>) -> Vec<cite::authorities::PinpointValue> {
+        cite::authorities::pinpoints_at(&cite::authorities::PinpointsRequest { text, start, end, strict: strict.unwrap_or(false) })
+    }
+    /// A pinpoint as McGill writes it ("at paras 12-14").
+    now "citationFormat" (kind: cite::PinpointKind, locators: Vec<cite::api::Locator>) -> String {
+        cite::api::format(&cite::api::FormatRequest { pinpoint: Some(cite::api::PinpointRequest { kind, locators }), ..Default::default() })
+            .map_err(|error| error.to_string())?.pinpoint.unwrap_or_default()
+    }
+    /// A journal article as McGill cites it.
+    now "formatArticle" (article: cite::format::Article) -> String { cite::format::article(&article) }
+    /// The public source's page of a citation (a back reference's antecedent's), with `anchor` at its single pinpoint's
+    /// anchor where the source has one; null where no source is certain.
+    now "citationUrl" (citation: cite::Citation, anchor: Option<bool>) -> Option<String> {
+        cite::api::url(&cite::api::UrlRequest { citation: Some(citation), anchor: anchor.unwrap_or(false), ..Default::default() })
+            .map_err(|error| error.to_string())?.urls.into_iter().next().and_then(|url| url.url)
+    }
+    /// The statute or regulation a CanLII legislation page is of; null for another page.
+    now "canliiLawPage" (url: String) -> Option<cite::url::CanliiLawPage> { cite::url::canlii_law_page(&url) }
+    /// A CanLII PDF link as its page, its anchor kept, unless it names a PDF page.
+    now "canliiPdfPage" (url: String) -> String { cite::url::canlii_pdf_page(&url) }
+    /// A CanLII page at the anchor of its first paragraph or section pinpoint fragment ("par12", "sec6(1)(c)").
+    now "canliiPinpointUrl" (url: String, pinpoints: Vec<String>) -> String { cite::url::canlii_pinpoint_url(&url, &pinpoints) }
+    /// The anchor a source's page has for each label of a locator kind ("par12", "page 3", "2(1)"); null where none.
+    now "sourceAnchor" (url: String, kind: String, labels: Vec<String>, depth: Option<usize>) -> Vec<Option<String>> {
+        labels.iter().map(|label| cite::url::source_anchor_within(&url, &kind, label, depth)).collect()
+    }
+    /// A source's link at `anchor` where given, else the anchor it has; null for an address that cannot be linked.
+    now "sourceUrl" (url: String, anchor: Option<String>) -> Option<String> { cite::url::source_url(&url, anchor.as_deref()) }
+    /// A reference's link: its origin's link moved to the reference's own pinpoint.
+    now "reanchorReference" (link: String, text: String) -> String { cite::short_forms::reanchor_reference(&link, &text) }
+    /// Whether a reference is an ibid or a supra, the notes it numbers, and its words normalized.
+    now "referenceInfo" (text: String) -> cite::short_forms::ReferenceInfo { cite::short_forms::reference_info(&text) }
+    /// The name a supra is written with; with `fallback`, read more loosely where that finds none.
+    now "supraHint" (text: String, aggressive: bool, fallback: Option<bool>) -> String {
+        if fallback.unwrap_or(false) { cite::short_forms::fallback_hint(&text) } else { cite::short_forms::supra_hint(&text, aggressive) }
+    }
+    /// A note's clauses where it is only ibid and supra references; null otherwise.
+    now "pureReferenceClauses" (text: String) -> Option<Vec<cite::source::PureReferenceClause>> {
+        cite::source::pure_reference_clauses(&text)
+    }
+    /// A note split into its citation parts, offsets in `offsetUnit` (bytes by default).
+    now "splitSources" (text: String, recall_first: bool, offset_unit: Option<cite::OffsetUnit>) -> cite::source::SourceSplit {
+        cite::api::split_sources(&cite::api::SplitSourcesRequest { text, recall_first, offset_unit: offset_unit.unwrap_or_default(),
+            ..Default::default() })
+    }
+    /// A split part's citation fields.
+    now "sourceFields" (part: cite::source::SourcePart) -> cite::source::SourceFields {
+        cite::source::extract_fields(&part, part.us_forms())
+    }
+    /// Each note split into its parts (UTF-16 offsets), each with the first authority it refers to and its fields.
+    off "quoteCitationUnits" (texts: Vec<String>) -> Vec<cite::api::QuoteCitationUnit> { cite::api::quote_citation_units(texts) }
     /// Each note's proposition in a brief's body text (its body units in order, each followed by a line break): the
     /// passage since the call before its one call, or with `context` "sentence", the sentence its call ends or stands
     /// in; each with the parts of the units (by their place in `units`) it holds. Also where each body unit starts in
@@ -558,11 +666,18 @@ operations! { progress;
     now "briefText" (units: Vec<legal_structure_model::AuthorityTextUnit>) -> legal_structure_features::BriefText {
         legal_structure_features::brief_text(&units)
     }
-    /// The units as joined (with `joinBodies`, the body units a citation runs across are one), where each starts in the
-    /// brief's text, and the citations' indexes in reading order (a note's after the body up to its call).
-    now "briefCitationOrder" (units: Vec<legal_structure_model::AuthorityTextUnit>, citations: Vec<legal_structure_features::BriefCitation>,
-        join_bodies: bool) -> legal_structure_features::BriefCitationOrder {
-        legal_structure_features::brief_citation_order(&units, &citations, join_bodies)
+    /// A brief's citations as its book of authorities reads them, before the statutes it names are looked up: its text,
+    /// notes, citations, note parts and what each cites, its units as joined (with `joinBodies`, the body units a
+    /// citation runs across are one) and its citations in reading order, and each cited case's aliases in the A2AJ store
+    /// at `store`. `fileNumber`: the brief's own court file number, which cites nothing.
+    now "briefReading" (units: Vec<legal_structure_model::AuthorityTextUnit>, split_tier: legal_structure::citations::SplitTier,
+        join_bodies: bool, file_number: Option<String>, store: std::path::PathBuf) -> legal_structure_features::BriefReading {
+        legal_structure_features::brief_reading(&units, split_tier, join_bodies, file_number.as_deref(),
+            |keys| Ok(alias_groups(&store, &keys)?.into_iter().map(|group| group.keys).collect()))?
+    }
+    /// The brief's references resolved, its citations grouped by authority, and each authority's reading.
+    now "briefAuthorities" (sources: legal_structure_features::BriefSources) -> legal_structure_features::BriefAuthorities {
+        legal_structure_features::brief_authorities(sources)?
     }
     now "citationLookupKeys" (texts: Vec<String>) -> Vec<String> {
         texts.iter().map(|text| legal_structure::citation_lookup_key(text)).collect()
@@ -716,13 +831,7 @@ operations! { progress;
     }
     /// Each citation's exact aliases and authored forms in the store's inventory; its own key alone where there is
     /// no store.
-    now "a2ajAliasGroups" (store: std::path::PathBuf, keys: Vec<String>) -> Vec<engine::AliasGroup> {
-        #[cfg(feature = "a2aj")]
-        let groups = a2aj::alias_groups(&store, &keys)?;
-        #[cfg(not(feature = "a2aj"))]
-        let groups = { let _ = store; keys.iter().map(|key| engine::AliasGroup::own(key)).collect() };
-        groups
-    }
+    now "a2ajAliasGroups" (store: std::path::PathBuf, keys: Vec<String>) -> Vec<engine::AliasGroup> { alias_groups(&store, &keys)? }
     /// The citation of the one decision the store holds under a style of cause, in a year, of one of `courts` (any
     /// where none): a decision cited by an identifier A2AJ does not carry. Null where none answers, or several.
     #[cfg(feature = "a2aj")]

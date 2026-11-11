@@ -24,14 +24,10 @@ export type LegalSourceEvidence = {
   pageScoped?: boolean;
 };
 
-/** The citation engine's reading of a source's address (common-law-cite url.rs). */
-const engine = <T>(method: string, request: object) =>
-  structureNative().citationEngineCall(method, request) as T;
-
 /** The anchor a source's page has for a locator its reading labels ("par12", "page 3", "2(1)"): CanLII's and
- *  Decisia's paragraph anchors, a PDF's page, CanLII's section and subsection anchors. */
+ *  Decisia's paragraph anchors, a PDF's page, CanLII's section and subsection anchors (common-law-cite url.rs). */
 export function legalSourceLocatorAnchor(rawUrl: string | null, kind: A2AJLocatorKind, label: string) {
-  return rawUrl ? engine<(string | null)[]>("sourceAnchor", { url: rawUrl, kind, labels: [label] })[0] ?? undefined : undefined;
+  return rawUrl ? structureNative().sourceAnchor(rawUrl, kind, [label])[0] ?? undefined : undefined;
 }
 
 /**
@@ -40,8 +36,7 @@ export function legalSourceLocatorAnchor(rawUrl: string | null, kind: A2AJLocato
  * viewer needs; null for an address that is not http(s) or cannot be linked. A path on this host stays one.
  */
 export function sourceUrl(rawUrl: string, anchor?: string): string | null {
-  return fromEngine(engine<string | null>("sourceUrl", { url: toEngine(rawUrl), ...anchor !== undefined && { anchor } }),
-    isLocal(rawUrl));
+  return fromEngine(structureNative().sourceUrl(toEngine(rawUrl), anchor), isLocal(rawUrl));
 }
 
 /** A path on this host, as the absolute address the engine reads, and the engine's answer as a path again. */

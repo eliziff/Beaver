@@ -1,1 +1,2 @@
-export function registerWorkExtents(engine: { citationEngineCall(method: string, request: string): unknown }): void;
+import type { EngineOperations } from "./engine-types/operations";
+export function registerWorkExtents(engine: Pick<EngineOperations, "registerExtents">): void;

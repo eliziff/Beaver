@@ -13,7 +13,7 @@ import { legalSourceOperations } from "../legalSourceApplication";
 import { citedPassageLink, sourceUrl } from "../legalSourceLinks";
 import type { LegalSourceReference } from "../legalSources";
 import type { NativeDocument } from "../structureNative";
-import type { QuoteCitationUnit } from "../quoteCitationSplit";
+import type { SourceFields as Fields } from "mike/shared/engine-types/SourceFields";
 import { structureNative } from "../structureNative";
 import { ApplicationError } from "../applicationError";
 import { styledXlsx, type XlsxCell, type XlsxRun, type XlsxStyles } from "../quoteCheckWorkbook";
@@ -71,10 +71,6 @@ function footnoteFilter(text = "") {
   return ids.size ? ids : null;
 }
 
-type Part = { start: number; end: number; text: string; anchors: string[] };
-type Citation = { index: number; form: string; key?: string; span: { start: number; end: number }; fields?: { page?: string } };
-type Fields = QuoteCitationUnit["parts"][number]["fields"];
-const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, request) as T;
 const usableLink = (link: string) => /^https?:\/\/[^/\s]/iu.test((link ?? "").trim());
 
 /** A model's part of a note, at its place in the note's text (runtime/ai.ts). */
@@ -103,19 +99,18 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   const propositions = footnotePropositions(draft.units, options.quoteContext);
   const wanted = footnoteFilter(options.footnotes);
   // The article as one text and its notes as the citation engine reads them; each unit where it starts in it.
-  const { text, notes } = structureNative().briefText(draft.units);
+  const native = structureNative(), { text, notes } = native.briefText(draft.units);
   let next = 0;
   const placed = draft.units.map((unit) => ({ unit, start: next, end: (next += unit.text.length + 2) - 2 }));
   const ranges = placed.filter(({ unit }) => unit.kind === "footnote" && unit.footnoteId !== null)
     .map(({ unit: note, start, end }) => ({ note, start, end }));
-  const extracted = engine<{ citations: Citation[]; sourceParts: Part[] }>("extract", {
-    text, offsetUnit: "utf16", options: { resolve: false, splitTier: draft.settings.supraLinking ?? "safe", notes } });
+  const extracted = native.citationExtract(text, { resolve: false, splitTier: draft.settings.supraLinking ?? "safe", notes }, "utf16");
   const engineParts = extracted.sourceParts.map((part, source) => {
     const range = ranges.find(({ start, end }) => start <= part.start && part.end <= end);
     return { ...part, range: range!, local: part.start - (range?.start ?? 0), raw: part, source };
   }).filter((part) => part.range);
-  const engineFields = engineParts.map((part) => engine<Fields>("sourceFields", { part: part.raw }));
-  const kindOf = (text: string) => engine<{ kind: string; notes: string[] }>("referenceInfo", { text });
+  const engineFields = engineParts.map((part) => native.sourceFields(part.raw));
+  const kindOf = (text: string) => native.referenceInfo(text);
   const engineKinds = engineParts.map((part) => kindOf(part.text));
   // A full part's link: the author's own, else the source's page (CanLII for Canadian law).
   const engineLinks = engineParts.map((part, index) => engineKinds[index].kind ? "" : partLink(draft, part, engineFields[index]));
@@ -182,8 +177,8 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // A full part's link at its first paragraph or section pinpoint, as the Python app anchors a CanLII link; the
   // author's own link stays as written.
   const anchored = links.map((link, index) => link && !kinds[index].kind && !usableLink(fields[index].link_candidate)
-    ? engine<string>("canliiPinpointUrl", { url: link, pinpoints: fields[index].pinpoint_fragments }) : link);
-  const reanchor = (link: string, text: string) => engine<string>("reanchorReference", { link, text });
+    ? native.canliiPinpointUrl(link, fields[index].pinpoint_fragments) : link);
+  const reanchor = (link: string, text: string) => native.reanchorReference(link, text);
   // A part's paragraph and section pinpoints, each the citation engine's fragment ("par12", "sec6(1)(c)") read once as
   // the passage it names.
   const pinpoints = fields.map((field) => field.pinpoint_fragments.flatMap((fragment) => {
@@ -358,8 +353,8 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
   // A full part's first page: its first citation's, as a reporter or journal gives it.
   const firstPage = (index: number) => {
     const page = kinds[index].kind ? undefined : extracted.citations.find((citation) => citation.form === "full" &&
-      citation.fields?.page && parts[index].start <= citation.span.start && citation.span.end <= parts[index].end)?.fields?.page;
-    return typeof page === "string" ? page : (page as { text?: string } | undefined)?.text ?? "";
+      citation.fields.page && parts[index].start <= citation.span.start && citation.span.end <= parts[index].end)?.fields.page;
+    return page ?? "";
   };
   // Every quotation's routed link, planned at once off this thread.
   const quoteLinks = await Promise.all(parts.map((_, index) =>
@@ -374,7 +369,7 @@ export async function alrRows(draft: AuthoritiesDraft, check: Check, options: Al
     const authority = partAuthority(draft, org ?? part), mismatch = authority?.citedCase;
     const warning = mismatch && !draft.discrepancyDecisions?.[mismatch.id]
       ? "Citation names a different case: " + mismatch.name + " (" + mismatch.citation + ")." : "";
-    const hint = kinds[index].kind === "supra" ? engine<string>("supraHint", { text: part.text, aggressive: true }) : "";
+    const hint = kinds[index].kind === "supra" ? native.supraHint(part.text, true) : "";
     return [{
       footnote_id: note.footnoteId!, footnote_internal_id: note.footnoteId!, footnote_display_id: note.noteNumber === undefined && note.noteMark ? note.noteMark : String(number),
       footnote_full: note.text.trim(), proposition_text: propositions.get(note.footnoteId!)?.text ?? "",
@@ -428,7 +423,7 @@ function partAuthority(draft: AuthoritiesDraft, part: PlacedPart) {
 }
 /** A CanLII PDF link as its page, anchor kept, unless it names a PDF page: paragraph and section anchors are the page's
  *  (alr_quote_verifier.py _canlii_pdf_to_html_sibling, applied to every part's link). */
-const pdfToPage = (link: string) => engine<string>("canliiPdfPage", { url: link });
+const pdfToPage = (link: string) => structureNative().canliiPdfPage(link);
 
 /** A link without its text fragment; its paragraph, section or page anchor stays. */
 const withoutFragment = (link: string) => link.replace(/#?:~:text=.*$/u, "");
@@ -445,7 +440,7 @@ function samePage(a: string, b: string) {
 function pageIdentity(value: string) {
   try {
     const url = new URL(value), site = url.hostname.toLowerCase().replace(/^www\./u, "");
-    const law = engine<{ jurisdiction: string; id: string } | null>("canliiLawPage", { url: value });
+    const law = structureNative().canliiLawPage(value);
     return { site, page: law ? `${law.jurisdiction}/laws/${law.id}` : url.pathname };
   } catch {
     return { site: "", page: value };

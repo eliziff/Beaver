@@ -1,13 +1,13 @@
 // Which authority a PDF a reader downloaded is, for Authorities and Authorities-lite alike: the
 // matcher Authorities-lite v0.3.3 validated (103 of 105 judgments right, none wrong, no OCR).
-// `call(method, request)` is the legal-structure citation engine; `pages` are the PDF's opening
+// `engine` is the legal-structure engine, which reads the citations; `pages` are the PDF's opening
 // pages as native text lines ({ lines: [{ text }], marginText }), never recognized text.
 
 // CanLII names its PDFs by neutral citation (2019abqb666.pdf); browsers append " (1)" to repeats.
 export const CANLII_PDF_NAME = /^(\d{4})([a-z]{2,10})(\d+)(?: ?\(\d+\))?\.pdf$/iu;
 const REPORTER_PDF_NAME = /^(\d{4})(scr|rcs)(\d*)_(\d+)(?: ?\(\d+\))?\.pdf$/iu;
-const key = (call, text) => call('keyForText', { text: String(text || '') }).key;
-const extract = (call, text) => call('extract', { text, offsetUnit: 'utf16', options: { resolve: false, parallel: false } }).citations;
+const key = (engine, text) => engine.citationKeyForText(String(text || '')).key;
+const extract = (engine, text) => engine.citationExtract(text, { resolve: false, parallel: false }, 'utf16').citations;
 
 /** The citation a CanLII filename names; CanLII IDs and neutral court codes have different keys. */
 export function canliiFileCitation(name) {
@@ -25,14 +25,14 @@ export function headerText(pages) {
   }
   return text;
 }
-export function headerIdentities(pages, call) {
+export function headerIdentities(pages, engine) {
   const text = headerText(pages);
-  const citations = text ? extract(call, text).filter(c => c.form === 'full' && ['neutral', 'can_lii', 'reporter'].includes(c.format)) : [];
+  const citations = text ? extract(engine, text).filter(c => c.form === 'full' && ['neutral', 'can_lii', 'reporter'].includes(c.format)) : [];
   // CanLII's rotated margin stamp can follow the body in PDF reading order.
   if (!citations.some(c => ['neutral', 'can_lii'].includes(c.format)) && pages.length > 1) {
     const repeated = new Set((pages[1].marginText || '').split('\n').map(text => text.trim()));
     for (const line of new Set((pages[0].marginText || '').split('\n').map(text => text.trim()).filter(text => text && repeated.has(text)))) {
-      const found = extract(call, line);
+      const found = extract(engine, line);
       if (found.length !== 1) continue;
       const citation = found[0], tail = line.slice(citation.span.end).trim();
       if (citation.form === 'full' && citation.format === 'can_lii' && citation.span.start === 0 &&
@@ -44,17 +44,17 @@ export function headerIdentities(pages, call) {
 // Supreme Court publisher PDFs are the bilingual S.C.R./R.C.S. print: page one opens with a running head such as
 // "[2019] 4 R.C.S. / CANADA c. VAVILOV / 653", which carries no neutral citation. Accept it only when the volume
 // and first page (and the year, when the citation keeps it) equal one of the record's own S.C.R. citations.
-function scrRunningHead(pages, citations, call) {
+function scrRunningHead(pages, citations, engine) {
   const head = (pages[0]?.lines || []).slice(0, 6).map(line => line.text).join(' ');
-  return call('matchesReporterHeader', { text: head, citations });
+  return engine.matchesReporterHeader(head, citations);
 }
 /** Throws unless the opening names `record` ({ citation, aliases }). */
-export function verifyIdentity(pages, record, call) {
-  const aliases = record.aliases.flatMap(alias => extract(call, alias));
-  const identities = headerIdentities(pages, call), accepted = new Set(aliases.map(c => c.key).filter(Boolean));
+export function verifyIdentity(pages, record, engine) {
+  const aliases = record.aliases.flatMap(alias => extract(engine, alias));
+  const identities = headerIdentities(pages, engine), accepted = new Set(aliases.map(c => c.key).filter(Boolean));
   const own = identities.filter(i => i.family === 'neutral');
   const candidates = own.length ? own.slice(0, 1) : identities;
-  if ((!own.length || !aliases.some(c => c.format === 'neutral')) && scrRunningHead(pages, aliases, call)) return;
+  if ((!own.length || !aliases.some(c => c.format === 'neutral')) && scrRunningHead(pages, aliases, engine)) return;
   if (!candidates.some(i => i.key && accepted.has(i.key))) throw new Error(own.length
     ? `Wrong PDF: its opening citation is ${own[0].text}, not ${record.citation}.`
     : 'The opening citation could not be verified. Keep this file unbound and check its first page.');
@@ -70,24 +70,24 @@ const normalized = new WeakMap();
  *  docket and parties can fill its first page), else exact agreement with a record's reference text,
  *  which `reference(record)` gives only when it is needed. The filename names the record only where the
  *  PDF cannot contradict it: a scan, or an opening that prints no case's citation at all. */
-export async function matchFolderPdf(filename, pages, records, call, reference = record => record.referenceText) {
+export async function matchFolderPdf(filename, pages, records, engine, reference = record => record.referenceText) {
   const named = canliiFileCitation(filename), reporter = REPORTER_PDF_NAME.exec(filename);
   // The engine reads court codes in capitals only: 2019abqb666.pdf is 2019 ABQB 666.
-  const nameKey = key(call, named ?? (reporter ? `[${reporter[1]}] ${reporter[3]} ${reporter[2].toUpperCase()} ${reporter[4]}` : filename.replace(/\.pdf$/iu, '')));
-  const namedRecords = nameKey ? records.filter(r => r.aliases.some(a => key(call, a) === nameKey)) : [];
+  const nameKey = key(engine, named ?? (reporter ? `[${reporter[1]}] ${reporter[3]} ${reporter[2].toUpperCase()} ${reporter[4]}` : filename.replace(/\.pdf$/iu, '')));
+  const namedRecords = nameKey ? records.filter(r => r.aliases.some(a => key(engine, a) === nameKey)) : [];
   const byName = namedRecords.length === 1 ? { record: namedRecords[0], method: 'filename' } : null;
   const opening = pages.map(p => p.lines.map(l => l.text).join('\n')).join('\n');
   const tokens = words(opening);
   if (tokens.length < 12) return byName;
-  let header = headerIdentities(pages, call);
-  const printed = header.length ? [] : extract(call, opening).filter(c => c.form === 'full' && ['neutral', 'can_lii', 'reporter'].includes(c.format));
+  let header = headerIdentities(pages, engine);
+  const printed = header.length ? [] : extract(engine, opening).filter(c => c.form === 'full' && ['neutral', 'can_lii', 'reporter'].includes(c.format));
   if (!header.length) header = printed.map(c => ({ ...c.span, key: c.key, family: c.format }));
   const neutral = header.filter(c => c.family === 'neutral');
   const identities = new Set((neutral.length ? neutral.slice(0, 1) : header).map(c => c.key).filter(Boolean));
-  const candidates = records.filter(r => r.aliases.some(a => identities.has(key(call, a))));
+  const candidates = records.filter(r => r.aliases.some(a => identities.has(key(engine, a))));
   // A citation read past the header is the record's where it is the record's own; verifyIdentity reads the header.
   const verified = printed.length ? candidates
-    : candidates.filter(r => { try { verifyIdentity(pages, r, call); return true; } catch { return false; } });
+    : candidates.filter(r => { try { verifyIdentity(pages, r, engine); return true; } catch { return false; } });
   if (verified.length === 1) return { record: verified[0], method: 'citation' };
   if (verified.length > 1 || neutral.length) return null;
   // Exact opening-text agreement; never pick a best fuzzy score. Require a majority

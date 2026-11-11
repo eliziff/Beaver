@@ -7,6 +7,7 @@ import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import type { LegalSourcePassage, LegalSourceReference } from "./legalSources";
 import { mapBounded } from "./mapBounded";
 import { structureNative } from "./structureNative";
+import type { PinpointKind } from "mike/shared/engine-types/PinpointKind";
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
 
 export type { AuthoritiesSourcePassage };
@@ -62,16 +63,14 @@ export function pinpointCorrection(occurrence: AuthorityOccurrence, label: strin
   const pin = occurrence.pinpoints[0], phrase = occurrence.pinpointPhrase ?? occurrence.pinpointSpan;
   if (occurrence.pinpoints.length !== 1 || !pin?.first || !phrase) return null;
   const engine = structureNative();
-  const value = (engine.citationEngineCall("pinpointsAt", { text: label, start: 0, end: label.length }) as
-    Array<{ first?: string }>)[0]?.first ?? label.trim();
+  const value = engine.pinpointsAt(label, 0, label.length)[0]?.first ?? label.trim();
   const [first, last, at] = [Number(pin.first), Number(pin.last ?? pin.first), Number(value)];
   const whole = [first, last, at].every(Number.isInteger);
   const locator = !extend ? { first: value }
     : whole && at === first - 1 ? { first: value, last: pin.last ?? pin.first }
       : whole && at === last + 1 ? { first: pin.first, last: value } : null;
   if (!locator) return null;
-  const written = (engine.citationEngineCall("format", { pinpoint: { kind: pin.kind, locators: [locator] } }) as
-    { pinpoint?: string }).pinpoint;
+  const written = engine.citationFormat(pin.kind as PinpointKind, [locator]);
   if (!written) return null;
   // A manually placed span may hold only the locators; their introduction stays outside it.
   // Otherwise a phrase the brief writes without "at" keeps it out.

@@ -46,17 +46,19 @@ pub enum Excerpt {
 }
 
 /// One of the source's PDFs, in the order the book joins them: its reading (the pages recognition read, where only
-/// some were, are read from it and the rest from `native`), else its count of pages where its text could not be read;
-/// and its marks where they were reviewed. None: a page the book adds in place of a missing PDF.
+/// some were, are read from it and the rest from `native`), else, where its text could not be read, its count of pages
+/// as attached or its bytes to count them in; and its marks where they were reviewed. None: a page the book adds in
+/// place of a missing PDF.
 #[derive(Deserialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Part {
     #[cfg_attr(feature = "binding-types", ts(optional))]
     pub document: Option<Handle>,
-    #[serde(default)]
-    #[cfg_attr(feature = "binding-types", ts(as = "Option<usize>", optional))]
-    pub pages: usize,
+    #[cfg_attr(feature = "binding-types", ts(optional))]
+    pub pages: Option<usize>,
+    #[cfg_attr(feature = "binding-types", ts(optional))]
+    pub bytes: Option<crate::dispatch::Bytes>,
     #[cfg_attr(feature = "binding-types", ts(optional))]
     pub native: Option<Handle>,
     #[serde(rename = "recognizedPages")]
@@ -268,13 +270,18 @@ pub fn authority_reading(parts: &[Option<Part>], request: &SourceRequest) -> eng
     let (mut readings, mut texts, mut ocr) = (Vec::new(), Vec::new(), Vec::new());
     let (mut placed, mut context, mut marked, mut starts) = (BTreeMap::new(), BTreeSet::new(), BTreeSet::new(), Vec::new());
     let (mut bookmarks, mut bookmarked) = (Vec::new(), BTreeSet::new());
-    let count = |part: &Part| part.document.as_deref().map_or(Ok(part.pages), |document| engine::pdf(document).map(|pdf| pdf.page_count()));
-    let page_count = parts.iter().map(|part| part.as_ref().map_or(Ok(1), count)).sum::<engine::CoreResult<usize>>()? + request.extra_pages;
+    let count = |part: &Part| match (part.document.as_deref(), part.pages, &part.bytes) {
+        (Some(document), _, _) => engine::pdf(document).map(|pdf| pdf.page_count()),
+        (None, Some(pages), _) => Ok(pages),
+        (None, None, Some(bytes)) => legalpdf::compose::page_frames(bytes).map(|pages| pages.len()).map_err(|error| error.to_string()),
+        (None, None, None) => Ok(1),
+    };
+    let counts = parts.iter().map(|part| part.as_ref().map_or(Ok(1), count)).collect::<engine::CoreResult<Vec<usize>>>()?;
+    let page_count = counts.iter().sum::<usize>() + request.extra_pages;
     let mut offset = 0;
-    for part in parts {
+    for (part, &pages) in parts.iter().zip(&counts) {
         starts.push(offset);
         let (Some(part), Some(document)) = (part, part.as_ref().and_then(|part| part.document.as_deref())) else {
-            let pages = part.as_ref().map_or(1, |part| part.pages);
             texts.extend(std::iter::repeat_n(String::new(), pages)); ocr.extend(std::iter::repeat_n(String::new(), pages));
             // Its reviewed marks stand whether or not its text was read.
             let marks = part.as_ref().and_then(|part| part.saved.clone()).unwrap_or_default();

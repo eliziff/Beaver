@@ -16,19 +16,18 @@ export type AlrRunMode = "high_accuracy" | "economy" | "ultra_economy";
 /** The run modes a page may ask for (ALR's beaver_app/runtime/ai.ts checks a request against them). */
 export const RUN_MODES: readonly AlrRunMode[] = ["high_accuracy", "economy", "ultra_economy"];
 
-const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, request) as T;
-const isIbid = (text: string) => engine<{ kind: string }>("referenceInfo", { text }).kind === "ibid";
+const isIbid = (text: string) => structureNative().referenceInfo(text).kind === "ibid";
 
 /** Whether the run mode leaves the note to the engine. */
 function engineReads(runMode: AlrRunMode, note: AlrModelNote, previous?: AlrModelNote) {
   if (!note.text.trim()) return true;
   if (runMode === "high_accuracy") return false;
-  const clauses = engine<Array<{ text: string }> | null>("pureReferenceClauses", { text: note.text });
+  const native = structureNative(), clauses = native.pureReferenceClauses(note.text);
   if (clauses?.length) return !isIbid(clauses[0].text) || !!previous?.parts.at(-1)?.link;
   if (runMode !== "ultra_economy") return false;
-  const split = engine<{ status: string; parts: unknown[] }>("splitSources", { text: note.text, recallFirst: false, offsetUnit: "utf16" });
+  const split = native.splitSources(note.text, false, "utf16");
   if (split.status !== "deterministic_complete") return false;
-  const fields = split.parts.map((part) => engine<{ status: string; kind: string }>("sourceFields", { part }));
+  const fields = split.parts.map((part) => native.sourceFields(part));
   return fields.every((field) => field.status === "complete") && note.parts.every((part) => !part.reference)
     && note.parts.every((part) => !["case", "unreported", "statute"].includes(part.kind) || !!part.link);
 }

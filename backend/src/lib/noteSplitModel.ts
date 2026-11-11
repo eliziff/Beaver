@@ -205,16 +205,15 @@ const CHOOSE_SCHEMA = { type: "object", additionalProperties: false, required: [
 export type ReferenceCandidate = { note: string; shortForm: string; text: string; link: string };
 const STOPWORDS = new Set(["supra", "note", "notes", "ibid", "at", "para", "paras", "the", "of", "and", "in", "see", "also",
   "v", "r", "c", "et", "al", "this", "that", "a", "an", "to", "for", "is", "was", "on", "by", "with", "as", "or"]);
-const engine = <T>(method: string, request: unknown) => structureNative().citationEngineCall(method, request) as T;
-const normalizedReference = (text: string) => engine<{ normalized: string }>("referenceInfo", { text }).normalized;
+const normalizedReference = (text: string) => structureNative().referenceInfo(text).normalized;
 const tokens = (text: string) => new Set((normalizedReference(text).match(/[a-z][a-z'’-]+/gu) ?? []).filter((token) => !STOPWORDS.has(token)));
 const baseLink = (link: string) => link.split("#", 1)[0].replace(/\s+/gu, " ").trim().toLowerCase();
 const linked = (link: string) => !!link.trim() && link.trim().toLowerCase() !== "other";
 
 /** The earlier parts most like the reference (its name, else the passage its note ends), at most eight, each work once. */
 export function rankReferenceCandidates(reference: string, earlier: ReferenceCandidate[], proposition: string) {
-  const hint = engine<string>("supraHint", { text: reference, aggressive: false })
-    || engine<string>("supraHint", { text: reference, aggressive: false, fallback: true });
+  const native = structureNative();
+  const hint = native.supraHint(reference, false) || native.supraHint(reference, false, true);
   const hinted = tokens(hint), wanted = hinted.size ? hinted : tokens(reference);
   const fromPassage = hinted.size ? new Set<string>() : tokens(proposition);
   const exact = normalizedReference(hint).replace(/^[[\]() ]+|[[\]() ]+$/gu, "");
@@ -249,7 +248,7 @@ export async function chooseReferenceTarget(llm: StructuredLlm, reference: strin
   try { choice = Number(JSON.parse(answer.text).choice) || 0; } catch { /* None chosen. */ }
   const chosen = choice >= 1 && choice <= candidates.length && linked(candidates[choice - 1].link) ? candidates[choice - 1] : null;
   if (!chosen) return { chosen: null, usage: answer.usage };
-  const noted = Number(engine<{ notes: string[] }>("referenceInfo", { text: reference }).notes[0]);
+  const noted = Number(structureNative().referenceInfo(reference).notes[0]);
   if (Number.isInteger(noted)) {
     const near = new Set(Array.from({ length: 7 }, (_, offset) => String(noted + offset - 3)));
     const pool = new Set(earlier.filter((item) => near.has(item.note) && linked(item.link)).map((item) => baseLink(item.link)));

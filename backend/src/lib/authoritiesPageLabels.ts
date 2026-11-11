@@ -2,7 +2,6 @@ import type { AttachedAuthoritySource } from "mike/shared/authorities-sources.mj
 import { authorityCitationForms, type AuthoritiesDraft } from "./authoritiesDomain";
 import { openDocument, PLAIN_PDF } from "./sourceDocument";
 import { structureNative } from "./structureNative";
-import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { mapBounded } from "./mapBounded";
 import type { PreparedAuthoritySource } from "./authoritiesSourceResolution";
 
@@ -36,11 +35,8 @@ export async function preparedSourcePages<T extends PreparedAuthoritySource>(dra
       reference?.(attachment)));
     read += 1;
   }, 3);
-  const pages = new Map<T, { pageLabels?: Array<string | null>; pageCount: number }>();
-  for (const attachment of attachments) {
-    const pageLabels = labels.get(attachment);
-    pages.set(attachment, { pageLabels, pageCount: attachment.pageCount ?? pageLabels?.length ??
-      await validateAuthoritiesPdf(attachment.bytes) });
-  }
-  return pages;
+  return new Map(attachments.map((attachment) => {
+    const pageLabels = labels.get(attachment)!;
+    return [attachment, { pageLabels, pageCount: attachment.pageCount ?? pageLabels.length }];
+  }));
 }

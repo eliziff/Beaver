@@ -1,11 +1,6 @@
 import { inSqliteRun, onSqliteRunEnd } from "./legalDataPath";
 import { structureNative } from "./structureNative";
-
-/** A note split into its citation parts, each with the citation engine's fields of it (`SourceFields`). */
-export type QuoteCitationUnit = { status: string; reasons: string[];
-  parts: Array<{ start: number; end: number; text: string; anchors: string[]; reference: string;
-    fields: import("legal-citations").SourceFields }>;
-  delimiters: Array<[number, number, string]> };
+import type { QuoteCitationUnit } from "mike/shared/engine-types/QuoteCitationUnit";
 
 // The units an operation splits, kept while it runs: finding sources splits the notes the quote check splits again.
 const split = new Map<string, QuoteCitationUnit>();
@@ -19,8 +14,7 @@ export async function splitQuoteCitationUnits(texts: string[], signal?: AbortSig
   const kept = inSqliteRun() ? split : new Map<string, QuoteCitationUnit>();
   const missing = [...new Set(texts.filter((text) => !kept.has(text)))];
   if (missing.length) {
-    const units = await structureNative().offThread("citationEngineCall", "quoteCitationUnits",
-      { texts: missing }) as QuoteCitationUnit[];
+    const units = await structureNative().quoteCitationUnits(missing);
     units.forEach((unit, index) => kept.set(missing[index], unit));
   }
   signal?.throwIfAborted();

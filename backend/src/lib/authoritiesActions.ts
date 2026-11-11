@@ -10,7 +10,9 @@ import { authorityPdfReading } from "./authorityPdfText";
 import { a2ajStorePath } from "./legalDataPath";
 import { canonicalJsonSha256, sha256 } from "./hash";
 import { structureNative } from "./structureNative";
+import type { Citation } from "mike/shared/engine-types/Citation";
 import type { CitationOccurrence } from "mike/shared/engine-types/CitationOccurrence";
+import type { NoteRange } from "mike/shared/engine-types/NoteRange";
 import type { WorkProductInput } from "./workProduct";
 import { authorityPdfRequired, type AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { headerIdentities, matchFolderPdf, verifyIdentity } from "mike/shared/folder-pdf-match.mjs";
@@ -100,8 +102,7 @@ function unusedRole(draft: AuthoritiesDraft, role: string) {
  *  "Citation: Pell v Marlow Holdings, 2030 ABKB 12" gives "Pell v Marlow Holdings". `keys` name
  *  the decision. A caption that is not a plain "Name, citation" (a label such as "Neutral
  *  citation:" or a heading's bracket read into the name) names nothing. */
-const captionStyleOfCause = (text: string, keys: readonly string[]) =>
-  structureNative().citationEngineCall("captionStyleOfCause", { text, keys }) as string | null;
+const captionStyleOfCause = (text: string, keys: readonly string[]) => structureNative().captionStyleOfCause(text, keys);
 
 /** The parties a decision's caption names, as its outline reads the matter before its reasons: each block of lines
  *  ending at a party's role ("Appellant", "Respondents"), from the line after the previous role or a "Between:", or
@@ -128,8 +129,7 @@ export function caseNameMismatch(authority: AuthorityIdentity,
   source: { citation: string; name: string | null; searchText?: () => string }): AuthorityCitedCase | null {
   const styled = authority.mentionedAs || authority.name;
   if (authority.kind !== "case" || !source.name || !styled?.trim()) return null;
-  const agreement = (other: string) => structureNative().citationEngineCall("caseNamesAgree",
-    { written: [styled, ...authority.shortNames ?? []], other }) as { agrees: boolean; other: string[] };
+  const agreement = (other: string) => structureNative().caseNamesAgree([styled, ...authority.shortNames ?? []], other);
   if (agreement(source.name).agrees) return null;
   const parties = source.searchText ? captionParties(source.searchText()) : [];
   // A caption whose parties give no distinctive name (the Crown alone) tells nothing.
@@ -152,8 +152,7 @@ export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, by
   if (!records.length) return null;
   const native = structureNative(), opening = await native.pdfOpening(bytes);
   if (opening.pageCount > 2_000) throw new ApplicationError(400, "This PDF exceeds the 2,000-page inspection limit.");
-  const match = await matchFolderPdf(filename, opening.pages, records, (method, request) =>
-    native.citationEngineCall(method, request), ({ authority }) => reference(authority));
+  const match = await matchFolderPdf(filename, opening.pages, records, native, ({ authority }) => reference(authority));
   return match?.record.authority.id ?? null;
 }
 
@@ -163,10 +162,9 @@ export async function folderPdfAuthority(draft: AuthoritiesDraft, { filename, by
  *  of the same decision, so it is another case only where its caption shares no party's name with the case's. */
 function openingOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity, pages: string[]) {
   const opening = pages.map((page) => ({ lines: page.split("\n").map((text) => ({ text })) }));
-  const call = (method: string, request: unknown) => structureNative().citationEngineCall(method, request);
-  const identities = headerIdentities(opening, call);
+  const native = structureNative(), identities = headerIdentities(opening, native);
   if (!identities.length) return null;
-  try { verifyIdentity(opening, { citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }, call); }
+  try { verifyIdentity(opening, { citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }, native); }
   catch {
     const own = identities.find(({ family }) => family === "neutral") ?? identities[0];
     const name = captionStyleOfCause(pages[0] ?? "", [own.key]);
@@ -319,27 +317,24 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
   return { occurrence, discovered, parsedName: match && styledName(match) };
 }
 
-type ResolvedCitation = { form: string; span: { start: number; end: number }; antecedent?: number; key?: string };
 /** The authority each reference names, as the engine resolves the brief, its notes numbered as the brief numbers them:
  *  the full citation its chain ends at, else the citation found in the note's part it names (a report or a book the
  *  engine reads no citation in, added by hand). */
 function referenceTargets(draft: AuthoritiesDraft, references: AuthorityOccurrence[], sources: CitationServices) {
   let text = "";
-  const notes: Array<{ number: number; start: number; end: number }> = [], starts = new Map<string, number>();
+  const notes: NoteRange[] = [], starts = new Map<string, number>();
   for (const item of draft.units) {
     starts.set(item.id, text.length);
     if (item.kind === "footnote" && typeof item.noteNumber === "number")
-      notes.push({ number: item.noteNumber, start: text.length, end: text.length + item.text.length });
+      notes.push({ number: item.noteNumber, start: text.length, end: text.length + item.text.length, sequence: 0 });
     text += `${item.text}\n\n`;
   }
-  const { citations, sourceParts, resolutions = [] } = structureNative().citationEngineCall("extract", {
-    text, offsetUnit: "utf16", options: { resolve: true, notes } }) as { citations: ResolvedCitation[];
-    sourceParts: Array<{ start: number; end: number }>; resolutions?: Array<{ index: number; sourcePart?: number | null }> };
+  const { citations, sourceParts, resolutions = [] } = structureNative().citationExtract(text, { resolve: true, notes }, "utf16");
   return new Map(references.map((occurrence) => {
     const at = starts.get(occurrence.unitId) ?? 0, { start, end } = occurrence.coreSpan;
     const index = citations.findIndex(({ form, span }) => form !== "full" && span.start < at + end && at + start < span.end);
-    let target: ResolvedCitation | undefined = citations[index];
-    while (target && target.form !== "full") target = target.antecedent === undefined ? undefined : citations[target.antecedent];
+    let target: Citation | undefined = citations[index];
+    while (target && target.form !== "full") target = target.antecedent == null ? undefined : citations[target.antecedent];
     const part = sourceParts[resolutions.find((resolution) => resolution.index === index)?.sourcePart ?? -1];
     const named = part && Object.values(draft.occurrences).find((item) => item.authorityId && !item.referenceKind &&
       part.start <= (starts.get(item.unitId) ?? -1) + item.start && (starts.get(item.unitId) ?? -1) + item.start < part.end);
@@ -500,8 +495,8 @@ type Pinpoint = AuthorityOccurrence["pinpoints"][number] & { start: number; end:
 /** The pinpoints written in [start, end) of a unit's text, each with its kind and place. The engine
  *  reads them as it reads an ibid's: the locator words before them ("at para", "s", "pp"), up to
  *  three words back, give their kind. Unless `strict`, a value with no such words is a page. */
-const pinpointsAt = (text: string, start: number, end: number, strict = false) =>
-  structureNative().citationEngineCall("pinpointsAt", { text, start, end, strict }) as Pinpoint[];
+const pinpointsAt = (text: string, start: number, end: number, strict = false): Pinpoint[] =>
+  structureNative().pinpointsAt(text, start, end, strict);
 
 /** The pinpoints a selection of a unit's text holds, read as a save reads them: the review shows
  *  an added pinpoint whole, its kind included, without waiting for the save. */

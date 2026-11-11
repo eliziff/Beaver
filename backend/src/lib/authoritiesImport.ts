@@ -18,20 +18,19 @@ import {
 import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
 import { preparePdf } from "./sourceDocument";
-import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { pdfFailureKind, structureNative } from "./structureNative";
 import type { AuthorityReferenceOccurrence } from "mike/shared/engine-types/AuthorityReferenceOccurrence";
 import type { AuthorityTextUnit } from "mike/shared/engine-types/AuthorityTextUnit";
-import type { CitationTextSpan } from "mike/shared/engine-types/CitationTextSpan";
 import type { CitationOccurrence } from "mike/shared/engine-types/CitationOccurrence";
 import type { WorkProductInput } from "./workProduct";
 import { a2ajStorePath } from "./legalDataPath";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import { mapBounded } from "./mapBounded";
 import { registerWorkExtents } from "mike/shared/work-extents.mjs";
-import type { Citation, ExtractResponse, ResolveResponse, SourcePart } from "legal-citations";
+import type { Citation } from "mike/shared/engine-types/Citation";
+import type { SourcePart } from "mike/shared/engine-types/SourcePart";
 
 type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
 type SupraLinking = NonNullable<AuthoritiesBuildSettings["supraLinking"]>;
@@ -45,12 +44,8 @@ export type AuthoritiesImportSource = { kind: "manual" } | DocumentInput |
   { kind: "receipts"; seeds: readonly GroundedReceiptSeed[] };
 
 type Span = { start: number; end: number };
-/** The citation engine's `noteReferences`: each split part that cites, with what it cites. */
-type ReferencePart = { part: SourcePart; references: Array<CitationTextSpan & { form: "citation" | "bare" | "link";
-  authority: Citation["authority"]; link?: string; citation?: number }> };
 
-async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<AuthorityTextUnit[]>,
-  readBytes?: () => Buffer | Promise<Buffer>) {
+async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<AuthorityTextUnit[]>) {
   try { return await read(); }
   catch (error) {
     const message = error instanceof Error ? error.message : "";
@@ -59,8 +54,6 @@ async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<Aut
     const kind = pdfFailureKind(error);
     if (fileType === "pdf" && (kind === "encrypted" || kind === "corrupt"))
       throw new ApplicationError(400, message);
-    if (fileType === "pdf" && readBytes && kind === "parser")
-      await validateAuthoritiesPdf(await readBytes());
     throw error;
   }
 }
@@ -96,9 +89,10 @@ export const nativeReferenceSpans = (reference: AuthorityReferenceOccurrence, te
 
 /** A federal, Ontario or B.C. statute's CanLII page, as the citation engine reads it: its language, jurisdiction and id. */
 const canliiStatute = (url: string | null | undefined, native: ReturnType<typeof structureNative>) => {
-  const page = url ? native.citationEngineCall("canliiLawPage", { url }) as
-    { language: "en" | "fr"; jurisdiction: string; kind: string; id: string } | null : null;
-  return page && Object.hasOwn(STATUTE_DATASET, page.jurisdiction) && ["stat", "astat"].includes(page.kind) ? page : null;
+  const page = url ? native.canliiLawPage(url) : null;
+  // A CanLII page's language is its path's: "en" or "fr".
+  return page && Object.hasOwn(STATUTE_DATASET, page.jurisdiction) && ["stat", "astat"].includes(page.kind)
+    ? { ...page, language: page.language as "en" | "fr" } : null;
 };
 const STATUTE_DATASET = { ca: "LEGISLATION-FED", on: "LEGISLATION-ON",
   bc: "LEGISLATION-BC" } as const;
@@ -121,9 +115,7 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
     const citation = full[0];
     const name = citation.shortName?.trim();
     if (!name || !sourceName(part.text).includes(sourceName(name))) return [];
-    const output = native.citationEngineCall("url", { citation,
-      anchor: true }) as { urls: Array<{ index: number; url: string | null }> };
-    const url = output.urls.find((item) => item.index === citation.index)?.url;
+    const url = native.citationUrl(citation, true);
     const page = canliiStatute(url, native);
     if (!page) return [];
     const core = statuteCore(citation)!;
@@ -169,9 +161,7 @@ async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
       .filter((hit) => hit.collection?.toUpperCase() === candidate.dataset && hit.title &&
         sourceName(candidate.part.text).includes(sourceName(hit.title)))
       .flatMap((hit) => {
-        const parsed = native.citationEngineCall("extract", {
-          text: hit.citation ?? "", options: { resolve: false },
-        }) as ExtractResponse;
+        const parsed = native.citationExtract(hit.citation ?? "", { resolve: false });
         const statutes = parsed.citations.filter((citation) => citation.form === "full" &&
           citation.authority === "statute");
         if (statutes.length !== 1 || statuteCore(statutes[0]) !== candidate.core) return [];
@@ -197,53 +187,24 @@ async function scanReview(
   const authorities: Record<string, AuthorityIdentity> = {};
   const authorityOrder: string[] = [];
   const native = structureNative();
-  // The brief's text and its notes as the citation engine reads them.
-  const { text, notes } = native.briefText(units);
-  // A Canadian brief is read with McGill's and COAL's forms; without the Bluebook or a US jurisdiction the engine
-  // reads no extended United States forms (a registration or account number reads as one of its codes).
-  const extracted = native.citationEngineCall("extract", { text, offsetUnit: "utf16",
-    options: { resolve: false, notes, styles: ["mcgill", "coal"], earlyReferences: true, splitTier: supraLinking },
-  }) as ExtractResponse;
-  // The brief's own court file number (its cover's) is never one of its authorities, though an
-  // order made under it that the brief names ("Re Ash Ltd, Order of Madam Justice Fen dated …,
-  // Court File No. 1601-06131") is.
-  const fileNumber = (value: unknown) => typeof value === "string" ? value.replace(/\D/gu, "") : "";
-  const cover = importedCover(units), ownFile = fileNumber(cover.courtFileNumber);
-  const namedOrder = (citation: Citation) => !!citation.style?.text.trim() &&
-    ["Order of", "Endorsement of"].some((words) => citation.fullSpan.text.includes(words));
-  if (ownFile) extracted.citations = extracted.citations.filter((citation) =>
-    citation.format !== "docket" || namedOrder(citation) || fileNumber(citation.fields.docket) !== ownFile);
-  // A web address written with no title of a work before it points the reader to a site; it
-  // names no authority a book could hold.
-  extracted.citations = extracted.citations.filter((citation) =>
-    citation.form !== "full" || citation.authority !== "webpage" || !!citation.style?.text.trim());
-  // PDF layout units can end in the middle of a citation: the engine joins the body units a citation runs across,
-  // keeping its exact text and global UTF-16 addresses, and reads the citations in the brief's reading order over them.
-  const { units: joined, starts, order } = native.briefCitationOrder(units, extracted.citations,
-    imported.kind === "document" && imported.fileType === "pdf");
-  const ranges = joined.map((unit, index) => ({ unit, start: starts[index], end: starts[index] + unit.text.length }));
-  const cases = extracted.citations.filter(({ form, authority, key }) =>
-    form === "full" && key && (authority === "case" || authority === "unknown"));
-  const closures = native.a2ajAliasGroups(a2ajStorePath(), cases.map(({ key }) => key!)).map(({ keys }) => keys);
-  // The note parts that cite: only these can be an authority (a prose note is never one).
-  const references = native.citationEngineCall("noteReferences", { parts: extracted.sourceParts,
-    citations: extracted.citations, offsetUnit: "utf16" }) as ReferencePart[];
-  const enriched = await enrichStatuteSources(references.map(({ part }) => part), extracted.citations, native);
-  // Every part reaches the resolver, prose included, so an ibid after a prose note continues from it (and stands for
-  // no authority) rather than from the last part that cites.
-  const indexOf = new Map(extracted.sourceParts.map((part, index) => [`${part.start}:${part.end}`, index]));
+  // The brief's citations as the engine reads them (a PDF's body units a citation runs across joined), less its own
+  // court file number (its cover's), and the note parts that cite.
+  const cover = importedCover(units);
+  const reading = native.briefReading(units, supraLinking, imported.kind === "document" && imported.fileType === "pdf",
+    cover.courtFileNumber || null, a2ajStorePath());
+  const { text, citations, references } = reading;
+  const ranges = reading.units.map((unit, index) => ({ unit, start: reading.starts[index], end: reading.starts[index] + unit.text.length }));
+  const enriched = await enrichStatuteSources(references.map(({ part }) => part), citations, native);
+  const indexOf = new Map(reading.sourceParts.map((part, index) => [`${part.start}:${part.end}`, index]));
   const partIndex = (part: SourcePart) => indexOf.get(`${part.start}:${part.end}`) ?? -1;
   const enrichedAt = new Map(references.map((source, at) => [partIndex(source.part), enriched[at]]));
-  const sourceParts = extracted.sourceParts.map((part, index) => enrichedAt.get(index) ?? part);
+  const sourceParts = reading.sourceParts.map((part, index) => enrichedAt.get(index) ?? part);
   // How far the cited works run (Beaver's works pack), so a pinpoint past a work's end refuses a reference's link.
   registerWorkExtents(native);
-  // Every reference's association, the one each consumer reads (the verifier's workbook and quotation check, Sources):
-  // the document's text, so a reference can be read by the words before its note's marker, at the setting's tier.
-  const result = native.citationEngineCall("resolve", { citations: extracted.citations, notes,
-    readingOrder: order, sourceParts, text, offsetUnit: "utf16",
-    supraHintMode: "aggressive", splitTier: supraLinking,
-    aliasGroups: cases.map(({ index }, position) => ({ index, keys: closures[position] })),
-  }) as ResolveResponse;
+  // Every reference's association, the one each consumer reads (the verifier's workbook and quotation check, Sources),
+  // and each authority's reading.
+  const result = native.briefAuthorities({ text, notes: reading.notes, citations, sourceParts, order: reading.order,
+    aliasGroups: reading.aliasGroups, splitTier: supraLinking });
   const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
   const byResolution = new Map(result.resolutions.map((resolution) => [resolution.index, resolution]));
   const authorityOf = new Map<number, string>();
@@ -266,11 +227,7 @@ async function scanReview(
   // The link each citation writes ("online: <…>", a URL in its text), by citation.
   const linkOf = new Map(references.flatMap(({ references: found }) => found.flatMap((reference) =>
     reference.citation != null && reference.link ? [[reference.citation, reference.link] as const] : [])));
-  // Each authority's representative citation, its name, its citation as written and the authority
-  // it is subsequent history of, as the engine reads them.
-  const readings = native.citationEngineCall("authorities", { citations: result.citations,
-    authorities: result.authorities }) as Array<{ representative?: number; name?: string; citation?: string; historyOf?: number }>;
-  const groupKeys: string[] = [];
+  const readings = result.readings, groupKeys: string[] = [];
   for (const [position, group] of result.authorities.entries()) {
     const reading = readings[position];
     const full = group.map((index) => byIndex.get(index))
@@ -532,7 +489,7 @@ async function importAuthoritiesDocument(input: AuthoritiesDocumentImport) {
   const units = await readImportUnits(input.fileType, async () => {
     if (input.fileType === "docx") return native.docxAuthorityTextUnits(input.bytes);
     return native.pdfAuthorityTextUnits(await readPdf());
-  }, () => input.bytes);
+  });
   return reduceAuthoritiesDraft(initial, {
     type: "refresh", review: await scanReview(imported, bindings, units, input.supraLinking),
   });
