@@ -16,5 +16,3 @@ export function decodeAnnotationSet(value: unknown): PdfAnnotationSet;
 export function emptyAnnotationSet(sourceSha256: string): PdfAnnotationSet;
 export function annotationSetForSource(sets: PdfAnnotationSets | undefined, role: string, sourceSha256: string): PdfAnnotationSet | undefined;
 export function markContains(mark: PdfAnnotation, pageNumber: number, x: number, y: number): boolean;
-export function rectToPdfQuad(rect: AnnotationRect, crop: { x: number; y: number; width: number; height: number }, rotation: number): number[];
-export function quadBounds(quads: number[][]): [number, number, number, number];

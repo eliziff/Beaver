@@ -4,8 +4,10 @@ import type { FinalBook } from "./FinalBook";
 import type { FinalLink } from "./FinalLink";
 
 /**
- * The final PDF: the brief (`brief` long, first in the bytes), a blank page after it where the book starts on a
- * right-hand page, then each volume of the book under its title; the brief's own links to the book retargeted or taken
- * out, links added over its citations, and bookmarks: the brief's own (else its headings) and each volume's.
+ * The final PDF: the brief (`brief` long, first in the bytes), a blank page after it where the book starts its
+ * authorities on right-hand pages and the brief's pages are odd in number, then each volume of the book under its
+ * title; bookmarks: the brief's own (else its headings) and each volume's. The brief's own links to the book (to a
+ * web address starting `prefix`) go where the link of that address leads, or are taken out; a link is added over each
+ * citation `links` places that the brief does not link already.
  */
-export type FinalPlan = { brief: number, headings: Array<BookHeading>, blankPage: boolean, books: Array<FinalBook>, relinks: Array<FinalLink>, links: Array<FinalLink>, };
+export type FinalPlan = { brief: number, headings: Array<BookHeading>, rightHandStarts: boolean, books: Array<FinalBook>, prefix: string, links: Array<FinalLink>, };

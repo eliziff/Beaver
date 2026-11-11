@@ -213,8 +213,7 @@ describe("Authorities final export", () => {
   it("abstains from duplicate filing text while retaining verified target pages in the report", async () => {
     const brief = await sourcePdf("2009 SCC 32 at para 12 repeated", [[612, 792]]);
     const original = await judgmentPdf(UP_TO_14), state = finalDraft(brief, original);
-    const geometry: PassageGeometry = { sourceSha256: sha256(brief),
-      targets: [{ id: "filing:grant:0",
+    const geometry: PassageGeometry = { targets: [{ id: "filing:grant:0",
       locatorKind: "page", locator: "1", status: "found", pages: [], quotes: [
         { text: "2009 SCC 32", status: "ambiguous", rects: [] },
         { text: "para 12", status: "ambiguous", rects: [] },
@@ -236,8 +235,7 @@ describe("Authorities final export", () => {
     const brief = Buffer.from(await plain.save()), original = await judgmentPdf(UP_TO_14);
     const state = finalDraft(brief, original);
     state.units[0].text += " [Tab 1]";
-    const filingGeometry: PassageGeometry = { sourceSha256: sha256(brief),
-      targets: [{ id: "filing:grant:0",
+    const filingGeometry: PassageGeometry = { targets: [{ id: "filing:grant:0",
       locatorKind: "page", locator: "1", status: "found", pages: [{ pageNumber: 1, width: 612, height: 792,
         source: "native", passageRects: [[36 / 612, 50 / 792, 300 / 612, 80 / 792]] }], quotes: [
         { text: "[Tab 1]", status: "found", pageNumber: 1, rects: [[190 / 612, 60 / 792, 240 / 612, 80 / 792]] },

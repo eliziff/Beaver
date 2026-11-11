@@ -27,6 +27,7 @@ import type { DocumentViewer } from "./DocumentViewer";
 import type { DocxLintReport } from "./DocxLintReport";
 import type { FilingCover } from "./FilingCover";
 import type { FilingEntry } from "./FilingEntry";
+import type { FinalPdf } from "./FinalPdf";
 import type { FinalPlan } from "./FinalPlan";
 import type { FollowDirection } from "./FollowDirection";
 import type { FootnotePropositions } from "./FootnotePropositions";
@@ -139,9 +140,9 @@ export interface EngineOperations {
    */
   pdfPages(bytes: Uint8Array): Promise<Array<PageFrame>>;
   /**
-   * The brief and its book as one PDF.
+   * The brief and its book as one PDF, and each of the plan's links not made, and why.
    */
-  renderFinalPdf(bytes: Uint8Array, plan: FinalPlan): Promise<RenderedPdf>;
+  renderFinalPdf(bytes: Uint8Array, plan: FinalPlan): Promise<FinalPdf>;
   /**
    * A PDF read and cached where another engine reopens it by its cache key (a page's parse workers): its summary.
    */

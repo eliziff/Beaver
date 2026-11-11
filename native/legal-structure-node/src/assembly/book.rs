@@ -802,48 +802,85 @@ pub fn render_filing(filing: &[u8], entries: &[FilingEntry]) -> Result<(Vec<u8>,
     let out = c.save(&Meta { title: "Filing with Table of Authorities", subject: "", creator: "Beaver", producer: "Beaver", lang: None, xmp: false }, false).map_err(|e| e.to_string())?;
     Ok((out, pages))
 }
-/// The final PDF: the brief (`brief` long, first in the bytes), a blank page after it where the book starts on a
-/// right-hand page, then each volume of the book under its title; the brief's own links to the book retargeted or taken
-/// out, links added over its citations, and bookmarks: the brief's own (else its headings) and each volume's.
+/// The final PDF: the brief (`brief` long, first in the bytes), a blank page after it where the book starts its
+/// authorities on right-hand pages and the brief's pages are odd in number, then each volume of the book under its
+/// title; bookmarks: the brief's own (else its headings) and each volume's. The brief's own links to the book (to a
+/// web address starting `prefix`) go where the link of that address leads, or are taken out; a link is added over each
+/// citation `links` places that the brief does not link already.
 #[derive(Deserialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
-#[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
-pub struct FinalPlan { pub brief: usize, pub headings: Vec<BookHeading>, pub blank_page: bool, pub books: Vec<FinalBook>, pub relinks: Vec<FinalLink>, pub links: Vec<FinalLink> }
+pub struct FinalPlan { pub brief: usize, pub headings: Vec<BookHeading>, pub right_hand_starts: bool, pub books: Vec<FinalBook>, pub prefix: String, pub links: Vec<FinalLink> }
 
 #[derive(Deserialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub struct FinalBook { pub bytes: usize, pub title: String }
 
-/// A link on `page`: the brief's own to `uri` (none where it is new, over `rect`), to `to` (a page, at the top of the
-/// part of it given in page fractions from its top left as displayed), or taken out where `to` is none.
+/// A link to the book: the web address the brief's own link to it is written to; where it leads (`to`: a volume, its
+/// page, and the part of the page given in page fractions from its top left as displayed, the link landing at its top),
+/// else why it cannot (`missing`); and, with `cite`, its citation linked too where `over` places it (each page of the
+/// brief and rect in page fractions; none, where it could not be placed).
 #[derive(Deserialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
-pub struct FinalLink { pub page: usize, #[serde(default)] pub uri: Option<String>, #[serde(default)] pub rect: Option<[f64; 4]>, pub to: Option<(usize, Option<[f64; 4]>)> }
+pub struct FinalLink { pub uri: String, #[serde(default)] pub to: Option<(usize, usize, Option<[f64; 4]>)>, #[serde(default)] pub missing: Option<String>,
+    pub cite: bool, #[serde(default)] pub over: Option<Vec<(usize, [f64; 4])>> }
 
-pub fn render_final(plan: &FinalPlan, bytes: &[u8]) -> Result<(Vec<u8>, usize), String> {
+/// The final PDF, its page count, and each link (by its place in `links`) not made, and why: its `missing`,
+/// "citation-location" where its citation could not be placed, or "web-link" where the brief links it to a web page.
+pub fn render_final(plan: &FinalPlan, bytes: &[u8]) -> Result<(Vec<u8>, usize, Vec<(usize, String)>), String> {
     let (brief, mut rest) = bytes.split_at_checked(plan.brief).ok_or("The final PDF's parts are shorter than it says.")?;
     let mut c = Composer::open(brief).map_err(|_| "The brief PDF could not be opened for final export.".to_owned())?;
-    if c.page_count() == 0 { return Err("The brief PDF is empty.".into()); }
+    let pages = c.page_count();
+    if pages == 0 { return Err("The brief PDF is empty.".into()); }
+    let own_links = legalpdf::compose::page_frames(brief).map_err(|e| e.to_string())?;
     let own = read_outline(brief, 0).map_err(|e| e.to_string())?;
     let brief_outline = if own.is_empty() { nested_outline(plan.headings.iter().map(|h| (h.title.clone(), h.level, h.page_index))) } else { own };
     let mut outline = vec![Outline::page("Brief", 0, brief_outline)];
-    if plan.blank_page { let ([_, _, w, h], _) = c.frame(c.page_count() - 1); c.add_page(w, h); }
+    if plan.right_hand_starts && pages % 2 == 1 { let ([_, _, w, h], _) = c.frame(pages - 1); c.add_page(w, h); }
+    let mut starts = Vec::new();
     for book in &plan.books {
         let (pdf, after) = rest.split_at_checked(book.bytes).ok_or("The final PDF's parts are shorter than it says.")?;
         rest = after;
         let offset = c.page_count();
+        starts.push(offset);
         outline.push(Outline::page(book.title.clone(), offset, read_outline(pdf, offset).map_err(|e| e.to_string())?));
         c.append(pdf, None).map_err(|e| e.to_string())?;
     }
-    let target = |c: &Composer, (page, rect): (usize, Option<[f64; 4]>)| match rect.and_then(|rect| c.top(page, rect)) {
-        Some(top) => Target::At(page, top), None => Target::Page(page) };
-    for link in &plan.relinks { if let Some(uri) = &link.uri { c.relink(link.page, uri, link.to.map(|to| target(&c, to))).map_err(|e| e.to_string())?; } }
-    for link in &plan.links { if let (Some(rect), Some(to)) = (link.rect, link.to) { let to = target(&c, to); c.link(link.page, rect, to); } }
+    // Where a link leads: its page, and the height on it where it lands; else why it cannot.
+    let destination = |c: &Composer, index: usize| plan.links[index].to.map(|(book, page, rect)| {
+        let page = starts[book] + page;
+        (page, rect.and_then(|rect| c.bounds(page, rect)).map(|bounds| bounds[3]))
+    }).ok_or_else(|| (index, plan.links[index].missing.clone().unwrap_or_default()));
+    let target = |(page, top): (usize, Option<f64>)| top.map_or(Target::Page(page), |top| Target::At(page, top));
+    let (mut warnings, mut linked) = (Vec::new(), vec![false; plan.links.len()]);
+    for (page, frame) in own_links.iter().enumerate() {
+        for (_, uri, _) in frame.links.iter().filter(|(_, uri, _)| uri.starts_with(&plan.prefix)) {
+            let to = plan.links.iter().position(|link| &link.uri == uri).and_then(|index| {
+                let to = destination(&c, index).map_err(|missing| warnings.push(missing)).ok();
+                linked[index] |= to.is_some();
+                to
+            });
+            c.relink(page, uri, to.map(target)).map_err(|e| e.to_string())?;
+        }
+    }
+    let overlaps = |a: &[f64; 4], b: &[f64; 4]| a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    for (index, link) in plan.links.iter().enumerate().filter(|(index, link)| link.cite && !linked[*index]) {
+        let placed = link.over.iter().flatten().map(|&(page, rect)| Some((page, c.bounds(page, rect)?))).collect::<Option<Vec<_>>>();
+        let Some(placed) = placed.filter(|placed| !placed.is_empty()) else { warnings.push((index, "citation-location".into())); continue };
+        // The brief's own web link over the citation stays the one a click follows.
+        if placed.iter().any(|(page, bounds)| own_links[*page].links.iter().any(|(_, uri, rect)| !uri.starts_with(&plan.prefix) && overlaps(rect, bounds))) {
+            warnings.push((index, "web-link".into()));
+            continue;
+        }
+        match destination(&c, index) {
+            Ok(to) => for (page, rect) in placed { c.link(page, rect, target(to)); },
+            Err(missing) => warnings.push(missing),
+        }
+    }
     c.set_outline(outline, true);
     let pages = c.page_count();
     let out = c.save(&Meta { title: "Brief and Book of Authorities", subject: "Brief and its book of legal authorities", creator: "Beaver", producer: "Beaver", lang: None, xmp: true }, true)
         .map_err(|e| e.to_string())?;
-    Ok((out, pages))
+    Ok((out, pages, warnings))
 }

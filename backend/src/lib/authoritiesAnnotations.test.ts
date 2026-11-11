@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFNumber, StandardFonts, degrees } from 'pdf-lib';
 import * as pdf from 'pdf-lib';
 import { ANNOTATION_SCHEMA, annotationSetForSource, decodeAnnotationSet, emptyAnnotationSet,
-  rectToPdfQuad, type PdfAnnotation, type PdfAnnotationSet } from 'mike/shared/pdf-annotations.mjs';
+  type PdfAnnotation, type PdfAnnotationSet } from 'mike/shared/pdf-annotations.mjs';
 import { buildAuthorities } from './authoritiesBuild';
 import { createAuthoritiesDraft, decodeAuthoritiesDraft, reduceAuthoritiesDraft, type AuthoritiesDraft } from './authoritiesDomain';
 import { decodeAuthoritiesUserAction } from './authoritiesActionContract';
@@ -77,13 +77,6 @@ describe('persistent visual PDF annotations',()=>{
     const edited=reduceAuthoritiesDraft(draft,action(set(hash)));
     expect(()=>reduceAuthoritiesDraft(edited,action(set('f'.repeat(64))))).toThrow(/changed/);
     expect(edited.authorities.case.annotations?.['case-en'].sourceSha256).toBe(hash);
-  });
-  it('preserves quad corners for every crop rotation',()=>{
-    const crop={x:10,y:20,width:400,height:600},r:[number,number,number,number]=[.1,.2,.3,.4];
-    expect(rectToPdfQuad(r,crop,0)).toEqual([50,500,130,500,50,380,130,380]);
-    expect(rectToPdfQuad(r,crop,90)).toEqual([90,80,90,200,170,80,170,200]);
-    expect(rectToPdfQuad(r,crop,180)).toEqual([370,140,290,140,370,260,290,260]);
-    expect(rectToPdfQuad(r,crop,270)).toEqual([330,560,330,440,250,560,250,440]);
   });
   it('exports manual annotations with automatic marking off, without flattening or changing source bytes',async()=>{
     const {draft,bytes,hash}=await fixture(true);draft.settings.passageMarking='none';

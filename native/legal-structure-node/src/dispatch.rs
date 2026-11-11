@@ -252,6 +252,16 @@ pub(crate) struct RenderedPdf {
 #[derive(Serialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct FinalPdf {
+    bytes: Buffer,
+    page_count: usize,
+    warnings: Vec<(usize, String)>,
+}
+
+#[cfg(feature = "legalpdf")]
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct SourcePdf {
     bytes: Buffer,
     page_count: usize,
@@ -400,11 +410,11 @@ operations! { progress;
     off "pdfPages" (bytes: Bytes) -> Vec<legalpdf::compose::PageFrame> {
         legalpdf::compose::page_frames(&bytes).map_err(|error| error.to_string())?
     }
-    /// The brief and its book as one PDF.
+    /// The brief and its book as one PDF, and each of the plan's links not made, and why.
     #[cfg(feature = "legalpdf")]
-    off "renderFinalPdf" (bytes: Bytes, plan: crate::assembly::book::FinalPlan) -> RenderedPdf {
-        let (bytes, page_count) = crate::assembly::book::render_final(&plan, &bytes)?;
-        RenderedPdf { bytes: Buffer(bytes), page_count }
+    off "renderFinalPdf" (bytes: Bytes, plan: crate::assembly::book::FinalPlan) -> FinalPdf {
+        let (bytes, page_count, warnings) = crate::assembly::book::render_final(&plan, &bytes)?;
+        FinalPdf { bytes: Buffer(bytes), page_count, warnings }
     }
     /// A PDF read and cached where another engine reopens it by its cache key (a page's parse workers): its summary.
     #[cfg(feature = "legalpdf")]

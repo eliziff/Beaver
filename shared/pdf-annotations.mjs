@@ -47,18 +47,3 @@ export function markContains(mark, pageNumber, x, y) {
   return mark.fragments.some(f => f.pageNumber===pageNumber &&
     f.rects.some(([x0,y0,x1,y1]) => x>=x0 && x<=x1 && y>=y0 && y<=y1));
 }
-export function rectToPdfQuad(rect,crop,rotation) {
-  if(!validRect(rect) || ![crop.x,crop.y,crop.width,crop.height].every(Number.isFinite) ||
-      crop.width<=0 || crop.height<=0) throw new Error('Invalid PDF geometry.');
-  const angle=((rotation%360)+360)%360;
-  if(![0,90,180,270].includes(angle)) throw new Error('Unsupported PDF rotation.');
-  const point=(u,v) => {
-    const [x,y]=angle===90 ? [v,u] : angle===180 ? [1-u,v] : angle===270 ? [1-v,1-u] : [u,1-v];
-    return [crop.x+x*crop.width,crop.y+y*crop.height];
-  };
-  return [...point(rect[0],rect[1]),...point(rect[2],rect[1]),...point(rect[0],rect[3]),...point(rect[2],rect[3])];
-}
-export function quadBounds(quads) {
-  const xs=quads.flatMap(q=>[q[0],q[2],q[4],q[6]]),ys=quads.flatMap(q=>[q[1],q[3],q[5],q[7]]);
-  return [Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];
-}
