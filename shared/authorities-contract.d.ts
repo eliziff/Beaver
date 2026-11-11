@@ -1,5 +1,6 @@
 /** Shared Authorities state and public commands; resolved reducer actions remain server-side. */
 import type { AuthoritiesBookParts, AuthoritySourceDecision } from "./authorities-sources.mjs";
+import type { AuthoritySource } from "./engine-types/AuthoritySource";
 import type { PdfAnnotationSet, PdfAnnotationSets } from "./pdf-annotations.mjs";
 import type { WorkProductBuildReceipt, WorkProductInput,
   WorkProductState } from "./work-products.mjs";
@@ -197,19 +198,8 @@ export type AuthorityIdentity = {
   historyOf?: string;
 };
 
-/** Exact unchanged runs from normalized unit text into one PDF source representation (UTF-16). */
-export type AuthorityUnitSource = {
-  documentId: string;
-  textSha256: string;
-  coordinateSpace: "source_utf16";
-  nodeIds: string[];
-  lineIds: string[];
-  ranges: Array<{ start: number; end: number }>;
-  mappings: Array<{ start: number; end: number; sourceStart: number; sourceEnd: number; lineId: string }>;
-};
-
 export type AuthoritiesReviewUnit = {
-  source?: AuthorityUnitSource;
+  source?: AuthoritySource;
   id: string;
   kind: "body" | "footnote";
   ordinal: number;

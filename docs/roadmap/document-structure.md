@@ -219,9 +219,8 @@ Follow-up, November 9:
   passes afterward for paragraphs, subsections, report pages and UTF-16 citation
   offsets. The old JavaScript paragraph fallback had hidden the label failure.
   Packaged extension binaries were not replaced. Lite's JavaScript paragraph
-  assembly is removed. Pinpointer still has a JavaScript fallback paragraph
-  detector in `providers.js::visibleMarkerNodes`; moving that policy into Rust
-  requires evidence for its currently unmatched documents.
+  assembly is removed, and so is Pinpointer's fallback paragraph detector: a
+  case's paragraphs are the engine's.
 - The existing A2AJ census completes all 346,150 inputs with zero errors on one
   worker in 777.3 seconds. Input fingerprints match the saved `fix` reading, whose
   build origin is unknown; node/count fingerprints have substantial differences.
@@ -445,7 +444,6 @@ the full corpus gates above.
 | Beaver `backend/src/lib/authoritiesImport.ts::scanReview` | Merges PDF body units after citation extraction reveals a citation crossing their boundaries; adjusts note-reference offsets. | Parser body units should preserve semantic continuation across line/page breaks and expose stable ranges. Compare citation membership and note anchors before removing the merge. Citation resolution remains the citation engine's job. |
 | Shared `shared/pdf-page-binding.mjs::reporterMarginLabels` and `resolvePdfPagination`, called by `documentProjectionService.ts::paginationFor` | Rechecks page edges, repairs spaced OCR folios, reconciles embedded labels and interpolates reporter pagination. | Parser should expose observed folio candidates and uncertainty from native/OCR geometry. The citation engine can supply reporter-start evidence to a shared resolution operation. Prove covers, roman labels, duplicate folios and metadata conflicts before deleting the host heuristics. |
 | Beaver folder PDF pickup | Formerly used PDF.js to read page text and vertical margin stamps. | Now uses shared native `pdfOpening` through the application/runtime port (`dbc346eab`). Both Beaver and standalone routes identify source content independently of filenames and reject PDFs above 2,000 pages with HTTP 400. The separate device-file viewer and recognition paths retain their capabilities. |
-| Pinpointer `providers.js::visibleMarkerNodes` | Selects a longest ascending paragraph run when both provider anchors and native paragraphs are absent. | Capture the unmatched source cases and move any justified acceptance rule into the Rust case profile. Native-label DOM tests now prevent this fallback from concealing a broken engine adapter. |
 
 Authorities' `documentReadingOrder` calls already delegate ordering to the shared
 engine; constructing citation offsets for that call is adapter work, not a second
