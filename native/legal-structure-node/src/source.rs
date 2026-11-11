@@ -237,9 +237,9 @@ fn open_pdf(
             if let Some(cached) = legalpdf::read_pdf(None, &request, None)? {
                 return Ok(Some(Read { document: document(cached), keys: Vec::new(), keep: true }));
             }
-            // Parsed again, it may have a cache key of its own: it is kept by that one.
+            // Parsed again from its bytes, it may have a key of its own, kept by that one; without them nothing is named.
             request.cache_key = None;
-            Ok(parse(&request)?.map(|read| Read { keep: false, ..read }))
+            Ok(if bytes.is_empty() { None } else { parse(&request)?.map(|read| Read { keep: false, ..read }) })
         });
     }
     request.cache_key = None;
