@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests, authorityPassageTargets,
-  buildAuthorities, statuteExcerptSummary } from "./authoritiesBuild";
+  buildAuthorities } from "./authoritiesBuild";
 import { attachedAuthoritySources, createAuthoritiesDraft as createDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";

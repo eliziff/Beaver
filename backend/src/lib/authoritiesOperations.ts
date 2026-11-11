@@ -1,10 +1,10 @@
 /** Authorities' operations: every app's (authoritiesSourceOperations.ts), with the book of authorities' own: a source read
- *  as the book reads it, a statute's excerpt and an excerpt's pages, a source's highlights, the book's front, a book
+ *  as the book reads it, an excerpt's pages, a source's highlights, the book's front, a book
  *  part attached, and the book built. Its sources' step typesets a PDF from a provider's text where there is no original. */
 import { docxToPdf, wordToPdfAvailable } from "./convert";
 import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
-import { excerptPageCounts, statuteExcerptSummary } from "./authoritiesBuild";
+import { excerptPageCounts } from "./authoritiesBuild";
 import { structureNative } from "./structureNative";
 import { attachedAuthoritySources } from "./authoritiesDomain";
 import { authoritySourceServices, authorityStatuteText, resolveAuthoritiesSources } from "./authoritiesSourceResolution";
@@ -56,17 +56,6 @@ export function createAuthoritiesOperations(options: OperationsOptions = {}) {
     await createAuthoritiesPreparation(state).prepareText(role, { bytes, sourceSha256: source.sourceSha256,
       signal: context.signal, ...(progress ? { progress: (done: number, total: number) => progress(`${done}/${total}`) } : {}) });
     return value({});
-    },
-    "excerpt": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-    const state = draft(json(input?.draft, "draft"));
-    const role = String(input?.role), bytes = sourceBytes(requiredSource(input));
-    const authority = Object.values(state.authorities).find(item =>
-      attachedAuthoritySources(item.source).some(source => source.bindingRole === role));
-    const source = authority && attachedAuthoritySources(authority.source).find(item => item.bindingRole === role);
-    if (!authority || !source || sha256(bytes) !== source.sourceSha256)
-      return reject(409, "The PDF no longer matches this authority source");
-    return value(await statuteExcerptSummary(state, authority, source, await authoritiesSourceText(state)(role,
-      { bytes, sourceSha256: source.sourceSha256, signal: context.signal })));
     },
     // The source is read as a build reads it, so a source read ahead or built is not read again; the page has no
     // recognition queue of its own, so reading it recognizes what the draft's scan setting asks for.

@@ -753,18 +753,6 @@ async function rebuiltProvisions(authority: AuthorityIdentity, name: string,
     text: found.text, provider: found.provider, retrieved: new Date().toISOString().slice(0, 10), federal }, wanted.map(({ label }) => label));
 }
 
-/** What a statute's excerpt holds of one of its PDFs, as the engine reads it with its reviewed marks: its pages, the
- *  pages kept (none where it goes in whole) and the cited provisions placed. */
-export async function statuteExcerptSummary(draft: AuthoritiesDraft, authority: AuthorityIdentity,
-  source: AttachedAuthoritySource, read: NonNullable<AuthoritiesBuildInput["sources"]>[string]) {
-  const marks = annotationSetForSource(authority.annotations, source.bindingRole, source.sourceSha256);
-  const { parts: [part], pages, placed } = await structureNative().authorityReading([read.reading ? {
-    document: read.reading.document, native: read.reading.native, recognizedPages: read.reading.recognizedPages,
-    ...marks ? { saved: marks.marks } : { saved: [] } } : { pages: source.pageCount ?? 0 }],
-    { ...authoritySourceRequest(draft, authority, attachedAuthoritySources(authority.source), []), style: "none", excerpt: { rule: "statute" } });
-  return { pageCount: part?.pageCount ?? 0, pages: pages?.length ?? null, placed };
-}
-
 function artifact(
   role: AuthoritiesOutputRole, filename: string, mimeType: string,
   bytes: Buffer, pageCount: number | null,
