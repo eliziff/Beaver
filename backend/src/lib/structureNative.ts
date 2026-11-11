@@ -261,6 +261,9 @@ type StructureAddon = {
   /** `marks` (as decodeAnnotationSet returns them) appended to the PDF as an incremental update: the original bytes
    *  unchanged, then the annotations; with `disarm` (default true) also what removeActiveContent takes out. */
   pdfWriteAnnotations(bytes: Uint8Array, marks: unknown[], namespace: string, disarm?: boolean): { bytes: Buffer };
+  /** A source's own PDF set from its provider's text (a statute by its provisions, a judgment by its paragraphs). */
+  renderSourcePdf(source: { kind: string; name: string | null; citation: string; text: string; provider?: string;
+    retrieved?: string; federal?: boolean }): Promise<{ bytes: Buffer; pageCount: number }>;
   /** The first two pages' native witnesses for source identification; no recognition or structure inference. */
   pdfOpening(bytes: Buffer): Promise<{ pageCount: number; pages: Array<NativePdfTextPage & { marginText: string }> }>;
   /** A stored source read as its document by its format's reader: the document the engine keeps for it, or, given its

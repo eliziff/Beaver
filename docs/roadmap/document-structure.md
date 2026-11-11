@@ -449,7 +449,7 @@ the full corpus gates above.
 
 Authorities' `documentReadingOrder` calls already delegate ordering to the shared
 engine; constructing citation offsets for that call is adapter work, not a second
-ordering detector. Likewise, `renderAuthoritySourcePdf` lays out provider text
+ordering detector. Likewise, the engine's `renderSourcePdf` (assembly/statute.rs) lays out provider text
 into a new PDF, so its text-outline calls are not reconstruction of an existing PDF.
 
 

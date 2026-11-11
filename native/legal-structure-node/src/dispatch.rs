@@ -198,6 +198,11 @@ fn dispatch(
             .map_err(|error| error.to_string())?;
             Ok((value(serde_json::json!({ "bytes": out.len() }))?, out))
         }
+        #[cfg(feature = "legalpdf")]
+        "renderSourcePdf" => {
+            let (out, page_count) = crate::assembly::statute::render_source_pdf(&call.get("source")?)?;
+            Ok((value(serde_json::json!({ "pageCount": page_count }))?, out))
+        }
         // A PDF read and cached where another engine reopens it by its cache key (a page's parse workers): its summary.
         #[cfg(feature = "legalpdf")]
         "preparePdfDocument" => done(value(

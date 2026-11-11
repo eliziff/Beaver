@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { structureNative } from "../structureNative";
-import { renderAuthoritySourcePdf } from "../authoritiesBuild";
 import { sha256 } from "../hash";
 
 /** A PDF read as the engine reads a stored source. */
@@ -112,8 +111,8 @@ it("locates a rebuilt statute's sections and subsections, and reads its pages in
   const provisions = Array.from({ length: 12 }, (_, index) => `**Rule ${index + 1}**\n\n**${index + 1}** (1) ` +
     `The harbour authority sets rule ${index + 1} for vessels at berth.\n\n(2) A master may ask for ` +
     `an exemption from rule ${index + 1} in writing.`).join("\n\n");
-  const { bytes } = await renderAuthoritySourcePdf({ kind: "legislation", name: "Harbour Berths Act",
-    citation: "SC 2031, c 7", date: null, sourceUrl: null, text: `## Berths\n\n${provisions}` });
+  const { bytes } = await structureNative().renderSourcePdf({ kind: "legislation", name: "Harbour Berths Act",
+    citation: "SC 2031, c 7", text: `## Berths\n\n${provisions}` });
   const native = structureNative(), document = await opened(bytes);
   const texts = native.pdfPageTexts(document);
   expect(texts).toHaveLength(native.pdfDocumentSummary(document).pageCount);

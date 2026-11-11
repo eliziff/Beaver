@@ -1,6 +1,5 @@
 import { ApplicationError } from "./applicationError";
 import { authorityCitationServices, caseNameMismatch, editAuthoritiesDraft } from "./authoritiesActions";
-import type { renderAuthoritySourcePdf } from "./authoritiesBuild";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile,
   authorityBytesRequired, authoritySourceRequirement, bilingualEnactmentRequired,
@@ -99,7 +98,7 @@ export const authoritySourceServices = {
   stored: undefined as ((url: string) => Promise<Uint8Array | null>) | undefined,
   /** A PDF typeset from a provider's text, for a host that builds a book of authorities: it stands in the book for an
    *  original there is none of. Only that host supplies it; nothing is checked against it. */
-  render: undefined as typeof renderAuthoritySourcePdf | undefined,
+  render: undefined as ReturnType<typeof structureNative>["renderSourcePdf"] | undefined,
   ...authorityCitationServices,
   revision: (document: Parameters<ReturnType<typeof structureNative>["documentRevision"]>[0]) =>
     structureNative().documentRevision(document),
@@ -561,12 +560,11 @@ export async function resolveAuthoritiesSources(
         break;
       }
     } catch { signal?.throwIfAborted(); }
-    let reconstructed: Awaited<ReturnType<typeof renderAuthoritySourcePdf>> | null = null;
+    let reconstructed: { bytes: Uint8Array; pageCount: number } | null = null;
     const text = reconstruct && !original ? source.searchText() : "";
     if (text.trim()) try {
       reconstructed = await sources.render!({ kind: authority.kind,
-        name: source.name, citation: source.citation, date: source.date,
-        sourceUrl: source.publisherUrl ?? source.url, text,
+        name: source.name, citation: source.citation, text,
         provider: (source.provider ?? "a2aj") === "a2aj" ? "A2AJ" : source.provider,
         retrieved: new Date().toISOString().slice(0, 10), federal: !!requirements?.federalFormatting });
     } catch { signal?.throwIfAborted(); }

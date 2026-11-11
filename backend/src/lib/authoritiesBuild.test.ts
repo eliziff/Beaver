@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageRequests, authorityPassageTargets,
-  buildAuthorities, renderAuthoritySourcePdf, statuteExcerptSummary } from "./authoritiesBuild";
+  buildAuthorities, statuteExcerptSummary } from "./authoritiesBuild";
 import { attachedAuthoritySources, createAuthoritiesDraft as createDraft, reduceAuthoritiesDraft, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import { sha256 } from "./hash";
@@ -507,8 +507,8 @@ describe("Authorities output builder", () => {
   });
 
   it("renders publisher text containing Unicode punctuation and multiline titles", async () => {
-    const { bytes } = await renderAuthoritySourcePdf({ kind: "case", name: "A ‑ B\r\nSecond\tline",
-      citation: "2026 SCC 16", date: null, sourceUrl: null,
+    const { bytes } = await structureNative().renderSourcePdf({ kind: "case", name: "A ‑ B\r\nSecond\tline",
+      citation: "2026 SCC 16",
       text: "The Court said “source text” — not source metadata." });
     const document = await PDFDocument.load(bytes);
     expect(document.getPageCount()).toBe(1);
@@ -518,8 +518,8 @@ describe("Authorities output builder", () => {
 
   it("keeps formatted prose and oversized identifiers inside the source PDF's margins", async () => {
     const identifier = "AVATAR".repeat(50);
-    const { bytes } = await renderAuthoritySourcePdf({ kind: "commentary", name: "Invented source",
-      citation: "River Review", date: null, sourceUrl: null,
+    const { bytes } = await structureNative().renderSourcePdf({ kind: "commentary", name: "Invented source",
+      citation: "River Review",
       text: `The *AVATAR* report gives **written reasons**.\n\nIdentifier: ${identifier}\n\nThe report ends here.` });
     const { pageCount, pages } = await structureNative().pdfOpening(bytes);
     expect(pageCount).toBe(1);

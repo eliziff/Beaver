@@ -9,7 +9,7 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   folderPdfAuthority, authoritiesReview as review, updateAuthoritiesDraft as update,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
-import { authorityPassageTargets, buildAuthorities, renderAuthoritySourcePdf,
+import { authorityPassageTargets, buildAuthorities,
   type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
 import { attachAuthorityFile, correctedAuthoritiesDraft, gatherAuthoritySources, refreshedAuthoritiesDraft,
   type KeptPdf } from "./authoritiesCore";
@@ -91,7 +91,8 @@ export function createAuthoritiesWorkspaceApplication(
   files: WorkflowFiles,
 ) {
   // The book stands a PDF typeset from a provider's text in for an original there is none of.
-  const importer = createAuthoritiesImporter(documents), sources = { ...authoritySourceServices, render: renderAuthoritySourcePdf };
+  const importer = createAuthoritiesImporter(documents), sources = { ...authoritySourceServices,
+    render: (source: Parameters<ReturnType<typeof structureNative>["renderSourcePdf"]>[0]) => structureNative().renderSourcePdf(source) };
   // What each source was read to, kept across builds as the standalone app keeps it: a rebuild reads again only
   // a source whose bytes or reading changed.
   const readings = sourceReadings();

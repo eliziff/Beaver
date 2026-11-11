@@ -10,7 +10,6 @@ import {longStatuteRecord,LONG_STATUTE} from './authorities-stress/fixtures.mjs'
 import {defaultNativeAddon} from '../shared/nativeAddonFile.mjs';
 const root=path.resolve(import.meta.dirname,'..'),require=createRequire(path.join(root,'backend/package.json'));
 require('tsx/cjs');
-const {renderAuthoritySourcePdf}=require(path.join(root,'backend/src/lib/authoritiesBuild.ts'));
 const {structureNative}=require(path.join(root,'backend/src/lib/structureNative.ts'));
 const sha=x=>createHash('sha256').update(x).digest('hex');
 if(!process.argv[2])throw new Error('Supply a report path, optionally followed by a saved pre-change report.');
@@ -22,7 +21,7 @@ assert.ok(!existsSync(cache));
 try {
  const input={kind:'legislation',name:LONG_STATUTE.name,citation:LONG_STATUTE.citation,date:null,sourceUrl:null,
   text:longStatuteRecord().unofficial_text_en,provider:'machine_test',retrieved:'2031-01-01',federal:true};
- const started=performance.now(),{bytes,pageCount}=await renderAuthoritySourcePdf(input),renderMs=performance.now()-started;
+ const started=performance.now(),{bytes,pageCount}=await structureNative().renderSourcePdf(input),renderMs=performance.now()-started;
  const native=structureNative(),sourceSha256=sha(bytes);
  const document=await native.openSource(bytes,{documentId:'machine_test:statute-render',versionId:sourceSha256,
   sourceSha256,fileType:'pdf',pdf:{cacheDir:cache}});

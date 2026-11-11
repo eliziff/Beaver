@@ -4,7 +4,8 @@
 import { docxToPdf, wordToPdfAvailable } from "./convert";
 import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
-import { excerptPageCounts, renderAuthoritySourcePdf, statuteExcerptSummary } from "./authoritiesBuild";
+import { excerptPageCounts, statuteExcerptSummary } from "./authoritiesBuild";
+import { structureNative } from "./structureNative";
 import { sourceReadings } from "./sourceReadings";
 import { mapAuthorityBookBytes } from "mike/shared/runtime/authoritiesBook.mjs";
 import { attachedAuthoritySources } from "./authoritiesDomain";
@@ -41,7 +42,7 @@ export function createAuthoritiesOperations(options: OperationsOptions = {}) {
     const onlyAuthorityId = input?.authorityId === undefined
       ? undefined : text(input.authorityId, 200);
     const gathered = await gatherAuthoritySources(current, { progress, signal: context.signal,
-      resolve: (state) => resolveAuthoritiesSources(state, { ...services, render: renderAuthoritySourcePdf }, context.signal,
+      resolve: (state) => resolveAuthoritiesSources(state, { ...services, render: (source) => structureNative().renderSourcePdf(source) }, context.signal,
         onlyAuthorityId, progress, input?.keptOnly === true, citedCases),
       keep: async (attachments) => attachments.map(({ filename, bytes, sourceSha256 }) =>
         keptByPage(filename, bytes, sourceSha256, `stored:${sourceSha256}`)) });

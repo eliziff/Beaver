@@ -65,6 +65,8 @@ ryu-js = "1.0.3"
 # the zip above, Word's XML parses with quick-xml (the version calamine reads with), an email's MIME with mail-parser,
 # and a charset is found by its WHATWG label with encoding_rs.
 quick-xml = "0.42"
+# A source set from its Markdown (assembly/statute.rs) reads it as GitHub does, tables included.
+pulldown-cmark = { version = "0.13", default-features = false }
 mail-parser = { version = "1.0.1", features = ["full_encoding"] }
 encoding_rs = "0.8.35"
 
