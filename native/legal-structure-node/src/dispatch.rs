@@ -46,6 +46,19 @@ impl Handle {
     }
 }
 
+/// A handle as TypeScript reads it: `{ "$document": number }`, which structure-engine.mjs revives as a NativeDocument.
+#[cfg(feature = "binding-types")]
+impl ts_rs::TS for Handle {
+    type WithoutGenerics = Self;
+    type OptionInnerType = Self;
+    fn name(_: &ts_rs::Config) -> String {
+        "{ \"$document\": number }".to_owned()
+    }
+    fn inline(config: &ts_rs::Config) -> String {
+        Self::name(config)
+    }
+}
+
 impl Serialize for Handle {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let handle = {
@@ -65,9 +78,11 @@ impl Serialize for Handle {
 /// provisions' where it has none of its own.
 #[cfg(feature = "a2aj")]
 #[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
-struct StoreDocument {
+pub(crate) struct StoreDocument {
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "binding-types", ts(optional))]
     id: Option<i64>,
     #[serde(flatten)]
     metadata: legal_structure_features::a2aj::Metadata,
@@ -91,8 +106,9 @@ impl StoreDocument {
 /// A statute's provision as the store holds it: found, or the provision or the statute missing.
 #[cfg(feature = "a2aj")]
 #[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(tag = "status", rename_all = "snake_case")]
-enum Provision {
+pub(crate) enum Provision {
     Found { native: Handle },
     MissingProvision,
     MissingStatute,

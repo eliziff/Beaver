@@ -2,6 +2,8 @@
 //! `engine` holds every operation and `dispatch` names them (the local A2AJ store is legal_structure_features'
 //! a2aj_store); `node` binds that one call for Node-API and `wasi` for the browser's WebAssembly runtime.
 
+#[cfg(feature = "binding-types")]
+pub mod bindings;
 mod dispatch;
 pub mod engine;
 pub mod formats;

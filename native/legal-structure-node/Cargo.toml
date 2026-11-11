@@ -21,6 +21,12 @@ name = "courtlistener-structure"
 path = "src/bin/courtlistener-structure.rs"
 required-features = ["opinion"]
 
+# The TypeScript declarations of the engine's wire types, written to shared/engine-types (src/bindings.rs).
+[[bin]]
+name = "export-types"
+path = "src/bin/export_types.rs"
+required-features = ["binding-types"]
+
 [features]
 default = ["legalpdf", "a2aj"]
 opinion = ["legal-structure/opinion"]
@@ -31,6 +37,8 @@ a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-
 # Word documents: the parser's DOCX reading without its PDF pipeline (Authority Linker's engine, build-engine.mjs --word).
 docx = ["dep:legalpdf"]
 legalpdf = ["docx", "legalpdf/pdf"]
+# The TypeScript declarations of its wire types and the crates' it serves (src/bindings.rs, the export-types bin).
+binding-types = ["dep:ts-rs", "legal-structure/binding-types", "legal-structure-features/binding-types"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup", "opinion"] }
@@ -43,6 +51,7 @@ rusqlite = { version = "0.40.2", features = ["bundled"], optional = true }
 # The census bins (src/bin) match source text with the patterns the census was written in.
 regex = "1.13"
 sha2 = "0.10"
+ts-rs = { version = "12", optional = true, features = ["serde-json-impl"] }
 # pinpoint-corpus reads the gold store and compares words.
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 unicode-normalization = "0.1"

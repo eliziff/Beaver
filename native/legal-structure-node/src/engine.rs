@@ -18,12 +18,16 @@ pub type CoreResult<T> = Result<T, String>;
 /// A failed call as JavaScript is given it: what went wrong and, for a PDF's parse, the kind of failure the parser
 /// named, its message the one a reader is told and its detail what went wrong.
 #[derive(Clone, Debug, Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub struct Failure {
     pub message: String,
+    // (legal-pdf-core's FailureKind, its declaration to come from that crate: written as its name in snake case.)
     #[cfg(feature = "legalpdf")]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "binding-types", ts(optional, type = "string"))]
     pub kind: Option<legalpdf::FailureKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "binding-types", ts(optional))]
     pub detail: Option<String>,
 }
 
@@ -61,6 +65,7 @@ impl From<legalpdf::Error> for Failure {
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum StructureRequest {
     Instrument {
