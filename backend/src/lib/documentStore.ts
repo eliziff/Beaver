@@ -11,6 +11,7 @@ export type LegalPdfOcrProvider = "indra";
 export type LegalPdfProfile = {
   ocr?: { provider: LegalPdfOcrProvider; settings: Record<string, unknown> };
   layout?: { provider: "ppdoc"; settings: Record<string, unknown> };
+  structure?: { provider: "doc"; settings: Record<string, unknown> };
 };
 export type PdfProfileSelection = {
   cacheKey: string;

@@ -97,6 +97,15 @@ function configuredLegalPdfProfile(env: NodeJS.ProcessEnv = process.env): LegalP
         ? { device: env.LEGALPDF_PPDOC_DEVICE.trim() } : {}),
     } };
   }
+
+  // DOC, the structure stage's tier 1, only where asked; the engine reads it only in the modes its census promoted.
+  const structure = env.MIKE_PDF_STRUCTURE_PROVIDER?.trim();
+  if (structure && structure !== "none" && structure !== "doc")
+    throw new Error("MIKE_PDF_STRUCTURE_PROVIDER must be none or doc");
+  if (structure === "doc") profile.structure = { provider: "doc", settings: {
+    model_pack: configuredPath(env, root, "LEGALPDF_DOC_MODEL_PACK", "runtime/doc", "docparse.json"),
+    runtime: configuredPath(env, root, "LEGALPDF_ONNX_RUNTIME", `runtime/onnx/${onnxRuntimeLibraryName(platform)}`),
+  } };
   return profile;
 }
 
