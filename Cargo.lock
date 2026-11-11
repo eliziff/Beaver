@@ -1454,6 +1454,7 @@ dependencies = [
 name = "legal-pdf-parser"
 version = "0.1.0"
 dependencies = [
+ "legal-document-query",
  "legal-pdf-core",
  "legal-pdf-extraction-processor",
  "legal-pdf-language",
@@ -1486,6 +1487,7 @@ name = "legal-pdf-support"
 version = "0.1.0"
 dependencies = [
  "image",
+ "legal-document-query",
  "legal-locator",
  "legal-pdf-core",
  "legal-structure-model",

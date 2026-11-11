@@ -173,7 +173,8 @@ mod corpus {
             .filter_map(|node| node.label.as_deref()?.parse::<usize>().ok()).max().unwrap_or(0).min(MOST_PARAGRAPHS);
         let targets = (1..=top).map(|n| serde_json::from_value(json!({"id": n.to_string(), "locatorKind": "paragraph", "locator": n.to_string()})))
             .collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-        let geometry = document.passage_geometry(targets);
+        let query = legal_structure::DocumentQuery::new();
+        let geometry = document.passage_geometry(&query, targets);
         let (mut paragraphs, mut unavailable, mut held) = (BTreeMap::new(), 0, HashSet::new());
         for target in &geometry.targets {
             if target.status == legalpdf::PdfLookupStatus::Unavailable {
@@ -200,7 +201,7 @@ mod corpus {
         if let (Some(first), Some(last)) = (printed().min(), printed().max()) {
             let pages_target = serde_json::from_value(json!({"id": "pages", "locatorKind": "page", "locator": "1", "physicalPages": (first..=last).collect::<Vec<_>>()}))
                 .map_err(|e| e.to_string())?;
-            let surface = document.passage_geometry(vec![pages_target]);
+            let surface = document.passage_geometry(&query, vec![pages_target]);
             let lines: Vec<&legalpdf::PassageLine> = surface.targets[0].pages.iter().flat_map(|page| &page.lines).collect();
             let taken = |line: &&legalpdf::PassageLine| held.contains(&line.id);
             unheld = lines.iter().filter(|line| !taken(line)).map(|line| stream(&words(line))).filter(|line| !line.is_empty()).collect();

@@ -432,7 +432,7 @@ mod pdf {
                 target.physical_pages = Some(printed_pages(&target.locator, &map));
             }
         }
-        Ok(pdf(document)?.passage_geometry(targets))
+        Ok(pdf(document)?.passage_geometry(&document.query, targets))
     }
 
     /// The PDF pages (from 1) a printed page or range of pages ("138-39", "138–40") names: only where the map numbers

@@ -242,7 +242,7 @@ fn dispatch(
         ))),
         #[cfg(feature = "legalpdf")]
         "queryPdfDocument" => done(with_document(doc()?, |d| {
-            value(engine::pdf(d)?.lookup(&call.get("request")?))
+            value(engine::pdf(d)?.lookup(&d.query, &call.get("request")?))
         })),
         "docxStructureLint" => done(with_document(doc()?, |d| {
             engine::docx_structure_lint_json(d).and_then(value)
