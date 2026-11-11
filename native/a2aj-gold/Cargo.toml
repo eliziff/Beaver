@@ -37,7 +37,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 regex = "1.13"
-sha2 = "0.10"
+sha2 = "0.11"
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 unicode-normalization = "0.1"
 # where a page's images stand (the parser's PDF library), and the proof sheets

@@ -161,7 +161,7 @@ fn mark_id(kind: &str, label: &str, excerpt: &str, fragments: &[AnnotationFragme
         fragment.rects.iter().map(|rect| format!("[{}]", rect.map(number).join(","))).collect::<Vec<_>>().join(",")))
         .collect::<Vec<_>>().join(",");
     let json = format!("[{},{},{},[{fragments}]]", string(kind), string(label), string(excerpt));
-    format!("{:x}", Sha256::digest(json.as_bytes()))[..32].to_owned()
+    Sha256::digest(json.as_bytes())[..16].iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// The marks a PDF's placed passages take before any review: each passage highlighted, or barred down the margin of

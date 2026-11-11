@@ -330,7 +330,7 @@ fn digest(store: &Path, out: &Path) -> Result<(), String> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(serde_json::to_vec(&pages).map_err(|e| e.to_string())?);
         hasher.update(serde_json::to_vec(&structure).map_err(|e| e.to_string())?);
-        Ok::<_, String>(format!("{:x}", hasher.finalize()))
+        Ok::<_, String>(hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>())
     });
     let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{}", source.sha256, digest.unwrap_or_else(|e| format!("error {e}")))).collect();
     lines.sort();
@@ -351,7 +351,7 @@ fn extract_digest(store: &Path, out: &Path) -> Result<(), String> {
             extracted.pages.iter_mut().for_each(mark_rule_underlines);
             serde_json::to_vec(&extracted).map_err(|e| e.to_string())
         });
-        format!("{:x}", sha2::Sha256::digest(read.unwrap_or_else(|error| format!("error {error}").into_bytes())))
+        sha2::Sha256::digest(read.unwrap_or_else(|error| format!("error {error}").into_bytes())).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
     });
     let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{digest}", source.sha256)).collect();
     lines.sort();
@@ -384,7 +384,7 @@ fn layout_digest(store: &Path, out: &Path, pack: &Path, runtime: &Path, step: us
             bytes.extend(serde_json::to_vec(&diagnostics).map_err(|e| e.to_string())?);
             Ok::<_, String>(bytes)
         });
-        format!("{:x}", sha2::Sha256::digest(read.unwrap_or_else(|error| format!("error {error}").into_bytes())))
+        sha2::Sha256::digest(read.unwrap_or_else(|error| format!("error {error}").into_bytes())).iter().map(|byte| format!("{byte:02x}")).collect::<String>()
     });
     let mut lines: Vec<String> = all.iter().zip(digests).map(|(source, digest)| format!("{}\t{digest}", source.sha256)).collect();
     lines.sort();
@@ -424,7 +424,7 @@ fn docx_digest(dir: &Path, out: &Path) -> Result<(), String> {
             hasher.update(part.as_bytes());
             hasher.update([0]);
         }
-        format!("{}\t{:x}", path.strip_prefix(dir).unwrap_or(path).display(), hasher.finalize())
+        format!("{}\t{}", path.strip_prefix(dir).unwrap_or(path).display(), hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>())
     };
     let next = AtomicUsize::new(0);
     let lines = Mutex::new(Vec::with_capacity(files.len()));

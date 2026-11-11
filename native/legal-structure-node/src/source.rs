@@ -96,7 +96,7 @@ fn bounded<'a>(bytes: &'a [u8], file_type: &str, sha256: &str, package_view: boo
     if !package_view && ["docx", "xlsx", "xlsm", "pptx"].contains(&file_type) && bytes.len() > MAX_PACKAGE_BYTES {
         return Err("Compressed document exceeds the read limit".into());
     }
-    if format!("{:x}", Sha256::digest(bytes)) != sha256 {
+    if Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>() != sha256 {
         return Err("Document source bytes no longer match their version".into());
     }
     Ok(bytes)
