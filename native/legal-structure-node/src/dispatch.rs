@@ -258,6 +258,16 @@ pub(crate) struct SourcePdf {
     outline: Vec<legalpdf::compose::Outline>,
 }
 
+#[cfg(feature = "legalpdf")]
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProvisionsPdf {
+    bytes: Buffer,
+    page_count: usize,
+    starts: Vec<Option<usize>>,
+}
+
 
 #[cfg(feature = "docx")]
 #[derive(Serialize)]
@@ -357,8 +367,15 @@ operations! { progress;
     /// its paragraphs.
     #[cfg(feature = "legalpdf")]
     off "renderSourcePdf" (source: crate::assembly::statute::SourceText) -> SourcePdf {
-        let (bytes, page_count, outline) = crate::assembly::statute::render_source_pdf(&source)?;
+        let (bytes, page_count, outline, _) = crate::assembly::statute::render_source_pdf(&source)?;
         SourcePdf { bytes: Buffer(bytes), page_count, outline }
+    }
+    /// A statute's cited provisions (`labels`, each a provision, a part of one or a range) set from its provider's text,
+    /// each with everything under it: the PDF and the page each label's provision begins on; null where the text holds
+    /// none of them.
+    #[cfg(feature = "legalpdf")]
+    off "renderStatuteProvisions" (source: crate::assembly::statute::SourceText, labels: Vec<String>) -> Option<ProvisionsPdf> {
+        crate::assembly::statute::render_provisions(&source, &labels)?.map(|(bytes, page_count, starts)| ProvisionsPdf { bytes: Buffer(bytes), page_count, starts })
     }
     /// A book of authorities' volumes from its plan and its PDFs' bytes, in the order it names them (assembly/book.rs):
     /// each volume `bytes` long in the reply's bytes.
@@ -485,11 +502,6 @@ operations! { progress;
     /// The outline of a provider's text of a judgment ("cases") or a statute ("laws").
     now "textOutline" (text: String, kind: legal_structure::ProviderTextSourceKind) -> Vec<legal_structure_features::OutlineEntry> {
         legal_structure_features::text_outline(&text, kind).map_err(|error| error.to_string())?
-    }
-    /// Where a statute's text holds each cited provision, part ("16(3)(a)") or range ("49-51"), by its outline: each span
-    /// (UTF-16) with everything under it, in the text's order; a label it does not hold has none.
-    now "statuteProvisionSpans" (text: String, labels: Vec<String>) -> Vec<[usize; 2]> {
-        legal_structure::statute_provision_spans(&text, &labels).map_err(|error| error.to_string())?
     }
     /// A reader's labels of one kind as few as they can be written: runs of numbers ("12–14"), provisions' spans
     /// ("5(2)(a)–(c)"); null where a label is not of the kind's shape.

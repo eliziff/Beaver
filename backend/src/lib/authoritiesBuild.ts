@@ -28,7 +28,6 @@ import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
 import { applyTableOfAuthorities, entryOrder, type DocxAuthorityMark } from "./docxOperations";
 import { structureNative } from "./structureNative";
-import type { Outline } from "mike/shared/engine-types/Outline";
 import type { OutlineEntry } from "mike/shared/engine-types/OutlineEntry";
 import type { PassageTarget } from "mike/shared/engine-types/PassageTarget";
 import type { ResolvedWorkProductInput, WorkProductBuildReceipt,
@@ -695,12 +694,9 @@ async function prepareAuthorityBook(
       const offset = source.pageCount;
       source.parts.push({ kind: "pdf", bytes: rebuilt.bytes, headings: [] });
       excerpt!.push(...Array.from({ length: rebuilt.pageCount }, (_, index) => offset + index));
-      // Each rebuilt provision is bookmarked where its section opens in the rebuilt pages.
-      const flat = (items: Outline[]): Outline[] => items.flatMap((item) => [item, ...flat(item.children ?? [])]);
-      const sections = flat(rebuilt.outline);
-      rebuiltBookmarks = missing.map(({ kind, label }) => ({ title: locatorLabel(kind, label),
-        pageIndex: offset + (sections.find((item) => item.title === label.split("(")[0] ||
-          item.title.startsWith(`${label.split("(")[0]} `))?.pageIndex ?? 0) }));
+      // Each rebuilt provision is bookmarked where it begins in the rebuilt pages.
+      rebuiltBookmarks = missing.map(({ kind, label }, index) => ({ title: locatorLabel(kind, label),
+        pageIndex: offset + (rebuilt.starts[index] ?? 0) }));
     }
     // With no placed or manually marked passage and no provider reconstruction, retain the whole Act.
     const pages = read?.wholeUnlessRebuilt && !rebuilt ? null : excerpt;
@@ -747,19 +743,14 @@ async function bookArtifacts(plan: Awaited<ReturnType<typeof prepareAuthorityBoo
     item.filename, "application/pdf", item.bytes, item.pageCount), bookPlacements: item.placements }));
 }
 
-/** The cited provisions a statute's PDF does not place, rebuilt from its provider's text: each cut
- *  from the text by the structure layer's outline, with everything under it. Null where the text
- *  cannot be had or holds none of them. */
+/** The cited provisions a statute's PDF does not place, rebuilt from its provider's text (each with everything under
+ *  it) with the page each begins on. Null where the text cannot be had or holds none of them. */
 async function rebuiltProvisions(authority: AuthorityIdentity, name: string,
   wanted: AuthorityPassageRequest["locators"], statuteText?: StatuteText, signal?: AbortSignal, federal = false) {
   const found = await statuteText?.(authority, signal);
   if (!found?.text.trim()) return null;
-  // Each cut from the text by the structure layer's outline: a provision, a part of one, or a range of them.
-  const spans = structureNative().statuteProvisionSpans(found.text, wanted.map(({ label }) => label));
-  if (!spans.length) return null;
-  const text = spans.map(([start, end]) => found.text.slice(start, end).trim()).join("\n\n");
-  return structureNative().renderSourcePdf({ kind: "legislation", name: authority.name ?? name, citation: authority.citation,
-    text, provider: found.provider, retrieved: new Date().toISOString().slice(0, 10), federal });
+  return structureNative().renderStatuteProvisions({ kind: "legislation", name: authority.name ?? name, citation: authority.citation,
+    text: found.text, provider: found.provider, retrieved: new Date().toISOString().slice(0, 10), federal }, wanted.map(({ label }) => label));
 }
 
 /** What a statute's excerpt holds of one of its PDFs, as the engine reads it with its reviewed marks: its pages, the

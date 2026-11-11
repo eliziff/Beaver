@@ -68,6 +68,7 @@ import type { ProviderTextSourceKind } from "./ProviderTextSourceKind";
 import type { Provision } from "./Provision";
 import type { ProvisionExcerpt } from "./ProvisionExcerpt";
 import type { ProvisionLookup } from "./ProvisionLookup";
+import type { ProvisionsPdf } from "./ProvisionsPdf";
 import type { Query } from "./Query";
 import type { QuotationDiff } from "./QuotationDiff";
 import type { QuoteComparison } from "./QuoteComparison";
@@ -112,6 +113,12 @@ export interface EngineOperations {
    * its paragraphs.
    */
   renderSourcePdf(source: SourceText): Promise<SourcePdf>;
+  /**
+   * A statute's cited provisions (`labels`, each a provision, a part of one or a range) set from its provider's text,
+   * each with everything under it: the PDF and the page each label's provision begins on; null where the text holds
+   * none of them.
+   */
+  renderStatuteProvisions(source: SourceText, labels: ReadonlyArray<string>): Promise<ProvisionsPdf | null>;
   /**
    * A book of authorities' volumes from its plan and its PDFs' bytes, in the order it names them (assembly/book.rs):
    * each volume `bytes` long in the reply's bytes.
@@ -206,11 +213,6 @@ export interface EngineOperations {
    * The outline of a provider's text of a judgment ("cases") or a statute ("laws").
    */
   textOutline(text: string, kind: ProviderTextSourceKind): Array<OutlineEntry>;
-  /**
-   * Where a statute's text holds each cited provision, part ("16(3)(a)") or range ("49-51"), by its outline: each span
-   * (UTF-16) with everything under it, in the text's order; a label it does not hold has none.
-   */
-  statuteProvisionSpans(text: string, labels: ReadonlyArray<string>): Array<[number, number]>;
   /**
    * A reader's labels of one kind as few as they can be written: runs of numbers ("12–14"), provisions' spans
    * ("5(2)(a)–(c)"); null where a label is not of the kind's shape.

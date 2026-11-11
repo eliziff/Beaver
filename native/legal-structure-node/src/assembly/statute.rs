@@ -7,7 +7,7 @@ use legalpdf::compose::{nested_outline, Composer, Face, Meta, Outline};
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 #[cfg_attr(feature = "binding-types", ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
@@ -229,8 +229,31 @@ impl Setter {
     }
 }
 
-/// The source's pages, how many there are, and its bookmarks.
-pub fn render_source_pdf(input: &SourceText) -> Result<(Vec<u8>, usize, Vec<Outline>), String> {
+/// The statute's cited provisions alone, each cut from its text by its outline with everything under it, in the text's
+/// order: their pages, how many, and the page each label's provision begins on; none where the text holds none.
+pub fn render_provisions(input: &SourceText, labels: &[String]) -> Result<Option<(Vec<u8>, usize, Vec<Option<usize>>)>, String> {
+    let spans = legal_structure::statute_provision_spans(&input.text, labels).map_err(|e| e.to_string())?;
+    // The spans count UTF-16 units.
+    let byte = |unit: usize| input.text.char_indices().scan(0, |at, (b, c)| { let here = *at; *at += c.len_utf16(); Some((here, b)) })
+        .find(|(here, _)| *here >= unit).map_or(input.text.len(), |(_, b)| b);
+    let mut order: Vec<(usize, [usize; 2])> = spans.into_iter().enumerate().filter_map(|(index, span)| Some((index, span?))).collect();
+    if order.is_empty() { return Ok(None); }
+    order.sort_by_key(|(_, span)| span[0]);
+    let (mut text, mut opens) = (String::new(), vec![None; labels.len()]);
+    for (index, [start, end]) in order {
+        if !text.is_empty() { text.push_str("\n\n"); }
+        opens[index] = Some(text.len());
+        text.push_str(input.text[byte(start)..byte(end)].trim());
+    }
+    let (bytes, pages, _, placed) = render_source_pdf(&SourceText { text, ..input.clone() })?;
+    let starts = opens.into_iter().map(|open| open.and_then(|open| placed.iter().find(|(start, _)| *start >= open).map(|(_, page)| *page))).collect();
+    Ok(Some((bytes, pages, starts)))
+}
+
+/// The source's pages, how many there are, its bookmarks, and the page each placed part of its text (by where it starts)
+/// opens on.
+#[allow(clippy::type_complexity)]
+pub fn render_source_pdf(input: &SourceText) -> Result<(Vec<u8>, usize, Vec<Outline>, Vec<(usize, usize)>), String> {
     if input.text.trim().is_empty() { return Err("Authority source text is empty.".into()); }
     let mut c = Composer::new();
     let (serif, bold, italic, bold_italic, mono) = (c.font(Face::Times), c.font(Face::TimesBold), c.font(Face::TimesItalic), c.font(Face::TimesBoldItalic), c.font(Face::Courier));
@@ -383,7 +406,7 @@ pub fn render_source_pdf(input: &SourceText) -> Result<(Vec<u8>, usize, Vec<Outl
     }
     let bytes = c.save(&Meta { title: &title, subject: &citation, creator: "Beaver", producer: "Beaver", lang: None, xmp: false }, false)
         .map_err(|e| e.to_string())?;
-    Ok((bytes, pages, bookmarks))
+    Ok((bytes, pages, bookmarks, s.placed.iter().map(|p| (p.placing.start, p.page)).collect()))
 }
 
 /// A day (YYYY-MM-DD) as Canadian English writes it in full: "January 5, 2026".
