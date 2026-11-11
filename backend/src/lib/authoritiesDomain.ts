@@ -140,6 +140,12 @@ export function createAuthoritiesDraft(
 }
 
 const uniqueSorted = (values: string[]) => [...new Set(values)].sort();
+/** Locators once each, in one order. */
+const uniqueLocators = (locators: ReadonlyArray<{ kind: string; label: string }>) =>
+  uniqueSorted(locators.map(({ kind, label }) => `${kind}\0${label}`)).map((value) => {
+    const [kind, label] = value.split("\0");
+    return { kind, label };
+  });
 const same = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
 const exactSourceHash = (value: string) => /^(?:sha256:)?[a-f0-9]{64}$/u.test(value);
 const sameSnapshot = (left: AuthoritiesDocumentSnapshot, right: AuthoritiesDocumentSnapshot) =>
@@ -241,18 +247,16 @@ const seed = closed<AuthoritySeed>({ key: text, kind: authorityKind, provider: t
   stableSourceId: text, sourceSha256: text, citation: text, name: nullable(text),
   version: nullable(text), externalUrl: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator) });
-export function isObservedSourceUrl(value: unknown): value is string {
+const webAddress = (value: unknown, protocols: string[]): value is string => {
   if (typeof value !== "string" || value.length > 8192) return false;
-  try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) &&
-    !url.username && !url.password; }
+  try { const url = new URL(value); return protocols.includes(url.protocol) && !url.username && !url.password; }
   catch { return false; }
-}
+};
+export const isObservedSourceUrl = (value: unknown): value is string => webAddress(value, ["http:", "https:"]);
+const citedCase = closed<AuthorityCitedCase>({ id: hash, citation: text, name: text,
+  named: nullable(closed<NonNullable<AuthorityCitedCase["named"]>>({ citation: text, name: text })) });
 const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: authorityKind,
-  sourceVerificationUrl: maybe((value) => {
-    if (typeof value !== "string" || value.length > 8192) return false;
-    try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; }
-    catch { return false; }
-  }),
+  sourceVerificationUrl: maybe((value) => webAddress(value, ["https:"])),
   sourceDownloadFailure: maybe(oneOf(["refused", "failed"])),
   sourceLookupFailure: maybe(closed<AuthoritySourceLookupFailure>({
     reason: oneOf(["rate-limited", "error", "timeout", "unreachable", "defect"]),
@@ -260,9 +264,7 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
     detail: maybe(text), provider: maybe(text) })),
   sourceUrl: maybe(isObservedSourceUrl),
   shortNames: maybe(strings), mentionedAs: maybe(text),
-  citedCase: maybe(closed<AuthorityCitedCase>({ id: hash, citation: text, name: text,
-    named: nullable(closed<NonNullable<AuthorityCitedCase["named"]>>({ citation: text, name: text })) })),
-  citationFormat: maybe(oneOf(["database", "docket"])),
+  citedCase: maybe(citedCase), citationFormat: maybe(oneOf(["database", "docket"])),
   citation: text, name: nullable(text), displayName: nullable(text), evidenceIds: strings,
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
   source: sourceDecision, highlightExclusions: maybe(list(500, locator)),
@@ -319,8 +321,7 @@ const draftShape = closed<AuthoritiesDraft>({
   discrepancyCorrections: maybe(dictionary(closed<AuthoritiesDiscrepancyCorrectionRecord>({
     revisions: list(10_000, integer),
     authority: maybe(closed<NonNullable<AuthoritiesDiscrepancyCorrectionRecord["authority"]>>({ id: text, citation: text, name: nullable(text),
-      citedCase: closed<AuthorityCitedCase>({ id: hash, citation: text, name: text,
-        named: nullable(closed<NonNullable<AuthorityCitedCase["named"]>>({ citation: text, name: text })) }) })) }))),
+      citedCase })) }))),
   dismissedOccurrences: maybe(dictionary(closed<AuthoritiesDismissedOccurrence>({
     occurrence, authority: nullable(authority) }))),
 });
@@ -350,7 +351,6 @@ export function authoritySeedFromReceipts(
   if (!exactSourceHash(first.source_sha256)) {
     throw new AuthoritiesDomainError("Evidence receipts require an exact source hash.");
   }
-  const locatorKeys = uniqueSorted(receipts.map(({ locator }) => `${locator.kind}\0${locator.label}`));
   return {
     key,
     kind: first.source_class,
@@ -362,10 +362,7 @@ export function authoritySeedFromReceipts(
     version: first.version,
     externalUrl: first.external_url,
     evidenceIds: uniqueSorted(receipts.map((receipt) => receipt.evidence_id)),
-    locators: locatorKeys.map((value) => {
-      const [kind, label] = value.split("\0");
-      return { kind, label };
-    }),
+    locators: uniqueLocators(receipts.map(({ locator }) => locator)),
   };
 }
 
@@ -459,10 +456,8 @@ function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) 
         ? "reference" : authority.kind,
       citation: authority.citation,
       authorityId: item.authorityKey,
-      reference: item.displayedForm === "short" || item.displayedForm === "supra" || item.displayedForm === "ibid"
-        ? { kind: item.displayedForm, targetAuthorityId: item.authorityKey } : null,
-      referenceKind: item.displayedForm === "short" || item.displayedForm === "supra" || item.displayedForm === "ibid"
-        ? item.displayedForm : undefined,
+      reference: item.displayedForm === "full" ? null : { kind: item.displayedForm, targetAuthorityId: item.authorityKey },
+      referenceKind: item.displayedForm === "full" ? undefined : item.displayedForm,
       pinpoints: [...item.pinpoints], evidenceIds: [...item.evidenceIds],
       sourceTextSha256: item.unit.sourceTextSha256,
       localOrdinal: item.localOrdinal, reviewed: true,
@@ -558,11 +553,7 @@ function resolveAuthority(
   survivor.displayName = aliases.find(({ displayName }) => displayName !== null)?.displayName ?? null;
   survivor.excluded = aliases.every(({ excluded }) => excluded);
   survivor.evidenceIds = uniqueSorted(aliases.flatMap(({ evidenceIds }) => evidenceIds));
-  survivor.locators = uniqueSorted(aliases.flatMap(({ locators }) => locators)
-    .map(({ kind, label }) => `${kind}\0${label}`)).map((value) => {
-      const [kind, label] = value.split("\0");
-      return { kind, label };
-    });
+  survivor.locators = uniqueLocators(aliases.flatMap(({ locators }) => locators));
   survivor.sourceIdentity = structuredClone(action.source);
   delete survivor.sourceLookupFailure;
   delete survivor.citedCase;
@@ -596,16 +587,17 @@ function resolveAuthority(
   for (const role of roles) removeUnusedBinding(draft, role);
 }
 
+/** An authority's source decision once it has no PDF: resolved where it has a source identity. */
+const unattached = (authority: AuthorityIdentity): AuthoritySourceDecision =>
+  authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" };
+
 function clearAutomaticSources(draft: AuthoritiesDraft) {
   for (const authority of Object.values(draft.authorities)) {
-    if (authority.source.kind === "pending-canlii") {
-      replaceSource(draft, authority,
-        authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" });
-    } else if (authority.source.kind === "attached") {
+    if (authority.source.kind === "pending-canlii") replaceSource(draft, authority, unattached(authority));
+    else if (authority.source.kind === "attached") {
       const sources = authority.source.sources.filter(({ origin }) => origin === "manual");
       if (sources.length !== authority.source.sources.length) replaceSource(draft, authority,
-        sources.length ? { kind: "attached", sources }
-          : authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" });
+        sources.length ? { kind: "attached", sources } : unattached(authority));
     }
   }
 }
@@ -721,12 +713,7 @@ function refresh(draft: AuthoritiesDraft, review: AuthoritiesFreshReview) {
       if (old.sourceVerificationUrl) authority.sourceVerificationUrl = old.sourceVerificationUrl;
       if (old.sourceDownloadFailure) authority.sourceDownloadFailure = old.sourceDownloadFailure;
       authority.evidenceIds = uniqueSorted([...old.evidenceIds, ...authority.evidenceIds]);
-      const locators = uniqueSorted([...old.locators, ...authority.locators]
-        .map(({ kind, label }) => `${kind}\0${label}`));
-      authority.locators = locators.map((value) => {
-        const [kind, label] = value.split("\0");
-        return { kind, label };
-      });
+      authority.locators = uniqueLocators([...old.locators, ...authority.locators]);
       if (old.source.kind !== "unresolved") {
         authority.name ??= old.name;
         // The citation its source was found by goes with the source: the source is read by it.
@@ -927,10 +914,8 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
         delete authority.sourceVerificationUrl; delete authority.sourceDownloadFailure;
         delete authority.sourceLookupFailure;
       }
-      if (authority.source.kind === "pending-canlii" && citation !== authority.citation) {
-        replaceSource(draft, authority,
-          authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" });
-      }
+      if (authority.source.kind === "pending-canlii" && citation !== authority.citation)
+        replaceSource(draft, authority, unattached(authority));
       authority.kind = action.kind;
       authority.citation = citation;
       authority.name = action.name?.trim() || null;
@@ -1096,8 +1081,7 @@ function applyAuthoritiesAction(draft: AuthoritiesDraft, action: AuthoritiesActi
     }
     case "clear-authority-source": {
       const authority = requireRecord(draft.authorities, action.authorityId, "authority");
-      replaceSource(draft, authority,
-        authority.sourceIdentity ? { kind: "resolved" } : { kind: "unresolved" });
+      replaceSource(draft, authority, unattached(authority));
       break;
     }
     case "set-source-verification": {
