@@ -2,6 +2,6 @@
 import type { BriefNote } from "./BriefNote";
 
 /**
- * The brief's text, its units joined by a blank line, where each unit starts in it, and its notes in reading order.
+ * The brief's text, its units joined by a blank line, and its notes in reading order.
  */
-export type BriefText = { text: string, starts: Array<number>, notes: Array<BriefNote>, };
+export type BriefText = { text: string, notes: Array<BriefNote>, };

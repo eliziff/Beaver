@@ -298,8 +298,8 @@ type StructureAddon = {
   pdfPageTexts(document: NativeDocument): string[];
   /** The page (from 1) of each citation of a Word brief in a PDF saved from it (`pages`, each page's text), by its id:
    *  each unit's citations found among the pages' words in order, body and notes each onward from their last match. */
-  briefOccurrencePages(pages: string[], units: Array<{ note: boolean; text: string;
-    occurrences: Array<{ id: string; start: number; end: number; text: string }> }>): Record<string, number>;
+  briefOccurrencePages(pages: string[], units: readonly import("mike/shared/engine-types/BriefUnit.d.ts").BriefUnit[],
+    occurrences: import("mike/shared/authorities-contract.d.ts").AuthoritiesDraft["occurrences"]): Record<string, number>;
   pdfAuthorityTextUnits(document: NativeDocument): NativeAuthorityTextUnit[];
   /** Each passage's pages, its lines' rectangles on each, and its quotations placed on them; a passage with no page it
    *  can be read on unavailable. With `citations`, a page locator naming no physical pages is a printed page, the PDF
@@ -332,14 +332,14 @@ type StructureAddon = {
     offset: number | undefined, limit: number, startChar?: number): NativeDocumentTextWindow;
   /** A call of the citation engine's API (legal-citations `api::call_value`): its method and its request as it reads it. */
   citationEngineCall(method: string, request: unknown): unknown;
-  /** A brief's text, its units joined by a blank line, where each unit starts in it, and its notes in reading order
-   *  as the citation engine reads them (number u32::MAX where unprinted, the span, the sequence, the call). */
-  briefText(units: readonly NativeAuthorityTextUnit[]): { text: string; starts: number[];
-    notes: Array<{ number: number; start: number; end: number; sequence: number; anchor?: number }> };
-  /** With `joinBodies`, the body units each citation runs across (each the first of a pair joined to the next); and
-   *  the citations' indexes in the brief's reading order (a note's after the body up to its call). */
+  /** A brief's text, its units joined by a blank line, and its notes in reading order as the citation engine reads
+   *  them (number u32::MAX where unprinted, the span, the sequence, the call). */
+  briefText(units: readonly NativeAuthorityTextUnit[]): import("mike/shared/engine-types/BriefText.d.ts").BriefText;
+  /** The units as joined (with `joinBodies`, the body units a citation runs across are one), where each starts in the
+   *  brief's text, and the citations' indexes in reading order (a note's after the body up to its call). */
   briefCitationOrder(units: readonly NativeAuthorityTextUnit[], citations: readonly unknown[], joinBodies: boolean):
-    { joins: number[]; order: number[] };
+    Omit<import("mike/shared/engine-types/BriefCitationOrder.d.ts").BriefCitationOrder, "units">
+    & { units: NativeAuthorityTextUnit[] };
   /** Each note's proposition in a brief's body text (its body units in order, each followed by a line break): the
    *  passage since the call before its one call, or with `context` "sentence", the sentence its call ends or stands
    *  in; each with the parts of the units (by their place in `units`) it holds. Also where each body unit starts in

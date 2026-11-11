@@ -277,6 +277,7 @@ fn dispatch(
         "briefOccurrencePages" => done(value(legalpdf::brief_occurrence_pages(
             &call.get::<Vec<String>>("pages")?,
             &call.get::<Vec<legalpdf::BriefUnit>>("units")?,
+            &call.get("occurrences")?,
         ))),
         #[cfg(feature = "legalpdf")]
         "queryPdfDocument" => done(with_document(doc()?, |d| {
@@ -379,11 +380,10 @@ fn dispatch(
             call.get::<Option<legal_structure_features::QuoteContext>>("context")?
                 .unwrap_or(legal_structure_features::QuoteContext::Passage),
         ))),
-        "briefText" => done(value(legal_structure_features::brief_text(
-            &call.get::<Vec<legal_structure_features::BriefUnit>>("units")?,
-        ))),
+        "briefText" => done(value(legal_structure_features::brief_text(&call.get::<Vec<_>>("units")?))),
         "briefCitationOrder" => done(value(legal_structure_features::brief_citation_order(
-            &call.get::<Vec<legal_structure_features::BriefUnit>>("units")?,
+            &call.get::<Vec<_>>("units")?,
+            &call.get::<Vec<legal_structure_features::BriefCitation>>("citations")?,
             &call.get::<Vec<legal_structure_features::BriefCitation>>("citations")?,
             call.get("joinBodies")?,
         ))),

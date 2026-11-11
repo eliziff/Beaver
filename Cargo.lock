@@ -1400,6 +1400,7 @@ dependencies = [
  "flate2",
  "hayro",
  "legal-layout",
+ "legal-structure-model",
  "ort",
  "serde",
  "serde_json",

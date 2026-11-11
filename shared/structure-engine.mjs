@@ -29,7 +29,7 @@ export const SIGNATURES = {
   pdfAuthorityTextUnits: ["document"], pdfPageMap: ["document", "citations"], pdfPageTexts: ["document"],
   pdfPrintedPages: ["document", "citations", "labels"], reporterStartPages: ["citations"],
   pdfPassageGeometry: ["document", "targets", "citations"],
-  briefOccurrencePages: ["pages", "units"],
+  briefOccurrencePages: ["pages", "units", "occurrences"],
   queryPdfDocument: ["document", "request"],
   docxStructureLint: ["document"],
   documentText: ["document", "limit"], documentTextBytes: ["document"], documentRevision: ["document"],

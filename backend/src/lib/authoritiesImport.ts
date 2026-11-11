@@ -191,9 +191,9 @@ async function scanReview(
   const authorities: Record<string, AuthorityIdentity> = {};
   const authorityOrder: string[] = [];
   const native = structureNative();
-  // The brief's text, where each unit starts in it, and its notes as the citation engine reads them.
-  const { text, starts, notes } = native.briefText(units);
-  let ranges = units.map((unit, index) => ({ unit, start: starts[index], end: starts[index] + unit.text.length }));  // A Canadian brief is read with McGill's and COAL's forms; without the Bluebook or a US jurisdiction the engine
+  // The brief's text and its notes as the citation engine reads them.
+  const { text, notes } = native.briefText(units);
+  // A Canadian brief is read with McGill's and COAL's forms; without the Bluebook or a US jurisdiction the engine
   // reads no extended United States forms (a registration or account number reads as one of its codes).
   const extracted = native.citationEngineCall("extract", { text, offsetUnit: "utf16",
     options: { resolve: false, notes, styles: ["mcgill", "coal"], earlyReferences: true, splitTier: supraLinking },
@@ -211,36 +211,12 @@ async function scanReview(
   // names no authority a book could hold.
   extracted.citations = extracted.citations.filter((citation) =>
     citation.form !== "full" || citation.authority !== "webpage" || !!citation.style?.text.trim());
-  // PDF layout units can end in the middle of a citation: the engine names the body units a citation runs across,
-  // which are joined here, keeping the engine's exact text and global UTF-16 addresses; it also reads the citations in
-  // the brief's reading order over the units as joined.
-  const { joins, order } = native.briefCitationOrder(units, extracted.citations,
+  // PDF layout units can end in the middle of a citation: the engine joins the body units a citation runs across,
+  // keeping its exact text and global UTF-16 addresses, and reads the citations in the brief's reading order over them.
+  const { units: joined, starts, order } = native.briefCitationOrder(units, extracted.citations,
     imported.kind === "document" && imported.fileType === "pdf");
-  if (joins.length) {
-    const joined = new Set(joins), merged: typeof ranges = [];
-    ranges.forEach((range, index) => {
-      const prior = merged.at(-1);
-      if (!prior || !joined.has(index - 1)) { merged.push({ ...range }); return; }
-      const leftSource = prior.unit.source, rightSource = range.unit.source;
-      if ((leftSource || rightSource) && (!leftSource || !rightSource ||
-          leftSource.documentId !== rightSource.documentId || leftSource.textSha256 !== rightSource.textSha256)) {
-        throw new Error("Cannot join authority units from different source representations");
-      }
-      const source = leftSource && rightSource ? { ...leftSource,
-        nodeIds: [...new Set([...leftSource.nodeIds, ...rightSource.nodeIds])],
-        lineIds: [...new Set([...leftSource.lineIds, ...rightSource.lineIds])],
-        ranges: [...leftSource.ranges, ...rightSource.ranges],
-        mappings: [...leftSource.mappings, ...rightSource.mappings.map((mapping) => ({ ...mapping,
-          start: mapping.start + range.start - prior.start, end: mapping.end + range.start - prior.start }))],
-      } : undefined;
-      prior.unit = { ...prior.unit, ...(source && { source }), text: `${prior.unit.text}\n\n${range.unit.text}`,
-        page_numbers: [...new Set([...prior.unit.page_numbers, ...range.unit.page_numbers])].sort((left, right) => left - right),
-        footnote_refs: [...prior.unit.footnote_refs, ...range.unit.footnote_refs.map(([id, offset]) =>
-          [id, range.start - prior.start + offset] as [number, number])] };
-      prior.end = range.end;
-    });
-    ranges = merged;
-  }  const cases = extracted.citations.filter(({ form, authority, key }) =>
+  const ranges = joined.map((unit, index) => ({ unit, start: starts[index], end: starts[index] + unit.text.length }));
+  const cases = extracted.citations.filter(({ form, authority, key }) =>
     form === "full" && key && (authority === "case" || authority === "unknown"));
   const closures = native.a2ajAliasGroups(a2ajStorePath(), cases.map(({ key }) => key!)).map(({ keys }) => keys);
   // The note parts that cite: only these can be an authority (a prose note is never one).

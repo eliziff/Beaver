@@ -21,14 +21,8 @@ export function filingTabText(unitText: string, occurrence: AuthorityOccurrence,
 
 /** The page of each citation in a PDF saved from the Word brief, by its id, as the engine places it on the pages' words
  *  (`briefOccurrencePages`); a citation that cannot be placed gets no page. */
-export function briefOccurrencePages(draft: AuthoritiesDraft, pageTextByPage: string[]) {
-  const units = draft.units.map((unit) => ({ note: unit.footnoteId !== null, text: unit.text,
-    occurrences: unit.occurrenceIds.flatMap((id) => {
-      const occurrence = draft.occurrences[id];
-      return occurrence ? [{ id, start: occurrence.start, end: occurrence.end, text: occurrence.text }] : [];
-    }) }));
-  return new Map(Object.entries(structureNative().briefOccurrencePages(pageTextByPage, units)));
-}
+export const briefOccurrencePages = (draft: AuthoritiesDraft, pageTextByPage: string[]) =>
+  new Map(Object.entries(structureNative().briefOccurrencePages(pageTextByPage, draft.units, draft.occurrences)));
 
 /** Fails, saying how, when a supplied brief PDF is not a PDF of this brief. */
 export function assertBriefPdfMatches(draft: AuthoritiesDraft, pageTextByPage: string[], filename: string) {
