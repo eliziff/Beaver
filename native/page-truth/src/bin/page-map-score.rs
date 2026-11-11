@@ -188,7 +188,7 @@ fn main() {
                 }
                 if let Some(file) = wrong.as_mut() {
                     let _ = writeln!(file, "{}", serde_json::json!({"id": article.id, "pdf_page": page, "labels": labels, "got": got, "anchors": anchors, "holding": holding,
-                        "observed": binding.and_then(|b| b.observed.clone()), "source": binding.and_then(|b| b.source.clone()),
+                        "source": binding.and_then(|b| b.source.clone()),
                         "working": truth.detected.get(&page), "pages": article.pages.len()}));
                 }
             }

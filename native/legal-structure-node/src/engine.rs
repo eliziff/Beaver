@@ -351,7 +351,6 @@ mod tests {
             .enumerate()
             .map(|(index, label)| PdfPageBinding {
                 pdf_page: index as u32 + 1,
-                observed: label.map(str::to_owned),
                 label: label.map(str::to_owned),
                 line: None,
                 source: label.map(|_| "detected".to_owned()),

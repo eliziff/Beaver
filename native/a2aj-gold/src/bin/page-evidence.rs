@@ -1,5 +1,5 @@
-//! page-evidence: what each page of a sample of journal PDFs tells of its number (`legalpdf::page_evidence`: its folio as
-//! the structure stage reads it, the PDF's own label, an opening page's lines), read once as the product reads each PDF,
+//! page-evidence: what each page of a sample of journal PDFs tells of its number (`legalpdf::page_evidence`: the PDF's own
+//! label, the page's size and its lines), read once as the product reads each PDF,
 //! for `page-map-score` (legal-pdf-pages) to score the page map on without reading a PDF again.
 //!
 //!   page-evidence KEY OUT [--sample N] [--seed S] [--threads T] [--cache DIR] [--no-reread]
@@ -78,7 +78,7 @@ fn evidence(pdf: &PathBuf, cache: &PathBuf, index: &Index, ocr: Option<&mut lega
         None => {
             let pdf_bytes = load(&mut bytes)?;
             let extracted = legalpdf::gold_structure_inputs(&pdf_bytes, &home).map_err(|e| e.to_string())?;
-            let document = legalpdf::gold_structure_document(extracted, &sha, None).map_err(|e| e.to_string())?;
+            let document = legalpdf::gold_structure_document(extracted, &sha).map_err(|e| e.to_string())?;
             let base = legalpdf::page_evidence(&document);
             let _ = fs::create_dir_all(&home);
             let _ = fs::write(&base_path, serde_json::to_vec(&base).unwrap_or_default());
