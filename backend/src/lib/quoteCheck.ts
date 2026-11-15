@@ -5,14 +5,12 @@ import { legalSourceOperations } from "./legalSourceApplication";
 import { canonicalJsonSha256 } from "./hash";
 import { structureNative } from "./structureNative";
 import { reject } from "./applicationError";
-import { splitQuoteCitationUnits } from "./quoteCitationSplit";
-import type { QuoteCitationUnit } from "mike/shared/engine-types/QuoteCitationUnit";
+import { unitCitationParts, type CitationPart } from "./quoteCitationSplit";
 import type { QuoteContext } from "./authoritiesQuotations";
 import type { LegalSourceReference, LegalSourceLocator } from "./legalSources";
 import type { NativeDocument } from "./structureNative";
 import type { QuoteComparison } from "mike/shared/engine-types/QuoteComparison";
 import type { QuoteLocation } from "mike/shared/engine-types/QuoteLocation";
-import { buildLegalSourcePinpoint, legalSourceLocatorAnchor, planLegalSourcePinpoints } from "./legalSourceLinks";
 
 export type QuoteLink = { quoteId: string; occurrenceId: string };
 export function decodeQuoteLinks(value: unknown): QuoteLink[] {
@@ -26,61 +24,40 @@ export function decodeQuoteLinks(value: unknown): QuoteLink[] {
   return links;
 }
 
-/** Uses the same native quotation and authority scans as document ingestion. A quotation in the text belongs to the
- *  next note only where it is in that note's passage: with `context` "sentence", the sentence its marker ends or
- *  stands in. With `textOnly`, the quotations are the text's alone, none a note holds. */
+/** The draft's quotations to check, each with the citation parts it is checked against, as the engine reads them
+ *  (propositionQuotations, the quote and proposition model): a quotation in the text belongs to the next note only
+ *  where it is in that note's passage (with `context` "sentence", the sentence its marker ends or stands in). With
+ *  `textOnly`, the quotations are the text's alone, none a note holds. */
 export function splitQuoteChecks(draft: AuthoritiesDraft, links: QuoteLink[],
-  splitUnits: QuoteCitationUnit[], context: QuoteContext = "passage", textOnly = false) {
-  const { propositions, bodyStarts, anchors } = structureNative().footnotePropositions(draft.units, context);
-  const passages = new Map(propositions.map((proposition) => [proposition.footnoteId, proposition]));
-  const rows = draft.units.filter(({ kind }) => !textOnly || kind === "body").flatMap((unit) => structureNative().markedQuoteSpans(unit.text)
-    // A cited work's quoted title ("Name, “Title” (2024) 16:1 J 61") is part of its citation, not a quotation.
-    .filter((quote) => !unit.occurrenceIds.some((key) => {
-      const span = draft.occurrences[key]?.authoritySpan;
-      return span && span.start <= quote.start && quote.end <= span.end;
-    }))
-    .flatMap((quote) => {
-      const id = canonicalJsonSha256([unit.id, quote.start, quote.end, quote.text]);
-      const bodyOffset = bodyStarts[draft.units.indexOf(unit)] ?? undefined;
-      const globalEnd = (bodyOffset ?? 0) + quote.end;
-      // A quotation belongs to the note that ends the passage it is in: the next note after it.
-      const anchor = bodyOffset === undefined ? undefined : anchors.find(([, at]) => at >= globalEnd);
-      const passage = anchor && passages.get(anchor[0]);
-      if (passage && (globalEnd - quote.end + quote.start < passage.start || globalEnd > passage.end)) return [];
-      const nextNote = anchor ? [anchor[0], anchor[1] - (bodyOffset ?? 0)] : undefined;
-      const noteUnits = nextNote ? draft.units.filter((item) =>
-        item.kind === "footnote" && item.footnoteId === nextNote[0]) : [];
-      const occurrences = [...new Set([
-        ...unit.occurrenceIds.filter((key) => {
-          const at = draft.occurrences[key]?.start;
-          return at >= quote.end && at - quote.end <= 400 && (!nextNote || at < nextNote[1]);
-        }),
-        ...noteUnits.flatMap((item) => item.occurrenceIds),
-      ])].map((key) => draft.occurrences[key]).filter((item): item is AuthorityOccurrence => !!item);
-      const candidates = (noteUnits.length ? noteUnits : [unit]).flatMap((sourceUnit) =>
-        (splitUnits[draft.units.indexOf(sourceUnit)]?.parts ?? []).filter((part) =>
-          sourceUnit !== unit || (part.end > quote.end && part.start - quote.end <= 400 &&
-            occurrences.some((item) => item.unitId === sourceUnit.id && item.start >= part.start && item.start < part.end)))
-          .map((part) => {
-            const matching = occurrences.filter((item) => item.unitId === sourceUnit.id &&
-              item.start >= part.start && item.start < part.end);
-            const first = matching[0];
-            return { id: first?.id ?? `part:${sourceUnit.id}:${part.start}`,
-              citation: first?.citation || part.reference,
-              kind: first?.kind ?? (part.fields.kind === "statute" ? "legislation" :
-                part.fields.kind === "case" ? "case" : "commentary"),
-              pinpoints: first?.pinpoints ?? [], text: part.text,
-              unitId: sourceUnit.id, start: part.start, end: part.end };
-          }));
-      const explicit = links.find((link) => link.quoteId === id);
-      if (explicit && !draft.occurrences[explicit.occurrenceId] && !candidates.some(({ id }) => id === explicit.occurrenceId))
-        reject(400, "A quote link names an unknown citation occurrence.");
-      return [{ id, unitId: unit.id, start: quote.start, end: quote.end, quote: quote.text,
-        context: unit.text, pageNumbers: unit.pageNumbers,
-        candidates,
-        occurrenceId: explicit?.occurrenceId ?? (candidates.length === 1 ? candidates[0].id : null),
-        linkMethod: explicit ? "explicit" as const : "mechanical" as const }];
-    }));
+  splitUnits: ReadonlyArray<{ parts: CitationPart[] }>, context: QuoteContext = "passage", textOnly = false) {
+  // Each unit's citations, and the parts its text splits into, as the engine reads a quotation's sources from them.
+  const cited = draft.units.map((unit) => unit.occurrenceIds.map((key) => draft.occurrences[key])
+    .filter((item): item is AuthorityOccurrence => !!item));
+  const read = structureNative().propositionQuotations(draft.units, draft.units.map((_, index) => ({
+    occurrences: cited[index].map(({ start, authoritySpan }) => ({ start,
+      cited: authoritySpan ? [authoritySpan.start, authoritySpan.end] as [number, number] : null })),
+    parts: (splitUnits[index]?.parts ?? []).map(({ start, end }) => [start, end] as [number, number]) })), context, textOnly);
+  const rows = read.map(({ unit: at, start, end, text: quote, candidates: found }) => {
+    const unit = draft.units[at], id = canonicalJsonSha256([unit.id, start, end, quote]);
+    const candidates = found.map(({ unit: from, part: index, occurrences }) => {
+      const sourceUnit = draft.units[from], part = splitUnits[from]!.parts[index];
+      const first = occurrences.length ? cited[from][occurrences[0]] : undefined;
+      return { id: first?.id ?? `part:${sourceUnit.id}:${part.start}`,
+        citation: first?.citation || part.reference,
+        kind: first?.kind ?? (part.fields.kind === "statute" ? "legislation" :
+          part.fields.kind === "case" ? "case" : "commentary"),
+        pinpoints: first?.pinpoints ?? [], text: part.text,
+        unitId: sourceUnit.id, start: part.start, end: part.end };
+    });
+    const explicit = links.find((link) => link.quoteId === id);
+    if (explicit && !draft.occurrences[explicit.occurrenceId] && !candidates.some(({ id }) => id === explicit.occurrenceId))
+      reject(400, "A quote link names an unknown citation occurrence.");
+    return { id, unitId: unit.id, start, end, quote,
+      context: unit.text, pageNumbers: unit.pageNumbers,
+      candidates,
+      occurrenceId: explicit?.occurrenceId ?? (candidates.length === 1 ? candidates[0].id : null),
+      linkMethod: explicit ? "explicit" as const : "mechanical" as const };
+  });
   if (links.some((link) => !rows.some(({ id }) => id === link.quoteId)))
     reject(400, "A quote link names an unknown quotation.");
   return rows;
@@ -117,9 +94,12 @@ export type CitedSource = { missing: true; detail?: string }
 export function citedSourceReader(sources = legalSourceOperations, signal?: AbortSignal) {
   const resolutions = new Map<string, ReturnType<typeof sources.resolve>>();
   const documents = new Map<string, ReturnType<typeof sources.readPassage>>();
-  return async (authority: { kind: string; citation: string }, part = ""): Promise<CitedSource> => {
+  const cited = (authority: { kind: string; citation: string }, part: string) => {
     const kind = authority.kind === "commentary" ? "journal" : authority.kind;
-    const text = (kind === "journal" && part ? part : authority.citation).trim();
+    return [kind, (kind === "journal" && part ? part : authority.citation).trim()] as const;
+  };
+  const read = async (authority: { kind: string; citation: string }, part = ""): Promise<CitedSource> => {
+    const [kind, text] = cited(authority, part);
     if ((kind !== "case" && kind !== "legislation" && kind !== "journal") || !text) return { missing: true };
     try {
       const resolved = await memo(resolutions, JSON.stringify([kind, text]), () => sources.resolve({ text, kind, signal }));
@@ -133,11 +113,17 @@ export function citedSourceReader(sources = legalSourceOperations, signal?: Abor
         (error instanceof Error ? error.message : String(error)).replace(/[.\s]+$/u, "")}).` };
     }
   };
+  /** The source this reader resolved for a citation already, read; undefined where it has not resolved it. */
+  const kept = async (authority: { kind: string; citation: string }, part = ""): Promise<CitedSource | undefined> =>
+    resolutions.has(JSON.stringify(cited(authority, part))) ? read(authority, part) : undefined;
+  return Object.assign(read, { kept });
 }
+/** The reader each quote check read its sources with, by the check: what it read is not read again. */
+export const checkedSources = new WeakMap<object, ReturnType<typeof citedSourceReader>>();
 
 export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = [],
   signal?: AbortSignal, progress?: (completed: number, total: number, row: QuoteResult,
-    citationUnits: Array<QuoteCitationUnit & { unitId: string }>) => void,
+    citationUnits: Array<{ unitId: string; parts: CitationPart[] }>) => void,
   sources = legalSourceOperations, window?: { offset: number; limit: number },
   attached: AttachedQuoteSources = new Map(),
   /** firstCitationOnly: check a quotation only against the citation linked to it, else its note's first.
@@ -148,8 +134,9 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
    *  memory they hold (some 250 MiB for the Criminal Code). */
   options: { firstCitationOnly?: boolean; quoteContext?: QuoteContext; textOnly?: boolean; compare?: boolean;
     keepSourceReadings?: boolean } = {}) {
-  const citationUnits = await splitQuoteCitationUnits(draft.units.map(({ text }) => text), signal);
-  const unitReceipts = citationUnits.map((split, index) => ({ unitId: draft.units[index].id, ...split }));
+  // Each unit's parts: a note's as the import split it, a body unit's as the splitter gives it (unitCitationParts).
+  const citationUnits = await unitCitationParts(draft.units, signal);
+  const unitReceipts = citationUnits.map(({ parts }, index) => ({ unitId: draft.units[index].id, parts }));
   const all = splitQuoteChecks(draft, links, citationUnits, options.quoteContext, options.textOnly);
   const rows = window ? all.slice(window.offset, window.offset + window.limit) : all;
   // Quotations from one authority share its resolution, and each source is read once.
@@ -213,87 +200,41 @@ export async function checkQuotes(draft: AuthoritiesDraft, links: QuoteLink[] = 
     }
   };
   emit();
-  // The sources are located in at once, each on one of the engine's threads; each one's receipts are made here as it
-  // is done.
+  // The sources are located in at once, each on one of the engine's threads, which links each quotation found at its
+  // words (legal-structure quote_link); each one's receipts are made here as it is done.
   await Promise.all([...bySource].map(async ([document, items]) => {
     signal?.throwIfAborted();
     // The source's text, read where a quotation was not found in a passage of it.
     let documentText: string | undefined;
-    const text = () => documentText ??= engine.documentText(document), revision = engine.documentRevision(document);
-    // An attached PDF is read by the locators it prints: a statute's, with its provisions as its print reads them.
-    const { provider, kind } = items[0].source;
-    const located = await engine.quoteLocateDocument(document,
-      provider !== "attached" ? "text" : kind === "legislation" ? "legislation" : "pdf",
+    const revision = engine.documentRevision(document), hashes = new Map<string, string>();
+    const located = await engine.quoteLocateDocument(document, items[0].source,
       items.map(({ row, pinpoints }) => ({ quote: row.quote, pinpoints, id: row.id })),
       options.compare !== false, options.keepSourceReadings);
-    // Each found quotation's link, its text fragments planned off this thread.
-    const passages = items.map((item, index) => linkedPassage(item, located[index].match));
-    await planLegalSourcePinpoints(document, passages.flatMap((passage) => passage ? [passage] : []));
-    const hashes = new Map<string, string>();
-    items.forEach((item, index) => { item.check = checked(item, located[index], passages[index], text, revision, hashes); });
+    items.forEach((item, index) => {
+      const { match, comparison, errors, link } = located[index];
+      const text = match.text || (documentText ??= engine.documentText(document));
+      const cited = item.pinpoints.length === 1 ? sourceLocator(item.pinpoints[0]) : null;
+      // Locator-only callers keep their exact-match outcome; a comparison accepts only computed, supported wording.
+      const verified = options.compare === false ? match.perfect
+        : comparison !== null && errors !== undefined && errors.length === 0;
+      item.check = { candidateId: item.candidateId, status: match.location !== "unmatched" && verified ? "verified" : "mismatch",
+        detail: match.location === "unmatched" ? "The quotation was not found in the source text."
+          : match.location.startsWith("alternate") ? `Found at ${match.pinpoint || "another place in the source"}, not at the cited pinpoint.`
+            : cited ? "Compared with the cited passage." : "Compared with the available source text; no unique pinpoint supplied.",
+        receipt: { source: item.source, sourceSha256: revision, passageSha256: memo(hashes, text, () => canonicalJsonSha256(text)),
+          locator: cited, text, errors: errors ?? [], comparison, match, link } };
+    });
     emit();
   }));
-  /** The passage a found quotation's link opens: the block that holds the quoted words, with the block's own anchor
-   *  beside the fragment where the source's page has one (CanLII's #par12 or #sec4, Decisia's #par12). */
-  function linkedPassage({ row, source, document }: Pending, match: QuoteLocation) {
-    if (!source.url || !match.text) return null;
-    const found = match.labels[0], kind = found?.kind === "pdfPage" ? undefined : found?.kind;
-    const value = found?.label;
-    const anchor = kind && kind !== "page" ? legalSourceLocatorAnchor(source.url, kind, found!.shown) : undefined;
-    return { url: source.url, blockText: match.text, quotes: [match.fragment || row.quote],
-      anchor: anchor ?? (kind && value ? engine.readDocumentRange(document, kind, value, value, 0)?.selected[0]?.node.anchor : undefined) };
-  }
-  /** A located quotation's check: its receipt, with a link that opens the source at the quoted words. */
-  function checked({ candidateId, pinpoints, source, document }: Pending,
-    { match, comparison, errors }: Awaited<ReturnType<typeof engine.quoteLocateDocument>>[number],
-    passage: ReturnType<typeof linkedPassage>, documentText: () => string, revision: string,
-    hashes: Map<string, string>): QuoteCheck {
-    const text = match.text || documentText();
-    const cited = pinpoints.length === 1 ? sourceLocator(pinpoints[0]) : null;
-    const link = passage ? buildLegalSourcePinpoint({ url: passage.url, anchor: passage.anchor,
-      blockText: passage.blockText, documentText: document }, passage.quotes)?.target ?? null : null;
-    // Locator-only callers keep their exact-match outcome; a comparison accepts only computed, supported wording.
-    const verified = options.compare === false ? match.perfect
-      : comparison !== null && errors !== undefined && errors.length === 0;
-    return { candidateId, status: match.location !== "unmatched" && verified ? "verified" : "mismatch",
-      detail: match.location === "unmatched" ? "The quotation was not found in the source text."
-        : match.location.startsWith("alternate") ? `Found at ${match.pinpoint || "another place in the source"}, not at the cited pinpoint.`
-          : cited ? "Compared with the cited passage." : "Compared with the available source text; no unique pinpoint supplied.",
-      receipt: { source, sourceSha256: revision,
-        passageSha256: memo(hashes, text, () => canonicalJsonSha256(text)), locator: cited, text,
-        errors: errors ?? [],
-        comparison, match, link } };
-  }
-  return { mode: links.length ? "assisted" : "mechanical", quotes: quotes as QuoteResult[], total: all.length,
+  const result = { mode: links.length ? "assisted" : "mechanical", quotes: quotes as QuoteResult[], total: all.length,
     citationUnits: unitReceipts,
     counts: quoteCheckCounts(quotes as QuoteResult[]) };
+  checkedSources.set(result, read);
+  return result;
 }
 
 /** How many source checks found each outcome. */
 export function quoteCheckCounts(quotes: QuoteResult[]) {
   return Object.fromEntries(STATUSES.map((status) => [status,
     quotes.reduce((sum, quote) => sum + quote.checks.filter((item) => item.status === status).length, 0)]));
-}
-
-const QUOTES = new Set(['"', "“", "”", "«", "»", "„", "'", "‘", "’", "‚"]);
-
-/** The quotation marks an authored quotation used, or the ones its delimiter style implies. */
-export function outerQuoteMarks(raw: string, style?: string | null): [string, string] {
-  const value = (raw ?? "").trim();
-  if (value.length >= 2 && QUOTES.has(value[0]) && QUOTES.has(value.at(-1)!)) return [value[0], value.at(-1)!];
-  const normalized = (style ?? "").trim().toUpperCase();
-  return normalized === "SMART" ? ["“", "”"] : normalized === "STRAIGHT" || normalized === "MIXED" ? ['"', '"'] : ["", ""];
-}
-export function withOuterQuotes(text: string, open: string, close: string) {
-  const value = (text ?? "").trim();
-  if (!value || (!open && !close)) return value;
-  open ||= close; close ||= open;
-  const hasOpen = QUOTES.has(value[0]), hasClose = QUOTES.has(value.at(-1)!);
-  return hasOpen && hasClose ? value : hasOpen ? value + close : hasClose ? open + value : `${open}${value}${close}`;
-}
-
-/** Up to `limit` locations, then how many more. */
-export function pinpointSummary(pinpoints: string[], limit = 2) {
-  const values = pinpoints.map((value) => value.trim()).filter(Boolean);
-  return values.slice(0, limit).join(", ") + (values.length > limit ? ` [+${values.length - limit} more instances]` : "");
 }

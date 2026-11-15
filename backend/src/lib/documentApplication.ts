@@ -13,9 +13,6 @@ import type { DocumentFile, DocumentPartFile, DocumentPartsChange, DocumentProve
   DocumentRecord, DocumentScope, DocumentSpreadsheet, DocumentStore, DocumentVersion,
   StoredAssistantEdit } from "./documentStore";
 import { ApplicationError } from "./applicationError";
-import { extractTrackedChangeIds, resolveTrackedChange } from "./docxTrackedChanges";
-import { compareDocxVersions } from "./docxCompareVersions";
-import { MAX_DRAFTING_DOCX_BYTES } from "./docx/core";
 import { mapBounded } from "./mapBounded";
 import { sha256 } from "./hash";
 import { normalizeDocumentMetadata, normalizeDocumentNotes,
@@ -27,6 +24,9 @@ import { pdfLifecyclePhase } from "./pdfLifecycleDiagnostics";
 import { openDocument } from "./sourceDocument";
 import { rehydratePdfEvidence, verifyPdfEvidence } from "./pdfEvidence";
 import { structureNative } from "./structureNative";
+
+/** The largest Word document drafting reads, as the engine refuses a larger one. */
+export const MAX_DRAFTING_DOCX_BYTES = 25 * 1024 * 1024;
 
 /** Acquire an authorized version and its requested native view together. */
 export async function readStoredDocument(documents: DocumentStore, scope: DocumentScope,
@@ -850,7 +850,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         edit.status === "pending").flatMap(({ delWId, insWId }) =>
         [delWId, insWId].filter((id): id is string => !!id));
       const retainedIds = pendingIds.length
-        ? new Set((await extractTrackedChangeIds(input.bytes)).map(({ w_id }) => w_id)) : null;
+        ? new Set((await structureNative().docxTrackedChangeIds(input.bytes)).map(([, id]) => id)) : null;
       if (retainedIds && pendingIds.some((id) => !retainedIds.has(id))) {
         throw new ApplicationError(
           409,
@@ -891,9 +891,7 @@ export function createDocumentApplication(repository: DocumentRepository,
         checkedBytes(baseline), checkedBytes(version),
       ]);
       if (!before || !after) return { status: "missing" as const };
-      const compared = await compareDocxVersions(before, after, {
-        author: "Beaver compare",
-      });
+      const compared = await structureNative().docxCompareVersions(before, after, "Beaver compare");
       return { status: "compared" as const, bytes: compared.bytes,
         filename: `${version.filename.replace(/\.docx$/iu, "")} (changes).docx` };
     },
@@ -971,8 +969,8 @@ export function createDocumentApplication(repository: DocumentRepository,
       if (!ids.length) return { status: "invalid" as const };
       const source = await checkedBytes(current);
       if (!source) return { status: "invalid" as const };
-      const resolved = await resolveTrackedChange(source, ids, mode);
-      if (!resolved.found) return { status: "invalid" as const };
+      const resolved = await structureNative().docxResolveTrackedChanges(source, ids, mode === "accept");
+      if (!resolved) return { status: "invalid" as const };
       if (!await replace(scope, documentId, aggregate.document, current, {
         filename: current.filename,
         fileType: current.fileType, bytes: resolved.bytes, pageCount: current.pageCount,

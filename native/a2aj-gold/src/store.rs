@@ -35,13 +35,59 @@ pub fn work() -> PathBuf {
     std::env::var_os("A2AJ_GOLD_WORK").map_or_else(|| PathBuf::from("E:/OpenLegalData/a2aj-gold"), PathBuf::from)
 }
 
-/// Where the PDFs' readings are. A PDF is read once: a second work folder takes the first's (A2AJ_GOLD_READ) and never reads again.
-pub fn readings(work: &Path) -> PathBuf {
-    std::env::var_os("A2AJ_GOLD_READ").map_or_else(|| work.join("read"), PathBuf::from)
+/// Where the PDFs' readings are: the structure grader's inputs (`<sha>.pack.gz`, the product's extraction of the PDF), so a PDF
+/// is read once for the alignment and the grader both, and the gold's lines are the lines the grader and the training read.
+/// The grader's folder: STRUCTURE_GOLD_INPUTS (else gold-inputs/ in the data home), the one extraction cache the engine
+/// keeps each PDF's finished extraction in, under the identity of the extraction (`readings`), and its recognition.
+pub fn readings_root() -> PathBuf {
+    std::env::var_os("STRUCTURE_GOLD_INPUTS").map_or_else(|| data_home().join("gold-inputs"), PathBuf::from)
 }
 
-pub fn reading(work: &Path, sha: &str) -> PathBuf {
-    readings(work).join(format!("{sha}.json"))
+pub fn readings() -> PathBuf {
+    readings_root().join(legalpdf::gold_inputs_identity())
+}
+
+pub fn reading(sha: &str) -> PathBuf {
+    legalpdf::gold_inputs_file(&readings_root(), sha)
+}
+
+/// Where a digital PDF's images stand on its pages (pdf::images), found once when the PDF is read and kept by its digest.
+pub fn images_path(sha: &str) -> PathBuf {
+    data_home().join("gold-images").join(format!("{sha}.json"))
+}
+
+/// A digital PDF's images: as kept, else found in the PDF and kept.
+pub(crate) fn images(sha: &str, pdf: &Path) -> Vec<crate::pdf::PageImages> {
+    let kept = images_path(sha);
+    if let Some(found) = fs::read(&kept).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()) {
+        return found;
+    }
+    let Ok(bytes) = fs::read(pdf) else { return Vec::new() };
+    keep_images(sha, &bytes)
+}
+
+/// A PDF's images found in its bytes, and kept.
+pub(crate) fn keep_images(sha: &str, pdf: &[u8]) -> Vec<crate::pdf::PageImages> {
+    let found = crate::pdf::images_in(pdf, |_, _| true);
+    keep_found_images(sha, &found);
+    found
+}
+
+/// A PDF's images, as found, kept.
+pub(crate) fn keep_found_images(sha: &str, found: &[crate::pdf::PageImages]) {
+    if let Ok(body) = serde_json::to_vec(found) {
+        let _ = write_atomic(&images_path(sha), &body);
+    }
+}
+
+/// A pair's PDF: where the corpus holds it under the data home, else the path the pairing found it at.
+pub fn pdf_of(pair: &Value) -> PathBuf {
+    let sha = pair["sha256"].as_str().unwrap_or("");
+    let known = Connection::open_with_flags(corpus_db(), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX).ok()
+        .and_then(|db| db.query_row("select path from files where sha256 = ?", [sha], |row| row.get::<_, String>(0)).ok())
+        .map(|path| spelled(&data_home().join(path)))
+        .filter(|path| path.is_file());
+    known.unwrap_or_else(|| PathBuf::from(pair["path"].as_str().unwrap_or("")))
 }
 
 pub fn repo() -> PathBuf {
@@ -57,6 +103,80 @@ pub fn store_root() -> PathBuf {
     std::env::var_os("OPENLEGAL_GOLD").map_or_else(|| spelled(&repo().join("benchmarks/local-data/gold")), PathBuf::from)
 }
 
+/// The pairs `--only` names: by a whole sha256 (looked up), by its start or by citation; every pair where it names none.
+pub struct Only<'a> {
+    whole: std::collections::HashSet<&'a str>,
+    other: Vec<&'a str>,
+}
+
+impl<'a> Only<'a> {
+    pub fn of(only: &'a [String]) -> Only<'a> {
+        let (whole, other): (Vec<&str>, Vec<&str>) = only.iter().map(String::as_str).partition(|o| o.len() == 64);
+        Only { whole: whole.into_iter().collect(), other }
+    }
+
+    pub fn takes(&self, sha: &str, citation: Option<&str>) -> bool {
+        (self.whole.is_empty() && self.other.is_empty()) || self.whole.contains(sha) || self.other.iter().any(|o| sha.starts_with(o) || citation == Some(*o))
+    }
+}
+
+/// Each part's time since the last, on stderr, where A2AJ_GOLD_TIMES is set.
+pub struct Laps {
+    timed: bool,
+    clock: std::time::Instant,
+}
+
+impl Laps {
+    pub fn new() -> Laps {
+        Laps { timed: std::env::var_os("A2AJ_GOLD_TIMES").is_some(), clock: std::time::Instant::now() }
+    }
+
+    pub fn lap(&mut self, part: &str) {
+        if self.timed {
+            eprintln!("  {part:>12} {:7.1} ms", self.clock.elapsed().as_secs_f64() * 1000.0);
+            self.clock = std::time::Instant::now();
+        }
+    }
+}
+
+/// The cores a step works on: A2AJ_GOLD_THREADS, else all of them.
+pub fn cores() -> usize {
+    std::env::var("A2AJ_GOLD_THREADS").ok().and_then(|n| n.parse().ok()).filter(|&n| n > 0)
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()))
+}
+
+/// `work` over the items on every core, each thread with what `open` gives it (its own connections), the results in the
+/// items' order; the first error stops the step.
+pub fn on_cores_with<T: Sync, S, R: Send>(items: &[T], open: impl Fn() -> Result<S, String> + Sync, work: impl Fn(&T, &S) -> Result<R, String> + Sync) -> Result<Vec<R>, String> {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let results: std::sync::Mutex<Vec<Option<Result<R, String>>>> = std::sync::Mutex::new((0..items.len()).map(|_| None).collect());
+    std::thread::scope(|scope| {
+        for _ in 0..cores().min(items.len().max(1)) {
+            scope.spawn(|| {
+                let state = match open() {
+                    Ok(state) => state,
+                    Err(error) => {
+                        results.lock().unwrap()[0] = Some(Err(error));
+                        return;
+                    }
+                };
+                loop {
+                    let k = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some(item) = items.get(k) else { break };
+                    let done = work(item, &state);
+                    results.lock().unwrap()[k] = Some(done);
+                }
+            });
+        }
+    });
+    results.into_inner().unwrap().into_iter().map(|done| done.unwrap_or_else(|| Err("an item was not done".to_owned()))).collect()
+}
+
+/// [`on_cores_with`], each thread with its own read-only connection to A2AJ.
+pub fn on_cores<T: Sync, R: Send>(items: &[T], work: impl Fn(&T, &Connection) -> Result<R, String> + Sync) -> Result<Vec<R>, String> {
+    on_cores_with(items, crate::make::a2aj, work)
+}
+
 /// A file's bytes, gunzipped where its name ends in .gz.
 pub fn read_bytes(path: &Path) -> Result<Vec<u8>, String> {
     let raw = fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
@@ -66,6 +186,12 @@ pub fn read_bytes(path: &Path) -> Result<Vec<u8>, String> {
         return Ok(out);
     }
     Ok(raw)
+}
+
+pub fn gunzip(raw: &[u8]) -> Result<Vec<u8>, String> {
+    let mut out = Vec::with_capacity(raw.len() * 6);
+    GzDecoder::new(raw).read_to_end(&mut out).map_err(|error| error.to_string())?;
+    Ok(out)
 }
 
 pub fn read_json(path: &Path) -> Result<Value, String> {
@@ -174,13 +300,6 @@ pub fn digest(path: &Path) -> Result<String, String> {
 
 pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-/// The first 16 hexadecimal digits of a reading's digest, as a record keeps it.
-pub fn read_digest(path: &Path) -> Result<String, String> {
-    let mut whole = digest(path)?;
-    whole.truncate(16);
-    Ok(whole)
 }
 
 /// The source's structure gold runs, its current run (run "a") first.

@@ -57,7 +57,7 @@ pub fn gate(record: &Value) -> Option<&'static str> {
         let runs = verdict["unplaced"][language.as_str()].as_object();
         let all: u64 = runs.into_iter().flatten().map(|(_, n)| n.as_u64().unwrap_or(0)).sum();
         let excused: u64 = runs.into_iter().flatten()
-            .filter(|(why, _)| matches!(why.as_str(), "title" | "cover_unprinted" | "paragraph_number_shared" | "paragraph_number_unprinted" | "note_call"))
+            .filter(|(why, _)| matches!(why.as_str(), "title" | "cover_unprinted" | "paragraph_number_shared" | "paragraph_number_unprinted" | "note_call" | "web_matter"))
             .map(|(_, n)| n.as_u64().unwrap_or(0)).sum();
         if all > 0 {
             share = 1.0 - (1.0 - share) * (all - excused) as f64 / all as f64;
@@ -106,9 +106,10 @@ pub fn partition(pair: &Value) -> &'static str {
 pub fn read_pairs(work: &Path, only: &[String]) -> Result<Vec<Value>, String> {
     let text = fs::read_to_string(work.join("pairs.jsonl")).map_err(|error| error.to_string())?;
     let rows = text.lines().map(serde_json::from_str::<Value>).collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?;
+    let takes = store::Only::of(only);
     Ok(rows.into_iter().filter(|pair| {
         let (sha, citation) = (pair["sha256"].as_str().unwrap_or(""), pair["citation"].as_str());
-        only.is_empty() || only.iter().any(|o| sha.starts_with(o.as_str()) || citation == Some(o.as_str()))
+        takes.takes(sha, citation)
     }).collect())
 }
 
@@ -138,7 +139,40 @@ pub struct Listings {
 
 impl Listings {
     pub fn of(keys: &BTreeSet<String>) -> Result<Listings, String> {
-        let want: HashMap<String, &String> = keys.iter().map(|key| (format!("{{\"key\":\"{key}\""), key)).collect();
+        let mut all = Self::index()?;
+        all.at.retain(|key, _| keys.contains(key));
+        Ok(all)
+    }
+
+    /// Every listing's place in the census file, found in one pass over it and kept beside it (`<listing>.index`, a line per
+    /// key) for as long as the file is the one it was found in: its size and time of change head the index.
+    fn index() -> Result<Listings, String> {
+        let listing = store::listing();
+        let meta = fs::metadata(&listing).map_err(|error| format!("{}: {error}", listing.display()))?;
+        let stamp = format!("{} {:?}", meta.len(), meta.modified().ok());
+        let mut path = listing.as_os_str().to_owned();
+        path.push(".index");
+        let path = PathBuf::from(path);
+        if let Ok(text) = fs::read_to_string(&path) {
+            let mut lines = text.lines();
+            if lines.next() == Some(stamp.as_str()) {
+                let at = lines.filter_map(|line| {
+                    let mut parts = line.split('\t');
+                    Some((parts.next()?.to_owned(), (parts.next()?.parse().ok()?, parts.next()?.parse().ok()?)))
+                }).collect();
+                return Ok(Listings { at });
+            }
+        }
+        let found = Self::scan()?;
+        let mut text = format!("{stamp}\n");
+        for (key, (offset, size)) in &found.at {
+            text.push_str(&format!("{key}\t{offset}\t{size}\n"));
+        }
+        store::write_atomic(&path, text.as_bytes())?;
+        Ok(found)
+    }
+
+    fn scan() -> Result<Listings, String> {
         let file = fs::File::open(store::listing()).map_err(|error| error.to_string())?;
         let mut reader = BufReader::with_capacity(1 << 20, &file);
         let (mut at, mut offset, mut line) = (HashMap::new(), 0u64, Vec::new());
@@ -149,8 +183,8 @@ impl Listings {
                 break;
             }
             let head = line.iter().position(|&byte| byte == b',').and_then(|comma| std::str::from_utf8(&line[..comma]).ok());
-            if let Some(key) = head.and_then(|head| want.get(head)) {
-                at.insert((*key).clone(), (offset, size));
+            if let Some(key) = head.and_then(|head| head.strip_prefix("{\"key\":\"")?.strip_suffix('"')) {
+                at.insert(key.to_owned(), (offset, size));
             }
             offset += size as u64;
         }
@@ -186,9 +220,9 @@ fn styled(record: &Value) -> HashMap<String, (bool, bool)> {
     record["lines"].as_array().into_iter().flatten().filter_map(|line| Some((line["of"]["id"].as_str().or(line["id"].as_str())?.to_owned(), (line["bold"] == true, line["italic"] == true)))).collect()
 }
 
-/// A digital PDF's pages' images; a scan's images are its pages.
-fn images_of(mode: &str, path: &Path) -> Vec<pdf::PageImages> {
-    if mode == "digitalborn" { pdf::images(path) } else { Vec::new() }
+/// A digital PDF's pages' images, found once (when it is read) and kept; a scan's images are its pages.
+fn images_of(mode: &str, sha: &str, path: &Path) -> Vec<pdf::PageImages> {
+    if mode == "digitalborn" { store::images(sha, path) } else { Vec::new() }
 }
 
 /// The gold an aligned record makes, or the reason it makes none. `labels_only`: without the rules that read the page.
@@ -225,10 +259,9 @@ pub fn convert(record: &Value, db: &Connection, found: &Listings, labels_only: b
     lap("text+outline");
     let labelled = match label::gold(record, &texts, &sets, &shapes, labels_only) {
         Ok(labelled) => labelled,
-        Err(error) => return match refused_reason(&error) {
-            Some(reason) => Ok(Err(reason.to_owned())),
-            None => Err(error),
-        },
+        // A document the labelling cannot read is that document's refusal, counted under its error, as a panic is: one
+        // document never stops the run.
+        Err(error) => return Ok(Err(refused_reason(&error).map_or_else(|| format!("labelling failed: {error}"), str::to_owned))),
     };
     lap("label");
     // The gold's lines are the reading's: a line run across a page's columns is one line, whichever half stands where. Each
@@ -270,7 +303,7 @@ pub fn convert(record: &Value, db: &Connection, found: &Listings, labels_only: b
     let mut book = Book::of(&value);
     let mut done = Vec::new();
     if !labels_only {
-        let images = images_of(pair["mode"].as_str().unwrap_or(""), Path::new(pair["path"].as_str().unwrap_or("")));
+        let images = images_of(pair["mode"].as_str().unwrap_or(""), pair["sha256"].as_str().unwrap_or(""), &store::pdf_of(pair));
         lap("images");
         done = printed::apply(&mut book, &images, &styled(record), &record["page_breaks"]);
         lap("page rules");
@@ -331,6 +364,65 @@ fn agreement(value: &Value, stored: &Value) -> (BTreeMap<&'static str, u64>, Vec
                     ("headings_agreed", heads.intersection(&gold_heads).count() as u64), ("headings_store", gold_heads.len() as u64)]), parted)
 }
 
+/// The alignment code a record's bytes are stamped with, and where it stands in them: its first words.
+fn code_span(bytes: &[u8]) -> Option<(usize, usize)> {
+    stamp_span(bytes, b"\"code\":\"")
+}
+
+/// Where a stamp's value (`"code":"`, `"read":"`) stands in a record's head.
+fn stamp_span(bytes: &[u8], key: &[u8]) -> Option<(usize, usize)> {
+    let head = &bytes[..bytes.len().min(256)];
+    let at = head.windows(key.len()).position(|w| w == key)? + key.len();
+    let end = at + head[at..].iter().position(|&b| b == b'"')?;
+    Some((at, end))
+}
+
+fn code_of(bytes: &[u8]) -> String {
+    code_span(bytes).map_or_else(String::new, |(a, b)| String::from_utf8_lossy(&bytes[a..b]).into_owned())
+}
+
+/// What a pair's outcome is made of, as one digest: the record but its stamps (the code that aligned it and the reading
+/// it was aligned from, which its content already answers to), A2AJ's listings of the decision, this labelling's code,
+/// whether it labels only, where it writes, and the store's hold of the source.
+fn fingerprint_of(record: &[u8], listed: &str, labels_only: bool, hold: Option<&Value>, into_store: bool) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    let mut from = 0;
+    for (a, b) in [code_span(record), stamp_span(record, b"\"read\":\"")].into_iter().flatten() {
+        if a >= from {
+            hash.update(&record[from..a]);
+            from = b;
+        }
+    }
+    hash.update(&record[from..]);
+    for part in [listed.as_bytes(), LABEL_CODE.as_bytes(), &[labels_only as u8, into_store as u8], hold.map_or_else(String::new, Value::to_string).as_bytes()] {
+        hash.update((part.len() as u64).to_le_bytes());
+        hash.update(part);
+    }
+    store::hex(&hash.finalize())
+}
+
+/// Whether the gold the last outcome wrote stands, stamped with the record's alignment code: where another code stamped it,
+/// the stamp is put in its gold and receipt (all they hold of that code), as a gold made again would hold it.
+fn current_gold(run: &Path, record_code: &str) -> Result<bool, String> {
+    let (gold_path, receipt_path) = (run.join("gold.json.gz"), run.join("receipt.json"));
+    let Ok(mut receipt) = store::read_json(&receipt_path) else { return Ok(false) };
+    if !gold_path.is_file() {
+        return Ok(false);
+    }
+    if receipt["authoring"]["alignment_code"] == record_code {
+        return Ok(true);
+    }
+    let mut gold = store::read_json(&gold_path)?;
+    gold["authoring"]["alignment_code"] = json!(record_code);
+    let bytes = store::encoded(&gold_path, &gold)?;
+    store::write_atomic(&gold_path, &bytes)?;
+    receipt["authoring"] = gold["authoring"].clone();
+    receipt["gold_sha256"] = json!(store::hex(&<sha2::Sha256 as sha2::Digest>::digest(&bytes)));
+    store::write_json(&receipt_path, &receipt)?;
+    Ok(true)
+}
+
 pub struct GoldArgs {
     pub check: bool,
     pub only: Vec<String>,
@@ -355,15 +447,21 @@ pub struct GoldArgs {
 pub fn gold(work: &Path, args: GoldArgs) -> Result<(), String> {
     let db = a2aj()?;
     let root = store::store_root();
-    let chosen: Vec<Value> = read_pairs(work, &args.only)?.into_iter().filter(|p| work.join("records").join(format!("{}.json.gz", p["sha256"].as_str().unwrap_or(""))).is_file()).collect();
-    let key = |pair: &Value, language: &Value| format!("{}:{}", pair["a2aj"].to_string().trim_matches('"'), language.as_str().unwrap_or(""));
-    let keys: BTreeSet<String> = chosen.iter().flat_map(|p| p["languages"].as_array().into_iter().flatten().map(|l| key(p, l))).collect();
-    let found = Listings::of(&keys)?;
+    let recorded = |p: &Value| work.join("records").join(format!("{}.json.gz", p["sha256"].as_str().unwrap_or(""))).is_file();
+    let every: Vec<Value> = read_pairs(work, &[])?.into_iter().filter(recorded).collect();
+    let takes = store::Only::of(&args.only);
+    let chosen: Vec<Value> = every.iter().filter(|p| takes.takes(p["sha256"].as_str().unwrap_or(""), p["citation"].as_str())).cloned().collect();
     let held: HashMap<String, Value> = store::sources(&root).into_iter().map(|sha| { let source = store::source(&root, &sha); (sha, source) }).collect();
     let foreign = |sha: &str| held.get(sha).is_some_and(|source| source["label_source"] != LABEL_SOURCE);
+    // The check is the store's own golds of the PDFs it holds from another source, whichever pairs --only names: a run over
+    // a few pairs is checked as a run over all of them is.
+    let checks: Vec<&Value> = every.iter().filter(|p| foreign(p["sha256"].as_str().unwrap_or(""))).collect();
+    let key = |pair: &Value, language: &Value| format!("{}:{}", pair["a2aj"].to_string().trim_matches('"'), language.as_str().unwrap_or(""));
+    let keys: BTreeSet<String> = chosen.iter().chain(checks.iter().copied()).flat_map(|p| p["languages"].as_array().into_iter().flatten().map(|l| key(p, l))).collect();
+    let found = Listings::of(&keys)?;
     let record_of = |sha: &str| store::read_json(&work.join("records").join(format!("{sha}.json.gz")));
     let mut total: BTreeMap<&str, u64> = BTreeMap::new();
-    for pair in chosen.iter().filter(|p| foreign(p["sha256"].as_str().unwrap_or(""))) {
+    for pair in checks.iter().copied() {
         let sha = pair["sha256"].as_str().unwrap_or("");
         let record = record_of(sha)?;
         let value = match converted(&record, &db, &found, args.labels_only)? {
@@ -404,21 +502,46 @@ pub fn gold(work: &Path, args: GoldArgs) -> Result<(), String> {
             return Ok((outcome, None));
         }
         let run = target.join(sha).join("structure").join(GOLD_RUN);
-        let digest = store::read_digest(&store::reading(work, sha))?;
-        if run.join("receipt.json").is_file() {
-            let made = store::read_json(&run.join("receipt.json"))?;
-            if made["label_code"] == LABEL_CODE.as_str() && made["read_sha256"] == digest.as_str() {
-                return Ok((merged(outcome, &made["outcome"]), None));
+        let started = std::time::Instant::now();
+        let record_path = work.join("records").join(format!("{sha}.json.gz"));
+        let record_file = fs::read(&record_path).map_err(|e| format!("{}: {e}", record_path.display()))?;
+        let bytes = store::gunzip(&record_file).map_err(|e| format!("{}: {e}", record_path.display()))?;
+        // What the outcome is made of: the record (but the code stamp it carries), A2AJ's listings of the decision, the
+        // labelling's code and the store's hold. Where they are what made the last outcome, it stands: a gold whose record
+        // only another alignment code stamped has that stamp put in, nothing else made again.
+        let made_path = work.join("gold-made").join(format!("{sha}.json"));
+        let languages_held: Vec<String> = pair["languages"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+        let mut listed = String::new();
+        for language in &languages_held {
+            listed.push_str(&found.read(&format!("{}:{language}", pair["a2aj"].to_string().trim_matches('"')))?.unwrap_or_default());
+            listed.push('\u{1}');
+        }
+        let fingerprint = fingerprint_of(&bytes, &listed, args.labels_only, held.get(sha).and_then(|s| s.get("hold")), target == root);
+        let record_code = code_of(&bytes);
+        if let Ok(made) = store::read_json(&made_path) {
+            if made["key"] == fingerprint.as_str() {
+                let why = made["why"].as_str().map(str::to_owned);
+                if why.is_some() || current_gold(&run, &record_code)? {
+                    return Ok((made["outcome"].clone(), why));
+                }
             }
         }
-        let started = std::time::Instant::now();
-        let record = record_of(sha)?;
+        // (The outcome as made, its fields in their order, so a run that takes it back writes the results it would have made.)
+        let remember = |outcome: &Value, why: &Option<String>| {
+            store::write_atomic(&made_path, &serde_json::to_vec(&json!({"key": fingerprint, "outcome": outcome, "why": why})).map_err(|e| e.to_string())?)
+        };
+        let record: Value = serde_json::from_slice(&bytes).map_err(|e| format!("{sha}: {e}"))?;
+        drop(bytes);
+        // The reading the record was aligned from, as the record is stamped with it.
+        let digest = record["read"].as_str().unwrap_or("").to_owned();
         if timed {
             eprintln!("{} {}\n  {:>12} {:7.1} ms", &sha[..8], pair["citation"].as_str().unwrap_or(""), "record", started.elapsed().as_secs_f64() * 1000.0);
         }
         if let Some(why) = gate(&record) {
             outcome["refused"] = json!(why);
-            return Ok((outcome, Some(why.to_owned())));
+            let why = Some(why.to_owned());
+            remember(&outcome, &why)?;
+            return Ok((outcome, why));
         }
         let value = match converted(&record, db, &found, args.labels_only)? {
             Ok(value) => value,
@@ -426,7 +549,9 @@ pub fn gold(work: &Path, args: GoldArgs) -> Result<(), String> {
                 outcome["detail"] = json!(reason);
                 let reason = format!("labelling: {}", numbers.replace_all(reason.split(" (").next().unwrap_or(&reason), "N"));
                 outcome["refused"] = json!(reason);
-                return Ok((outcome, Some(reason)));
+                let why = Some(reason);
+                remember(&outcome, &why)?;
+                return Ok((outcome, why));
             }
         };
         let book = Book::of(&value);
@@ -439,10 +564,14 @@ pub fn gold(work: &Path, args: GoldArgs) -> Result<(), String> {
         let languages = value["authoring"]["languages"].clone();
         let written = json!({"written": true, "partition": partition(pair), "languages": languages, "regions": regions, "lines": book.lines.len(),
                              "unlabelled_lines": value["report"]["unlabelled_lines"].as_array().map_or(0, Vec::len), "notes": book.notes.len()});
-        store::write_json(&run.join("gold.json.gz"), &value)?;
+        let gold_path = run.join("gold.json.gz");
+        let gold_bytes = store::encoded(&gold_path, &value)?;
+        store::write_atomic(&gold_path, &gold_bytes)?;
         store::write_json(&run.join("receipt.json"), &json!({"source_sha256": sha, "mode": pair["mode"], "status": "complete", "label_source": LABEL_SOURCE, "label_code": LABEL_CODE.as_str(),
             "read_sha256": digest, "authoring": value["authoring"], "pages": pair["pages"], "units": book.units.len(), "typed_lines": book.typed.len(),
-            "postcorrections": value["postcorrections"].as_array().map_or(0, Vec::len), "outcome": written, "gold_sha256": store::digest(&run.join("gold.json.gz"))?}))?;
+            "postcorrections": value["postcorrections"].as_array().map_or(0, Vec::len), "outcome": written, "gold_sha256": store::hex(&<sha2::Sha256 as sha2::Digest>::digest(&gold_bytes))}))?;
+        // (The gold's quality row, made here from the record already read, so the quality step decodes neither again.)
+        super::quality::row_kept(work, sha, &gold_bytes, &record_file, Some(&record), &value["authoring"], &found, db)?;
         // A hold stays until its repair is in.
         let printed = languages.as_array().map_or(0, Vec::len);
         // (A stage touches nothing of the corpus's; the corpus takes one writer at a time.)
@@ -465,7 +594,9 @@ pub fn gold(work: &Path, args: GoldArgs) -> Result<(), String> {
         if count % 50 == 0 {
             println!("{count} of {} written", wanted.len());
         }
-        Ok((merged(outcome, &written), None))
+        let outcome = merged(outcome, &written);
+        remember(&outcome, &None)?;
+        Ok((outcome, None))
     };
     // The pairs shared out over the threads, each with its own connection to A2AJ (a limit may be passed by the golds the
     // other threads had begun).
@@ -706,9 +837,10 @@ pub fn repair(work: &Path, args: RepairArgs) -> Result<(), String> {
     let (mut rules, mut golds): (BTreeMap<String, u64>, BTreeMap<String, u64>) = (BTreeMap::new(), BTreeMap::new());
     let mut large: Vec<String> = Vec::new();
     let (mut batch, mut entries): (store::Batch, Vec<String>) = (store::Batch::default(), Vec::new());
+    let takes = store::Only::of(&args.only);
     let (mut changed_golds, mut seen_golds) = (0u64, 0u64);
     for sha in store::sources(&root) {
-        if !args.only.is_empty() && !args.only.iter().any(|o| sha.starts_with(o.as_str())) {
+        if !takes.takes(&sha, None) {
             continue;
         }
         let path = root.join(&sha).join("structure").join(GOLD_RUN).join("gold.json.gz");
@@ -723,7 +855,7 @@ pub fn repair(work: &Path, args: RepairArgs) -> Result<(), String> {
         let mut book = Book::of(&value);
         let source = store::source(&root, &sha);
         let pdf_path = store::data_home().join(source["pdf"].as_str().unwrap_or(""));
-        let images = images_of(&mode, &pdf_path);
+        let images = images_of(&mode, &sha, &pdf_path);
         let record_path = work.join("records").join(format!("{sha}.json.gz"));
         let record = if record_path.is_file() { store::read_json(&record_path)? } else { Value::Null };
         let style = if book.markers_any() { styled(&record) } else { HashMap::new() };

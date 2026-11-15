@@ -15,9 +15,12 @@ legal-structure-features = { path = "../../../legal-structure/features" }
 legal-structure-model = { path = "../../../legal-structure/model" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+# The gold's side kept in the dump (`gold_side`), read back whole.
+rmp-serde = "1.3"
 regex = "1"
 sha2 = "0.11"
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 # The grader's allocator (the parser's `fast-allocator`): every core parses at once, and Windows'
 # process heap serialized them on its lock.
 mimalloc = { version = "0.1.52", default-features = false }
+

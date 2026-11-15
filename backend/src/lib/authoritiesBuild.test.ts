@@ -269,7 +269,7 @@ describe("Authorities final export", () => {
     Object.assign(state.import, { fileType: "docx", filename: "Appeal brief.docx" });
     state.settings.citationSuffix = "tab";
     state.units = texts.map((text, index) => ({
-      id: `body:${index}`, kind: index === 2 ? "footnote" as const : "body" as const, ordinal: index,
+      id: `body:${index}`, path: [index], kind: index === 2 ? "footnote" as const : "body" as const, ordinal: index,
       footnoteId: index === 2 ? 1 : null, footnoteRefs: [], pageNumbers: [], text, occurrenceIds: [`grant:${index}`] }));
     state.units.forEach((unit, index) => {
       const quoted = index === 2 ? stray : citation, start = unit.text.indexOf(quoted), end = start + quoted.length;
@@ -326,14 +326,14 @@ describe("Authorities final export", () => {
       sections: [{ children: [new Paragraph({ children: [new TextRun(body), new FootnoteReferenceRun(7)] }), new Paragraph(excluded)] }] }));
     const original = await sourcePdf("Original", [[400, 500], [400, 500]]), state = finalDraft(word, original);
     if (state.import.kind !== "document") throw new Error("Invalid fixture");
-    state.import.fileType = "docx"; state.import.filename = "Brief.docx";
+    state.import.fileType = "docx"; state.import.filename = "Brief.docx"; state.units[0].path = [0];
     Object.assign(state.settings, { finalPdf: false, linkTabs: false, linkPinpoints: false,
       tableDelivery: "native-marks", citationSuffix: "custom", citationSuffixLabel: "Book of authorities Tab", tabStart: 3 });
     state.insertIntoDocument = true;
     state.authorities.excluded = { ...state.authorities.grant, id: "excluded", key: "excluded",
       citation: excluded, name: "Excluded", excluded: true, source: { kind: "unresolved" } };
     state.authorityOrder.unshift("excluded");
-    state.units.push({ id: "body:1", kind: "body", ordinal: 1, footnoteId: null,
+    state.units.push({ id: "body:1", path: [1], kind: "body", ordinal: 1, footnoteId: null,
       footnoteRefs: [], pageNumbers: [], text: excluded, occurrenceIds: ["excluded:0"] },
     { id: "footnote:7", kind: "footnote", ordinal: 2, footnoteId: 7,
       footnoteRefs: [], pageNumbers: [], text: note, occurrenceIds: ["grant:ref"] });
@@ -383,7 +383,7 @@ describe("Authorities final export", () => {
     const word = await Packer.toBuffer(new WordDocument({ sections: [{ children: [new Paragraph("2009 SCC 32 at para 12")] }] }));
     const original = await sourcePdf("Original", [[400, 500]]), state = finalDraft(word, original);
     if (state.import.kind !== "document") throw new Error("Invalid fixture");
-    Object.assign(state.import, { fileType: "docx", filename: "Brief.docx" });
+    Object.assign(state.import, { fileType: "docx", filename: "Brief.docx" }); state.units[0].path = [0];
     Object.assign(state.settings, { finalPdf: false, linkTabs: false, linkPinpoints: false, tabStart: 4 });
     const label = "Appellant's Book of Authorities, Tab";
     const copies = { none: [false, "native-append"], marks: [true, "native-marks"], table: [true, "native-append"],
@@ -1196,7 +1196,7 @@ describe("Authorities output builder", () => {
       output: { role: "annotated-document" } } });
     const zip = await JSZip.loadAsync(result.artifacts["annotated-document"]!.bytes);
     const xml = await zip.file("word/document.xml")!.async("string");
-    expect(xml).toContain('<w:r><w:rPr><w:i></w:i></w:rPr><w:instrText xml:space="preserve">R v Grant</w:instrText></w:r>'
+    expect(xml).toContain('<w:r><w:rPr><w:i/></w:rPr><w:instrText xml:space="preserve">R v Grant</w:instrText></w:r>'
       + '<w:r><w:instrText xml:space="preserve">, 2009 SCC 32, [2009] 2 SCR 353&quot;');
     // Word builds a table for one category per field: here, its cases.
     expect(xml).toContain(' TOA \\c &quot;1&quot; ');
@@ -1225,7 +1225,7 @@ describe("Authorities output builder", () => {
     expect(linkedXml).toContain("TABLE OF AUTHORITIES");
     expect(linkedXml).toContain("Grant (custom)");
     // The citation in black, its link printed in link blue.
-    expect(linkedXml).toContain('<w:rPr><w:i></w:i></w:rPr><w:t>Grant (custom)</w:t>');
+    expect(linkedXml).toContain('<w:rPr><w:i/></w:rPr><w:t>Grant (custom)</w:t>');
     expect(linkedXml).toContain("<w:t>, R v Grant, 2009 SCC 32, [2009] 2 SCR 353</w:t>");
     // Its link is printed under it, for a reader on paper.
     expect(linkedXml).toContain("<w:t>https://www.canlii.org/en/ca/scc/doc/2009/2009scc32/2009scc32.html</w:t>");

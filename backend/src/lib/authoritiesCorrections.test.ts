@@ -2,7 +2,6 @@ import { Document, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx
 import JSZip from "jszip";
 import { expect, it } from "vitest";
 import { importStandaloneAuthoritiesFile } from "./authoritiesImport";
-import { pinpointCorrection } from "./authoritiesDiscrepancy";
 import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
 
 // Independently invented brief and citation; no source document or user wording.
@@ -18,20 +17,6 @@ async function brief() {
 }
 const visible = (xml: string) => [...xml.replace(/<w:del\b[\s\S]*?<\/w:del>/gu, "")
   .matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/gu)].map(([, text]) => text).join("");
-
-it("replaces a pinpoint range as a whole and only extends it to an adjacent paragraph", async () => {
-  const { state } = await brief(), occurrence = Object.values(state.occurrences)[0];
-  const replacement = pinpointCorrection(occurrence, "87")!;
-  expect(replacement).toMatchObject({ expected: "at paras 84-86", replacement: "at para 87" });
-  const unit = state.units.find(unit => unit.id === occurrence.unitId)!;
-  expect(unit.text.slice(replacement.start, replacement.end)).toBe(replacement.expected);
-  expect(pinpointCorrection(occurrence, "87", true)?.replacement).toMatch(/^at paras 84[-–]87$/u);
-  expect(pinpointCorrection(occurrence, "83", true)?.replacement).toMatch(/^at paras 83[-–]86$/u);
-  expect(pinpointCorrection(occurrence, "90", true)).toBeNull();
-  const manual = { ...occurrence }; delete manual.pinpointPhrase;
-  expect(pinpointCorrection(manual, "87")?.replacement).toBe("87");
-  expect(pinpointCorrection(manual, "87", true)?.replacement).toBe("84-87");
-});
 
 it("corrects every full case name in Word with tracked changes, preserving the citation, and can undo it", async () => {
   const { bytes, state } = await brief(), authority = state.authorities[state.authorityOrder[0]];

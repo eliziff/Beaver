@@ -4,13 +4,13 @@ import { importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import { checkQuotes, decodeQuoteLinks, splitQuoteChecks } from "./quoteCheck";
 import { structureNative } from "./structureNative";
 import type { legalSourceOperations } from "./legalSourceApplication";
-import { splitQuoteCitationUnits } from "./quoteCitationSplit";
+import { unitCitationParts } from "./quoteCitationSplit";
 
 it("checks a quotation against each source its note cites, or the first only, or the one linked", async () => {
   const text = 'The court wrote “The deadline is seven business days.” 2020 SCC 1 at para 7; 2021 SCC 2 at para 8.';
   const bytes = await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph(text)] }] }));
   const draft = await importStandaloneAuthoritiesFile({ filename: "submission.docx", fileType: "docx", bytes, modified: 0 });
-  const units = await splitQuoteCitationUnits(draft.units.map(({ text }) => text));
+  const units = await unitCitationParts(draft.units);
   const [split] = splitQuoteChecks(draft, [], units);
   expect(split.candidates).toHaveLength(2);
   expect(split.occurrenceId).toBeNull();
@@ -44,7 +44,7 @@ it("uses ALR's next footnote anchor across paragraphs, and keeps lossless commen
   } }, sections: [{ children: [new Paragraph('The court wrote “The deadline is seven business days.”'),
     new Paragraph({ children: [new TextRun("See also "), new FootnoteReferenceRun(1)] })] }] }));
   const draft = await importStandaloneAuthoritiesFile({ filename: "notes.docx", fileType: "docx", bytes, modified: 0 });
-  const units = await splitQuoteCitationUnits(draft.units.map(({ text }) => text));
+  const units = await unitCitationParts(draft.units);
   const [quote] = splitQuoteChecks(draft, [], units);
   expect(quote.candidates).toHaveLength(2);
   expect(quote.candidates[1].text).toContain("commentary without a citation");

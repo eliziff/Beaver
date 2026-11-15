@@ -5,8 +5,8 @@ import { authorityPassageTargets } from "./authoritiesBuild";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
 import { authorityCitationForms, createAuthoritiesDraft, reduceAuthoritiesDraft,
   type AuthoritiesDraft } from "./authoritiesDomain";
-import { authoritySourceServices, resolveAuthoritiesSources,
-  type SourceServices } from "./authoritiesSourceResolution";
+import { authoritySourceServices } from "./authoritiesSourceResolution";
+import { resolveAuthoritiesSources, type BookSourceServices as SourceServices } from "./authoritiesBookSources";
 import { A2AJUnavailable } from "./legalSources/a2aj";
 
 /** A body sentence carrying two citations and one pinpoint, as the scan leaves it. */

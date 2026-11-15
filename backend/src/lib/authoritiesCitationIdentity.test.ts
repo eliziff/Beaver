@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Document, FootnoteReferenceRun, Packer, Paragraph, TextRun } from "docx";
-import { importStandaloneAuthoritiesFile, nativeReferenceSpans } from "./authoritiesImport";
+import { importStandaloneAuthoritiesFile } from "./authoritiesImport";
 import { structureNative } from "./structureNative";
 
 // Independently invented notes and prose; no private brief or reported case data.
@@ -17,10 +17,8 @@ async function scan(notes: string[]) {
 }
 
 describe("Authorities consumes general citation identity", () => {
-  it("preserves the written short name through the native span adapter", () => {
-    const text = "Linn, supra note 6 at 72.";
-    const [reference] = structureNative().authorityReferencesInText(text);
-    const spans = nativeReferenceSpans(reference, text);
+  it("keeps the written short name in the engine's reference spans", () => {
+    const [{ spans }] = structureNative().authorityReferencesInText("Linn, supra note 6 at 72.");
     expect(spans.authoritySpan.text).toBe("Linn, supra note 6");
     expect(spans.coreSpan.text).toBe("supra note 6");
     expect(spans.pinpointSpan?.text).toBe("72");

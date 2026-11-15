@@ -3,4 +3,4 @@
 /**
  * The providers whose readers are built in, each by the name its records give: one not built in is no provider.
  */
-export type DocumentProvider = "a2aj" | "courtlistener" | "tna" | "govinfo" | "govuk-et" | "hansard" | "journal" | "local-pdf";
+export type DocumentProvider = "a2aj" | "courtlistener" | "tna" | "govinfo" | "govuk-et" | "hansard" | "journal";

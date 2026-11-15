@@ -26,9 +26,7 @@ export function a2ajDbPath() {
 }
 
 export function extract(text: string): { citations: Citation[]; authorities: number[][] } {
-  const raw = native.citationEngineCall("extract",
-    { text, offsetUnit: "utf16", options: { resolve: false } });
-  return (typeof raw === "string" ? JSON.parse(raw) : raw) as never;
+  return native.citationExtract(text, { resolve: false }, "utf16") as never;
 }
 
 /** Case metadata from the local A2AJ bulk store, plus a v3 citation-key index built with the native engine. */

@@ -71,7 +71,7 @@ import type {
   DocIndex,
   WorkflowStore,
 } from "./types";
-import type { EditMode } from "../docxTrackedChanges";
+import type { EditMode } from "mike/shared/engine-types/EditMode";
 import { setChatTurnControl } from "../chatTurns";
 import { leaseWasLost } from "../jobQueue";
 import { wordClientTools, type WordClientCall } from "./wordClientTools";

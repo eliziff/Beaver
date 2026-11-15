@@ -6,12 +6,6 @@
 
 import { OPERATIONS } from "./engine-types/operations.mjs";
 
-// Readings of text alone, which an operation's stages repeat: a request asked before is answered with the reply it
-// had, read afresh, from the latest this many.
-const PURE = new Set(["providerCitationsInText", "citationOccurrencesInText", "citationLookupKeys",
-  "canliiCaseUrl", "canliiLawUrl"]);
-const PURE_KEPT = 4096;
-
 /** A failure the engine returned (`engine::Failure`): its message, and for a PDF's parse the kind of failure and what
  *  went wrong. The engine is still usable afterwards. */
 class EngineError extends Error {
@@ -29,15 +23,14 @@ class NativeDocumentHandle {
 
 const encoder = new TextEncoder(), decoder = new TextDecoder();
 /** `[u32 json length][json {op, args}][bytes]`, `args` positional: with `lift`, each Uint8Array they hold is
- *  `{ $bytes: [offset, length] }` in the bytes after the JSON. */
+ *  `{ $bytes: [offset, length] }` in the bytes after the JSON, lifted before the JSON is written: a replacer would see a
+ *  Node Buffer only after its own toJSON had written it out as an array of every byte. */
 function engineRequest(op, args, lift) {
   const chunks = []; let length = 0;
-  const json = encoder.encode(JSON.stringify({ op, args }, lift && function (key, value) {
-    const bytes = this[key];
-    if (!(bytes instanceof Uint8Array)) return value;
-    chunks.push(bytes); length += bytes.byteLength;
-    return { $bytes: [length - bytes.byteLength, bytes.byteLength] };
-  }));
+  const lifted = (value) => value instanceof Uint8Array ? (chunks.push(value), { $bytes: [(length += value.byteLength) - value.byteLength,
+    value.byteLength] }) : Array.isArray(value) ? value.map(lifted) : value && typeof value === "object" && typeof value.toJSON !== "function"
+    ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, lifted(item)])) : value;
+  const json = encoder.encode(JSON.stringify({ op, args: lift ? lifted(args) : args }));
   const request = new Uint8Array(4 + json.length + length);
   new DataView(request.buffer).setUint32(0, json.length, true);
   request.set(json, 4);
@@ -52,7 +45,10 @@ function engineReply(reply, revive) {
   const text = decoder.decode(reply.subarray(5, 5 + jsonLength));
   if (!view.getUint8(0)) throw new EngineError(JSON.parse(text));
   const bytes = reply.subarray(5 + jsonLength);
-  return JSON.parse(text, revive && ((key, value) => revive(key, value, bytes)));
+  // A reviver is called for every value of the reply (a 21,602-entry outline: 15 ms parsed, 140 ms revived): a reply
+  // is revived only where it holds a document or bytes.
+  const holds = revive && (text.includes('"$document"') || text.includes('"$bytes"'));
+  return JSON.parse(text, holds ? (key, value) => revive(key, value, bytes) : undefined);
 }
 
 /**
@@ -103,20 +99,10 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     released.register(document, { handle: value.$document, generation });
     return document;
   }
-  const replies = new Map();
   function invoke(name, positional) {
-    const key = PURE.has(name) ? `${name}${JSON.stringify(positional)}` : null;
-    const kept = key && replies.get(key);
-    if (kept) { replies.delete(key); replies.set(key, kept); return engineReply(kept, revive); }
     const framed = request(name, positional);
-    let reply, read;
-    try { reply = transport.call(framed); read = engineReply(reply, revive); }
+    try { return engineReply(transport.call(framed), revive); }
     catch (error) { throw trapped(error, name); }
-    if (key) {
-      replies.set(key, reply);
-      if (replies.size > PURE_KEPT) replies.delete(replies.keys().next().value);
-    }
-    return read;
   }
   async function invokeOff(name, positional, progress) {
     if (transport.prepare) await transport.prepare();
@@ -129,6 +115,9 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
   }
   // Readings being made for this engine by its host, by cache key: a second asker waits for the first's.
   const preparing = new Map();
+  // The cache key of each reading the host recognized, by the request it answered: its key holds the recognition, so
+  // the engine cannot name it from the request alone.
+  const recognized = new Map();
   // A PDF the host reads for this engine: parsed in its parse workers (`parser`), its scanned pages recognized by its
   // own recognizers (`recognizePdf`) in place of the engine's, and reopened here by its cache key. A reading already
   // cached is reopened without asking the host.
@@ -141,14 +130,20 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
       const kept = await reopen(named);
       if (kept || !bytes) return kept;
     }
-    // Without bytes, only a reading this engine can name itself is found: one asking for no recognition or layout.
-    else if (!bytes) return ocr || layout ? null : reopen();
     const { cacheKey: _named, ...asked } = source.pdf ?? {};
     let request = { ...asked, id: `${source.documentId}:${source.versionId}`, expectedSourceSha256: source.sourceSha256 };
+    const asking = recognizePdf && request.ocr ? JSON.stringify(request) : null;
+    const known = asking && recognized.get(asking), again = known && await reopen(known);
+    if (again) return again;
+    // Without bytes, only a reading this engine can name itself is found: one asking for no recognition or layout.
+    if (!named && !bytes) return ocr || layout ? null : reopen();
     if (recognizePdf && request.ocr) {
       const { ocr: _ocr, ...plain } = asked;
       // Which pages need reading is the extraction's to say: the PDF's structure is read once, with their text.
-      const needing = await invokeOff("pdfPagesNeedingOcr", [bytes, { ...plain, id: request.id, expectedSourceSha256: source.sourceSha256 }]);
+      const plainRequest = { ...plain, id: request.id, expectedSourceSha256: source.sourceSha256 };
+      // In a parse worker where the host has them, whose extraction the parse after it then reads back.
+      const needing = await (parser?.pagesNeedingOcr ? parser.pagesNeedingOcr(bytes, plainRequest)
+        : invokeOff("pdfPagesNeedingOcr", [bytes, plainRequest]));
       const pages = needing.filter(index => !request.pages || request.pages.includes(index + 1));
       const supplied = pages.length ? await recognizePdf(bytes, source.sourceSha256, pages, signal,
         progress && (done => progress(done, pages.length))) : undefined;
@@ -157,6 +152,7 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
       request = { ...rest, ...(supplied ? { suppliedOcr: supplied } : {}) };
     }
     const cacheKey = invoke("pdfCacheKey", [bytes, request]);
+    if (asking) recognized.set(asking, cacheKey);
     const kept = await reopen(cacheKey);
     if (kept) return kept;
     let pending = preparing.get(cacheKey);

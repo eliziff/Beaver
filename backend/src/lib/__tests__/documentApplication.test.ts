@@ -7,8 +7,8 @@ import JSZip from "jszip";
 import { Paragraph } from "docx";
 import { PDFDocument } from "pdf-lib";
 import { docxBytes } from "./support/docxFixtures";
-import { createDocumentApplication } from "../documentApplication";
-import { MAX_DRAFTING_DOCX_BYTES } from "../docx/core";
+import { createDocumentApplication, MAX_DRAFTING_DOCX_BYTES } from "../documentApplication";
+import { structureNative } from "../structureNative";
 import { sha256 } from "../hash";
 import { documentRepository as repository } from "../relationalDocumentRepository";
 import { projectRepository } from "../relationalProjectRepository";
@@ -17,7 +17,6 @@ import type { DocumentScope } from "../documentStore";
 import { createFilesystemObjectStorage, createS3ObjectStorage, documentBlobKey, readS3Configuration,
   scopeObjectStorage, type ObjectStorage } from "../storage";
 import { createResearchFileState, readResearchFile, researchFileMarkdown } from "../researchFile";
-import { applyTextOpsToDocx } from "../docxTextOps";
 
 const docx = (text: string) => new JSZip().file("word/document.xml", text, {
   date: new Date("2000-01-01T00:00:00Z"),
@@ -349,8 +348,10 @@ describe("shared document application", () => {
   it("preserves pending markers when a later same-turn write adds no edits", async () => {
     const documents = createDocumentApplication(repository,
       createFilesystemObjectStorage(root)), scope = { userId: "tracked-owner" };
-    const original = await validDocx("one"), applied = await applyTextOpsToDocx(original,
-      [{ op: "uppercase", scope: { kind: "find_text", text: "one" } }]);
+    const original = await validDocx("one"), written = await structureNative().docxTextOps(original,
+      [{ op: "uppercase", scope: { kind: "find_text", text: "one" } }], "Beaver", "manual");
+    const applied = { bytes: written.bytes, edits: written.changes.map(({ id, delId, insId, reason, ...change }) =>
+      ({ ...change, changeId: id, delWId: delId ?? undefined, insWId: insId ?? undefined, reason: reason ?? undefined })) };
     const created = await documents.create(scope, {
       filename: "Brief.docx", fileType: "docx", bytes: original,
     });

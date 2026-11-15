@@ -216,14 +216,23 @@ struct SourcePdfs<'a> { parts: Vec<(Option<&'a [u8]>, usize)>, count: usize }
 
 pub fn render_book(mut book: PreparedBook) -> Result<Vec<BuiltBook>, String> {
     let pages = |pdf: &[u8]| legalpdf::compose::page_frames(pdf).map(|frames| frames.len()).map_err(|e| e.to_string());
-    book.cover_page_count = book.custom_cover.as_deref().map_or(Ok(1), pages)?;
-    book.custom_index_pages = book.custom_index.as_deref().map_or(Ok(0), pages)?;
+    let unopened = |what: &'static str| move |_| format!("Attached PDF could not be opened for {what}.");
+    book.cover_page_count = book.custom_cover.as_deref().map_or(Ok(1), pages).map_err(unopened("the custom cover"))?;
+    book.custom_index_pages = book.custom_index.as_deref().map_or(Ok(0), pages).map_err(unopened("the custom index"))?;
     let mut starts = Vec::new();
     for source in &mut book.sources {
         let (mut first, mut count) = (Vec::new(), 0);
         for part in &source.parts {
             first.push(count);
-            count += match part { BookPart::Pdf { bytes, .. } => pages(bytes)?, BookPart::Missing { .. } => 1 };
+            count += match part {
+                // An attached PDF the engine cannot read, or one with no pages, is named by its authority.
+                BookPart::Pdf { bytes, .. } => match pages(bytes) {
+                    Ok(0) => return Err(format!("Attached PDF is empty for {}.", source.row.name)),
+                    Ok(n) => n,
+                    Err(_) => return Err(format!("Attached PDF could not be opened for {}.", source.row.name)),
+                },
+                BookPart::Missing { .. } => 1,
+            };
         }
         if source.page_indices.is_empty() { source.page_indices = (0..count).collect(); }
         starts.push((first, count));

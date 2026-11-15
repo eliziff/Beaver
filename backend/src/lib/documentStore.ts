@@ -1,5 +1,5 @@
 import type { LibraryKind } from "./normalize";
-import type { EditDiffSegment } from "./docxTrackedChanges";
+import type { EditDiffSegment } from "mike/shared/engine-types/EditDiffSegment";
 import type { ApplicationScope } from "./applicationError";
 import type { WorkProductBuildReceipt } from "./workProduct";
 import type { AuthorityCitationLedger } from "./authoritiesDomain";
@@ -12,6 +12,9 @@ export type LegalPdfProfile = {
   ocr?: { provider: LegalPdfOcrProvider; settings: Record<string, unknown> };
   layout?: { provider: "ppdoc"; settings: Record<string, unknown> };
   structure?: { provider: "doc"; settings: Record<string, unknown> };
+  /** What the parser reads the document as, where its reader knows (PdfRequest's `profile`): a legislation
+   *  authority's PDF is an instrument, its numbered provisions its sections. Part of the parse's cache key. */
+  profile?: "instrument";
 };
 export type PdfProfileSelection = {
   cacheKey: string;

@@ -5,15 +5,15 @@ use super::pdf;
 use super::record::CODE;
 use super::store;
 use super::words::{edit_distance, words_of};
+
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::Write;
-use std::os::windows::process::CommandExt;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-const BELOW_NORMAL: u32 = 0x4000;
 const PLACED: f64 = 0.9; // a paragraph or quotation is placed when this share of its words is
 static CALL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"(\w)\[(\d{1,3})\]").unwrap());
 
@@ -28,76 +28,94 @@ fn round4(share: f64) -> f64 {
     format!("{share:.4}").parse().unwrap()
 }
 
-/// PDFs read as the product reads them (`legalpdf::gold_structure_inputs`: the extraction, Indra recognition, which
-/// LEGALPDF_INDRA_MODEL_PACK and LEGALPDF_ONNXRUNTIME must name, the PP-DocLayout layout model where LEGALPDF_PPDOC_MODEL_PACK does),
-/// each written as OUT/<sha256>.json. One PDF at a time; a PDF already written is skipped, so a stopped run resumes, and
-/// recognition is cached under OUT/cache/<sha256>, so no page is read twice. LIST: one `<sha256>\t<path>` line per PDF.
-pub fn read_list(list: &Path, out: &Path) -> Result<(), String> {
-    let list = fs::read_to_string(list).map_err(|e| format!("{}: {e}", list.display()))?;
-    let pdfs: Vec<(&str, &str)> = list.lines().filter_map(|line| line.split_once('\t')).collect();
-    fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
-    let read_one = |sha: &str, pdf: &Path| -> Result<bool, String> {
-        let target = out.join(format!("{sha}.json"));
-        if target.is_file() {
-            return Ok(false);
-        }
-        let bytes = fs::read(pdf).map_err(|e| format!("{}: {e}", pdf.display()))?;
-        let extracted = legalpdf::gold_structure_inputs(&bytes, &out.join("cache").join(sha)).map_err(|e| e.to_string())?;
-        store::write_atomic(&target, &serde_json::to_vec(&extracted).map_err(|e| e.to_string())?)?;
-        Ok(true)
-    };
-    let (mut read_count, mut failed) = (0, 0);
-    for (n, (sha, pdf)) in pdfs.iter().enumerate() {
-        let started = std::time::Instant::now();
-        match read_one(sha, Path::new(pdf)) {
-            Ok(true) => {
-                read_count += 1;
-                eprintln!("{}/{} {sha} {:.1}s", n + 1, pdfs.len(), started.elapsed().as_secs_f64());
-            }
-            Ok(false) => {}
-            Err(error) => {
-                failed += 1;
-                eprintln!("{}/{} {sha} FAILED {error}", n + 1, pdfs.len());
-            }
-        }
+/// A PDF read as the product reads it (`legalpdf::gold_structure_inputs`: the extraction, Indra recognition, which
+/// LEGALPDF_INDRA_MODEL_PACK and LEGALPDF_ONNXRUNTIME must name, the PP-DocLayout layout model where LEGALPDF_PPDOC_MODEL_PACK does)
+/// into the one extraction cache the grader reads (`store::readings`: the engine keeps it, recognition beside it, so no
+/// page is read twice). False where the reading was there already.
+fn read_one(sha: &str, pdf: &Path, out: &Path, images: bool) -> Result<bool, String> {
+    let kept = store::reading(sha).is_file();
+    if !kept {
+        legalpdf::gold_structure_inputs(pdf, sha, &store::readings_root()).map_err(|e| e.to_string())?;
     }
-    eprintln!("{read_count} read, {failed} failed, of {} -> {}", pdfs.len(), out.display());
+    // (A digital PDF's images, which the gold's page rules read, are found in its bytes, once.)
+    if images && !store::images_path(sha).is_file() {
+        store::keep_images(sha, &fs::read(pdf).map_err(|e| format!("{}: {e}", pdf.display()))?);
+    }
+    Ok(!kept)
+}
+
+/// The PDFs of LIST (one `<sha256>\t<path>` line each) read on `threads` cores into OUT; a PDF read already is skipped, so a
+/// stopped run resumes. The smallest go first, so a long run has read the most PDFs it can at any hour it is stopped.
+fn read_all(pdfs: &[(String, PathBuf, bool)], out: &Path, threads: usize) -> Result<(), String> {
+    fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let mut order: Vec<(u64, &(String, PathBuf, bool))> = pdfs.iter().map(|entry| (fs::metadata(&entry.1).map_or(0, |m| m.len()), entry)).collect();
+    order.sort_by_key(|(size, _)| *size);
+    let (next, read_count, failed) = (AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0));
+    let started = std::time::Instant::now();
+    std::thread::scope(|scope| {
+        for _ in 0..threads.max(1) {
+            scope.spawn(|| loop {
+                let n = next.fetch_add(1, Ordering::Relaxed);
+                let Some((_, (sha, pdf, images))) = order.get(n) else { break };
+                let begun = std::time::Instant::now();
+                match catch_unwind(AssertUnwindSafe(|| read_one(sha, pdf, out, *images))).unwrap_or_else(|_| Err("the reader panicked".to_owned())) {
+                    Ok(true) => {
+                        let done = read_count.fetch_add(1, Ordering::Relaxed) + 1;
+                        eprintln!("{}/{} {sha} {:.1}s ({done} read in {:.0}s)", n + 1, order.len(), begun.elapsed().as_secs_f64(), started.elapsed().as_secs_f64());
+                    }
+                    Ok(false) => {}
+                    Err(error) => {
+                        failed.fetch_add(1, Ordering::Relaxed);
+                        eprintln!("{}/{} {sha} FAILED {error}", n + 1, order.len());
+                    }
+                }
+            });
+        }
+    });
+    eprintln!("{} read, {} failed, of {} in {:.0}s -> {}", read_count.into_inner(), failed.into_inner(), pdfs.len(), started.elapsed().as_secs_f64(), out.display());
     Ok(())
 }
 
-/// The product's reading of every pair without one, in this machine's part of them, below normal priority; `export` stages
+fn threads_or_cores(threads: Option<usize>) -> usize {
+    threads.unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()))
+}
+
+/// The PDFs LIST names read into OUT (another machine's part of a `read --export`).
+pub fn read_list(list: &Path, out: &Path, threads: Option<usize>) -> Result<(), String> {
+    let list = fs::read_to_string(list).map_err(|e| format!("{}: {e}", list.display()))?;
+    let pdfs: Vec<(String, PathBuf, bool)> = list.lines().filter_map(|line| line.split_once('\t')).map(|(sha, path)| (sha.to_owned(), PathBuf::from(path), false)).collect();
+    read_all(&pdfs, out, threads_or_cores(threads))
+}
+
+/// The product's reading of every pair without one, in this machine's part of them, on `threads` cores; `export` stages
 /// another machine's part instead: its PDFs, the list, this program and its models, and read.cmd to run there, whose read/
-/// folder is then copied into WORK/read.
-pub fn read(work: &Path, part: &str, export: Option<PathBuf>) -> Result<(), String> {
+/// folder is then copied into the readings.
+pub fn read(work: &Path, part: &str, export: Option<PathBuf>, threads: Option<usize>) -> Result<(), String> {
     let (k, n) = part.split_once('/').and_then(|(k, n)| Some((k.parse::<usize>().ok()?, n.parse::<usize>().ok()?))).ok_or("--part K/N")?;
-    let reader = std::env::current_exe().map_err(|e| e.to_string())?;
-    let runtime = store::repo().join("legal-pdf-parser/runtime");
     let pairs = read_pairs(work, &[])?;
     let sha = |pair: &Value| pair["sha256"].as_str().unwrap_or("").to_owned();
-    let todo: Vec<&Value> = pairs.iter().enumerate().filter(|(i, pair)| i % n == k - 1 && !store::reading(work, &sha(pair)).is_file()).map(|(_, pair)| pair).collect();
+    let todo: Vec<&Value> = pairs.iter().enumerate().filter(|(i, pair)| i % n == k - 1 && !store::reading(&sha(pair)).is_file()).map(|(_, pair)| pair).collect();
     if let Some(stage) = export {
+        let reader = std::env::current_exe().map_err(|e| e.to_string())?;
+        let runtime = store::repo().join("legal-pdf-parser/runtime");
         fs::create_dir_all(stage.join("pdfs")).map_err(|e| e.to_string())?;
         for pair in &todo {
-            fs::copy(pair["path"].as_str().unwrap_or(""), stage.join("pdfs").join(format!("{}.pdf", sha(pair)))).map_err(|e| e.to_string())?;
+            fs::copy(store::pdf_of(pair), stage.join("pdfs").join(format!("{}.pdf", sha(pair)))).map_err(|e| e.to_string())?;
         }
         let list: String = todo.iter().map(|pair| format!("{0}\tpdfs\\{0}.pdf\n", sha(pair))).collect();
         fs::write(stage.join("read.list"), list).map_err(|e| e.to_string())?;
-        fs::copy(&reader, stage.join("pinpoint-corpus.exe")).map_err(|e| e.to_string())?;
+        fs::copy(&reader, stage.join("a2aj-gold.exe")).map_err(|e| e.to_string())?;
         for model in ["indra", "onnx"] {
             copy_tree(&runtime.join(model), &stage.join("runtime").join(model))?;
         }
-        fs::write(stage.join("read.cmd"), "cd /d %~dp0\r\nset LEGALPDF_INDRA_MODEL_PACK=%~dp0runtime\\indra\r\nset LEGALPDF_ONNXRUNTIME=%~dp0runtime\\onnx\\onnxruntime.dll\r\nstart /belownormal /wait pinpoint-corpus.exe gold read-list read.list read\r\n").map_err(|e| e.to_string())?;
+        fs::write(stage.join("read.cmd"), "cd /d %~dp0\r\nset LEGALPDF_INDRA_MODEL_PACK=%~dp0runtime\\indra\r\nset LEGALPDF_ONNXRUNTIME=%~dp0runtime\\onnx\\onnxruntime.dll\r\nstart /belownormal /wait a2aj-gold.exe read-list read.list read\r\n").map_err(|e| e.to_string())?;
         // Started through WMI, the reading outlives the session that starts it (an ssh login).
         fs::write(stage.join("start.ps1"), "$command = \"cmd.exe /c `\"`\"$PSScriptRoot\\read.cmd`\" > `\"$PSScriptRoot\\read.log`\" 2>&1`\"\"\n$started = Invoke-CimMethod Win32_Process -MethodName Create -Arguments @{ CommandLine = $command; CurrentDirectory = $PSScriptRoot }\n\"started process $($started.ProcessId) (return $($started.ReturnValue))\"\n").map_err(|e| e.to_string())?;
-        println!("{} PDFs staged in {}: copy it there and run start.ps1 (powershell -File), then copy its read\\ into {}", todo.len(), stage.display(), work.join("read").display());
+        println!("{} PDFs staged in {}: copy it there and run start.ps1 (powershell -File), then copy its read\\ into {}", todo.len(), stage.display(), store::readings().display());
         return Ok(());
     }
-    let list: String = todo.iter().map(|pair| format!("{}\t{}\n", sha(pair), pair["path"].as_str().unwrap_or(""))).collect();
-    fs::write(work.join("read.list"), list).map_err(|e| e.to_string())?;
-    let status = Command::new(&reader).args(["gold", "read-list"]).arg(work.join("read.list")).arg(store::readings(work))
-        .env("LEGALPDF_INDRA_MODEL_PACK", runtime.join("indra")).env("LEGALPDF_ONNXRUNTIME", runtime.join("onnx/onnxruntime.dll"))
-        .creation_flags(BELOW_NORMAL).status().map_err(|e| e.to_string())?;
-    status.success().then_some(()).ok_or_else(|| format!("the reader stopped: {status}"))
+    let pdfs: Vec<(String, PathBuf, bool)> = todo.iter().map(|pair| (sha(pair), store::pdf_of(pair), pair["mode"] == "digitalborn")).collect();
+    read_all(&pdfs, &store::readings(), threads_or_cores(threads))
 }
 
 fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
@@ -268,22 +286,40 @@ pub fn report(work: &Path) -> Result<(), String> {
     let mut covered: BTreeMap<String, Vec<f64>> = BTreeMap::new();
     let digits = regex::Regex::new(r"[\d.]+%").unwrap();
     let add = |from: &Value, into: &mut BTreeMap<String, u64>| for (key, n) in from.as_object().into_iter().flatten() { *into.entry(key.clone()).or_default() += n.as_u64().unwrap_or(0); };
-    for path in record_paths(work) {
-        let record = store::read_json(&path)?;
-        let verdict = &record["verdict"];
+    // Each record read on its own core, down to what the report counts of it: its verdict, its code and its words' kinds.
+    // (Read once for each record's bytes: what it counts is kept beside the records, by the bytes' digest.)
+    let summaries = store::on_cores_with(&record_paths(work), || Ok(()), |path, _| {
+        let file = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let key = store::hex(&<sha2::Sha256 as sha2::Digest>::digest(&file));
+        let made_path = work.join("report-made").join(path.file_name().unwrap_or_default()).with_extension("").with_extension("json");
+        if let Ok(made) = store::read_json(&made_path) {
+            if made["key"] == key.as_str() {
+                let kinds: BTreeMap<String, u64> = made["kinds"].as_object().into_iter().flatten().map(|(k, n)| (k.clone(), n.as_u64().unwrap_or(0))).collect();
+                return Ok((made["verdict"].clone(), made["code"] == CODE.as_str(), kinds));
+            }
+        }
+        let record: Value = serde_json::from_slice(&store::gunzip(&file)?).map_err(|e| format!("{}: {e}", path.display()))?;
+        let mut kinds: BTreeMap<String, u64> = BTreeMap::new();
+        for line in record["lines"].as_array().into_iter().flatten() {
+            for word in line["words"].as_array().into_iter().flatten() {
+                *kinds.entry(word[4].as_str().unwrap_or("").to_owned()).or_default() += 1;
+            }
+        }
+        store::write_atomic(&made_path, &serde_json::to_vec(&json!({"key": key, "verdict": record["verdict"], "code": record["code"], "kinds": kinds})).map_err(|e| e.to_string())?)?;
+        Ok((record["verdict"].clone(), record["code"] == CODE.as_str(), kinds))
+    })?;
+    for (verdict, same_code, words) in &summaries {
+        for (kind, n) in words {
+            *kinds.entry(kind.clone()).or_default() += n;
+        }
         count += 1;
-        other_code += (record["code"] != CODE.as_str()) as u64;
+        other_code += (!same_code) as u64;
         match verdict["refused"].as_str() {
             Some(reason) => *refused.entry(digits.replace_all(reason, "N%").into_owned()).or_default() += 1,
             None => aligned += 1,
         }
         add(&verdict["status"], &mut status);
         add(&verdict["unmatched"], &mut unmatched);
-        for line in record["lines"].as_array().into_iter().flatten() {
-            for word in line["words"].as_array().into_iter().flatten() {
-                *kinds.entry(word[4].as_str().unwrap_or("").to_owned()).or_default() += 1;
-            }
-        }
         for whys in verdict["unplaced"].as_object().into_iter().flatten() {
             add(whys.1, &mut missing);
         }
@@ -295,6 +331,7 @@ pub fn report(work: &Path) -> Result<(), String> {
         }
     }
     println!("{count} records ({other_code} made by other code than this): {aligned} aligned, refused {refused:?}");
+    println!("  readings in {}", store::readings().display());
     for (language, shares) in &mut covered {
         shares.sort_by(f64::total_cmp);
         println!("  coverage of {language} where printed: {} records, median {}, lowest {:?}", shares.len(), shares[shares.len() / 2], &shares[..shares.len().min(5)]);

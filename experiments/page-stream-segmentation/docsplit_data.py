@@ -12,6 +12,7 @@ page-stream exports. Writes one pickle; reads no test row.
 import argparse
 import gzip
 import json
+import msgpack
 import os
 import pickle
 import statistics
@@ -109,12 +110,12 @@ def main():
         if source['partition'] == 'test' or sha not in known:
             skipped.append((batch, sha, 'not a train/development source'))
             continue
-        extraction_path = args.inputs / INPUTS_KEY / f'{sha}.json.gz'
+        extraction_path = args.inputs / INPUTS_KEY / f'{sha}.pack.gz'
         if not extraction_path.exists():
             skipped.append((batch, sha, 'no extraction'))
             continue
         gold = gold_store.read(path)
-        extraction = json.loads(gzip.decompress(extraction_path.read_bytes()))
+        extraction = msgpack.unpackb(gzip.decompress(extraction_path.read_bytes()), strict_map_key=False)
         labels = (extraction.get('metadata') or {}).get('embedded_page_labels') or []
         pages = [page_record(p, labels[i] if i < len(labels) else None) for i, p in enumerate(extraction['pages'])]
         if len(pages) != gold['page_count']:

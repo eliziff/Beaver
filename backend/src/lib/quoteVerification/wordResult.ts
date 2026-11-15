@@ -5,10 +5,9 @@
 import { pinpointText } from "../authoritiesDiscrepancy";
 import type { AuthoritiesDraft } from "../authoritiesDomain";
 import { structureNative } from "../structureNative";
-import type { DocxSpanWrite } from "../docxOperations";
 import type { checkQuotes, QuoteCheck } from "../quoteCheck";
-import type { alrRows } from "./checkedWorkbook";
-import { partLinks, writtenAddress } from "mike/shared/runtime/wordLinks.mjs";
+import type { AlrRow } from "./checkedWorkbook";
+import { writtenAddress } from "mike/shared/runtime/wordLinks.mjs";
 
 type Check = Awaited<ReturnType<typeof checkQuotes>>;
 type Span = { start: number; end: number; text: string };
@@ -31,10 +30,17 @@ export type WordQuote = { id: string; unitId: string; start: number; end: number
   marked: string | null; source: string | null;
   /** The note's part it was checked against (its place in `parts`), or null. */
   part: number | null };
-/** A span the check compares with the source: the text there, and what it is corrected to, the workbook's way and the
- *  source's (equal to `expected` where it matches; null where it is left as written). */
+/** How a span is rewritten to a target: the fewest changed characters, as [start, length, replacement] edits (the
+ *  engine's characterPlan), and its characters as runs that match the target or differ from it (highlightRuns). */
+export type WordPlan = { edits: Array<[number, number, string]>; highlights: Array<[number, number, boolean]> };
+/** A span the check compares with the source: the text there, what it is corrected to the workbook's way and the
+ *  source's (equal to `expected` where it matches; null where it is left as written), and the plan it is written by
+ *  for each way of writing and each correction: a tracked correction's (none where it changes nothing), and a
+ *  quotation's colours (against its correction, else the source, else the workbook). Every host writes a span by its
+ *  plan: the Word copy into the file, the Word add-in into the open document. */
 export type WordSpan = { id: string; kind: "quote" | "pinpoint"; unitId: string; start: number; end: number;
-  expected: string; marked: string | null; source: string | null };
+  expected: string; marked: string | null; source: string | null;
+  plans: Record<"tracked" | "highlight", Record<Correction, WordPlan | null>> };
 export type WordNote = { unitId: string; number: string; parts: WordPart[]; quotes: WordQuote[] };
 export type WordResult = { units: Array<{ id: string; kind: "body" | "footnote"; text: string }>; notes: WordNote[]; spans: WordSpan[] };
 /** How a correction writes a quotation: the workbook's way, or in the source's own words. */
@@ -86,7 +92,7 @@ function bestCheck(checks: QuoteCheck[]) {
 }
 
 /** The check's results on the article's text, from the rows its workbook was written with. */
-export function wordResult(draft: AuthoritiesDraft, check: Check, rows: Awaited<ReturnType<typeof alrRows>>,
+export function wordResult(draft: AuthoritiesDraft, check: Check, rows: AlrRow[],
   citation: WordCitation = "first"): WordResult {
   const units = [...draft.units].sort((a, b) => a.ordinal - b.ordinal);
   const notes = new Map<string, WordNote>();
@@ -112,7 +118,7 @@ export function wordResult(draft: AuthoritiesDraft, check: Check, rows: Awaited<
       core: occurrence?.coreSpan.text ? occurrence.coreSpan : null, pinpoint: occurrence?.pinpointSpan ?? null, editorLink: !!occurrence?.link,
       written: writtenAddress(row.citation_part_text, start, link), reference: occurrence?.referenceKind ?? null });
   }
-  const spans: WordSpan[] = [], pinpoints = new Map<string, WordSpan | null>();
+  const spans: Omit<WordSpan, "plans">[] = [], pinpoints = new Map<string, Omit<WordSpan, "plans"> | null>();
   for (const quote of check.quotes) {
     const noteId = quote.candidates[0]?.unitId, note = noteId ? notes.get(noteId) : undefined;
     const unit = units.find((item) => item.id === quote.unitId);
@@ -153,36 +159,23 @@ export function wordResult(draft: AuthoritiesDraft, check: Check, rows: Awaited<
       unitId: occurrence.unitId, start: span.start, end: span.end, expected: span.text, marked: target, source: target } : null);
   }
   for (const span of pinpoints.values()) if (span && span.marked !== span.expected) spans.push(span);
-  return { units: units.map(({ id, kind, text }) => ({ id, kind, text })), notes: [...notes.values()], spans };
+  const plans = (span: Omit<WordSpan, "plans">): WordSpan["plans"] => {
+    const made = (target: string | null): WordPlan | null => {
+      if (target === null) return null;
+      const edits = structureNative().characterPlan(span.expected, target);
+      return { edits, highlights: structureNative().highlightRuns(span.expected, edits) };
+    };
+    const by = { marked: made(span.marked), source: made(span.source) };
+    const tracked = (correction: Correction) => span[correction] && span[correction] !== span.expected ? by[correction] : null;
+    const coloured = (correction: Correction) => span.kind !== "quote" ? null
+      : by[span[correction] !== null ? correction : span.source !== null ? "source" : "marked"];
+    return { tracked: { marked: tracked("marked"), source: tracked("source") },
+      highlight: { marked: coloured("marked"), source: coloured("source") } };
+  };
+  return { units: units.map(({ id, kind, text }) => ({ id, kind, text })), notes: [...notes.values()],
+    spans: spans.map((span) => ({ ...span, plans: plans(span) })) };
 }
 
 /** How a Word copy writes the results: tracked corrections, coloured quotations, both or neither, and
  *  the citations' pinpoints linked. */
 export type WordCopy = { quotations: "tracked" | "highlight" | "both" | null; links: boolean; correction: Correction };
-/** The writes a Word copy makes (Beaver's writeDocxSpans), each correction in the fewest changed characters (however long), as the
- *  Word add-in writes it; a link where a correction changes its text is left out. */
-export function documentWrites(result: WordResult, { quotations, links, correction }: WordCopy): DocxSpanWrite[] {
-  const writes: DocxSpanWrite[] = [];
-  for (const span of result.spans) {
-    if (quotations === "tracked" || quotations === "both") {
-      const target = span[correction];
-      if (target && target !== span.expected) for (const [start, length, replacement] of structureNative().characterPlan(span.expected, target))
-        writes.push({ kind: "replace", unitId: span.unitId, start: span.start + start, end: span.start + start + length,
-          expected: span.expected.slice(start, start + length), replacement });
-    }
-    if ((quotations === "highlight" || quotations === "both") && span.kind === "quote") {
-      const target = span[correction] ?? span.source ?? span.marked;
-      if (target) for (const [from, to, changed] of structureNative().highlightRuns(span.expected, structureNative().characterPlan(span.expected, target)))
-        writes.push({ kind: "highlight", unitId: span.unitId, start: span.start + from, end: span.start + to,
-          expected: span.expected.slice(from, to), color: changed ? "red" : "green" });
-    }
-  }
-  const edited = writes.filter(({ kind }) => kind === "replace");
-  if (links) for (const note of result.notes) for (const part of note.parts) {
-    if (!/^https?:/u.test(part.link)) continue;
-    for (const { span, url } of partLinks(part, part.link)) if (!edited.some((write) => write.unitId === note.unitId &&
-      write.start < span.end && span.start < Math.max(write.end, write.start + 1)))
-      writes.push({ kind: "link", unitId: note.unitId, start: span.start, end: span.end, expected: span.text, url });
-  }
-  return writes;
-}

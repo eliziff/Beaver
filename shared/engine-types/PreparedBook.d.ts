@@ -6,7 +6,7 @@ import type { Limits } from "./Limits";
 import type { PaperCover } from "./PaperCover";
 
 /**
- * A book as the builder prepared it. `customCover`/`customIndex`: the filer's own PDFs, that long in the bytes.
+ * A book as the builder prepared it. `customCover`/`customIndex`: the filer's own PDFs.
  */
 export type PreparedBook = { filename: string, subtitle: string, documentTitle: string, bookTitle: string, federal: boolean, electronic: boolean, court: string, cover: Cover, coverLine?: string | null, paperCover?: PaperCover | null, alberta?: boolean, 
 /**

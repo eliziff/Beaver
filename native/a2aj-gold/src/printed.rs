@@ -858,16 +858,27 @@ fn marked_page_labels(book: &mut Book, breaks: &Value) -> Vec<Value> {
 /// Every rule over one gold. `images`: the PDF's pages' images; `styled`: {line id: (bold, italic)} and `breaks` (its
 /// page marks) from its record.
 pub fn apply(book: &mut Book, images: &[PageImages], styled: &HashMap<String, (bool, bool)>, breaks: &Value) -> Vec<Value> {
+    let mut laps = super::store::Laps::new();
     let mut done = image_numbers(book, images);
+    laps.lap("image numbers");
     done.extend(page_folios(book));
+    laps.lap("folios");
     done.extend(running_text(book));
+    laps.lap("running text");
     done.extend(head_rows(book));
+    laps.lap("head rows");
     done.extend(crossed_columns(book));
+    laps.lap("crossed");
     done.extend(margin_spine(book));
+    laps.lap("spine");
     done.extend(printed_numbers(book));
+    laps.lap("printed nos");
     done.extend(note_calls(book));
+    laps.lap("note calls");
     done.extend(typed_headings(book, styled));
+    laps.lap("headings");
     done.extend(marked_page_labels(book, breaks));
+    laps.lap("page labels");
     done
 }
 

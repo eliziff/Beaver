@@ -8,6 +8,7 @@ import type { KeptPdf, SourcePdfReference } from "./authoritiesCore";
 import { attachedAuthoritySources, type AuthoritiesDraft } from "./authoritiesDomain";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { authoritiesSourceText, createAuthoritiesPreparation } from "./authoritiesPreparation";
+import { instrumentReading } from "./authorityPdfText";
 import type { AuthoritiesBookSlot } from "mike/shared/authorities-sources.mjs";
 import { openDocument, PLAIN_PDF } from "./sourceDocument";
 import type { PdfProfileSelection } from "./documentStore";
@@ -97,7 +98,8 @@ export async function buildAuthoritiesDraft(state: AuthoritiesDraft, options: {
       authorityPassageTargets(state, attached.authority.id).some(({ locatorKind }) => locatorKind === "page")
       ? await openDocument({ documentId: file.reference?.documentId ?? `standalone-authority:${file.sourceSha256}`,
         versionId: file.reference?.versionId ?? file.sourceSha256, sourceSha256: file.sourceSha256, fileType: "pdf",
-        readBytes: () => file.bytes, pdfProfile: file.pdfProfile }, PLAIN_PDF).then((document) => ({ document, plain: true }),
+        readBytes: () => file.bytes, pdfProfile: file.pdfProfile },
+        { ...PLAIN_PDF, instrument: instrumentReading(attached.authority) }).then((document) => ({ document, plain: true }),
       (error) => { if (signal.aborted) throw error; return undefined; }) : undefined;
     sources[file.role] = { ...(preparation.byteRoles.has(file.role) ? { bytes: file.bytes } : {}),
       ...text, ...(plain && { reading: plain }), ...(file.resolved ? { resolved: file.resolved } : {}) };

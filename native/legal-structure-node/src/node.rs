@@ -1,7 +1,7 @@
 //! Node-API binding over `dispatch`: the engine's operations, called the way the browser's
 //! WebAssembly runtime calls them. `callAsync` runs one off the JS thread.
 
-use crate::{dispatch, engine};
+use crate::dispatch;
 use napi::bindgen_prelude::{AsyncTask, Buffer, FnArgs, Function};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi::{Env, Task};

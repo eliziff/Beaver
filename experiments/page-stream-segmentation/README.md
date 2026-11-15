@@ -279,32 +279,13 @@ the canonical corpus. The same optional field is also preserved when supplied
 on affidavit source parts. Keep one canonical annotation owner; overlapping
 disagreements are withheld rather than silently overridden.
 
-## Partitions, baseline and scoring
+## Partitions and scoring
 
 Preparation joins catalogue gold memberships, association families and
 parent/excerpt relationships into families; transitive families are indivisible.
 A family takes the gold store's partition (`source.json`) of its sources there,
 the one partition every model uses. Families without one, and families whose
-sources disagree, remain `unassigned`; they cannot train the baseline.
-
-The baseline consumes existing `structure-gold rows` output: `features.json`,
-`rows-train.jsonl` and `rows-development.jsonl`. Generate those with the owning
-[structure-gold exporter](../legal-structure-gold/grade/src/main.rs), using the
-retained original extractions. No native rebuild is required for this Python
-change. Additional annotated sources still need Rust feature rows before this
-baseline can use them; the generic gap export also supports image/text models.
-
-```powershell
-python -B experiments/page-stream-segmentation/train_baseline.py PATH_TO_RUST_ROWS
-python -B experiments/page-stream-segmentation/score.py benchmarks/local-data/page-stream-segmentation/baseline/predictions-development.json
-```
-
-The baseline pools first/last/mean existing numeric evidence once per page and
-uses four surrounding pages for **every** physical gap, not just Rust's proposed
-starts. It reads no gold features or test row file, masks unknown training labels,
-uses one CPU thread and stops on development loss. Training and scoring retain
-input/model hashes. Timings exclude PDF extraction/OCR/rendering and are not an
-end-to-end speed claim. Missing feature sources remain visible in coverage.
+sources disagree, remain `unassigned`; no model trains on them.
 
 Predictions are `{"sources":[{"sha256":"...","probabilities":{"2":0.1,...}}]}`.
 The scorer reports boundary precision/recall, false/missed splits, coverage,

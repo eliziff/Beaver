@@ -3,15 +3,26 @@
 use super::book::Book;
 use super::conventions::numbering;
 use super::label::nodes;
-use super::make::{a2aj, a2aj_text, Listings};
+use super::make::{a2aj_text, Listings};
 use super::printed::{rising, Candidate, OPENS};
-use super::store;
+use super::store::{self, on_cores};
 use crate::freeze;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+/// What a gold's row is made by: this measure and what it reads a gold and A2AJ's listings with.
+static MEASURE_CODE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    for source in [include_str!("quality.rs"), include_str!("book.rs"), include_str!("conventions.rs"), include_str!("label.rs"), include_str!("printed.rs"),
+                   include_str!("freeze.rs"), include_str!("page.rs"), include_str!("make.rs"), include_str!("gold_store.rs")] {
+        hash.update(source);
+    }
+    store::hex(&hash.finalize())
+});
 
 fn named(folder: &Path) -> BTreeSet<String> {
     fs::read_dir(folder).into_iter().flatten().flatten().filter_map(|entry| {
@@ -264,6 +275,86 @@ fn printed_numbers(lines: &[Value], parallel: bool) -> BTreeMap<&'static str, Ve
     best
 }
 
+/// What A2AJ's reading of a decision holds besides its numbered paragraphs, over the languages the gold prints.
+#[derive(Default)]
+struct Held {
+    headings: u64,
+    notes: u64,
+}
+
+const MATTER: [&str; 3] = ["furniture", "page_label", "line_label"];
+
+/// The gold's lines, typed lines and units against the page and A2AJ, class by class: the page matter it types as the
+/// decision's text and the decision's text it types as page matter, the lines it leaves untyped or types where the alignment
+/// placed none of their words, and its headings and notes against A2AJ's.
+fn classes(gold: &Value, record: &Value, held: &Held) -> Value {
+    let book = Book::of(gold);
+    let sizes: HashMap<i64, (f64, f64)> = record["pages"].as_object().into_iter().flatten()
+        .filter_map(|(page, size)| Some((page.parse().ok()?, (size[0].as_f64()?, size[1].as_f64()?)))).collect();
+    let pages = sizes.len().max(1);
+    let by_id: HashMap<&str, &Value> = record["lines"].as_array().into_iter().flatten()
+        .map(|line| (line["of"]["id"].as_str().or(line["id"].as_str()).unwrap_or(""), line)).collect();
+    let mut region_of: HashMap<&str, BTreeSet<&str>> = HashMap::new();
+    for t in 0..book.typed.len() {
+        for span in book.spans(t) {
+            region_of.entry(span["line_id"].as_str().unwrap_or("")).or_default().insert(book.region(t));
+        }
+    }
+    // A running head or foot: its words, digits masked, at a page's head or foot on a quarter of the pages and three at least.
+    let mut recurs: HashMap<String, BTreeSet<i64>> = HashMap::new();
+    let key = |line: &super::book::PageLine| -> Option<String> {
+        let size = sizes.get(&line.page).copied().unwrap_or(super::page::DEFAULT_PAGE);
+        (super::page::margin(&line.bbox, size) == Some("head")).then(|| super::page::masked(&line.spelled())).filter(|key| key.chars().any(char::is_alphabetic))
+    };
+    for line in &book.lines {
+        if let Some(key) = key(line) {
+            recurs.entry(key).or_default().insert(line.page);
+        }
+    }
+    let running = |line: &super::book::PageLine| key(line).is_some_and(|key| recurs[&key].len() >= 3 && recurs[&key].len() * 4 >= pages);
+    let (mut matter_as_text, mut untyped, mut typed_unplaced, mut lettered, mut untyped_aligned) = (0u64, 0u64, 0u64, 0u64, 0u64);
+    let mut examples: Vec<Value> = Vec::new();
+    for line in &book.lines {
+        let letters = line.text.iter().filter(|c| c.is_alphabetic()).count();
+        if letters < 2 {
+            continue;
+        }
+        lettered += 1;
+        let regions = region_of.get(line.id.as_str());
+        let record_line = by_id.get(line.id.as_str());
+        let matched = record_line.is_some_and(|l| l["status"] != "unmatched");
+        match regions {
+            None if matched => {
+                untyped += 1;
+                untyped_aligned += 1;
+                if examples.len() < 10 {
+                    examples.push(json!({"line": line.id, "class": "aligned, untyped", "text": line.spelled()}));
+                }
+            }
+            None => untyped += 1,
+            Some(regions) if regions.iter().all(|region| !MATTER.contains(region)) => {
+                if running(line) {
+                    matter_as_text += 1;
+                    if examples.len() < 10 {
+                        examples.push(json!({"line": line.id, "class": "running head typed as text", "text": line.spelled()}));
+                    }
+                }
+                if !matched && record_line.is_some_and(|l| l["why"] == "unexplained") {
+                    typed_unplaced += 1;
+                }
+            }
+            Some(_) => {}
+        }
+    }
+    let unit_regions: Vec<&str> = (0..book.units.len()).filter_map(|u| book.members(u).first().map(|&t| book.region(t))).collect();
+    let count = |name: &str| unit_regions.iter().filter(|region| **region == name).count() as u64;
+    let matter_words: u64 = record["verdict"]["unplaced"].as_object().into_iter().flatten().flat_map(|(_, runs)| runs.as_object().into_iter().flatten())
+        .filter(|(why, _)| matches!(why.as_str(), "on_furniture" | "on_running_head" | "on_page_label" | "on_margin_letter")).map(|(_, n)| n.as_u64().unwrap_or(0)).sum();
+    json!({"lettered_lines": lettered, "untyped_lines": untyped, "untyped_aligned": untyped_aligned, "running_heads_as_text": matter_as_text, "typed_unplaced": typed_unplaced,
+           "decision_words_as_matter": matter_words, "heading_units": count("heading"), "a2aj_headings": held.headings,
+           "note_units": count("note"), "a2aj_notes": held.notes, "note_calls": book.notes.len(), "class_examples": examples})
+}
+
 /// One gold against its page and its record.
 fn measured(gold: &Value, record: &Value, spans: &HashMap<String, Vec<(usize, usize, usize)>>) -> Value {
     let lines = record["lines"].as_array().map_or(&[][..], Vec::as_slice);
@@ -274,7 +365,12 @@ fn measured(gold: &Value, record: &Value, spans: &HashMap<String, Vec<(usize, us
     let by_id: HashMap<&str, &Value> = lines.iter().map(|line| (line["id"].as_str().unwrap_or(""), line)).collect();
     let language_of = |id: &str| by_id.get(id).and_then(|line| line["lang"].as_str());
     // A2AJ's paragraph for each line: the one most of its placed words stand in.
-    let (mut expected, mut ok, mut lost_typed, mut lost_untyped, mut moved, mut swapped) = (0u64, 0u64, 0u64, 0u64, 0u64, 0u64);
+    let (mut expected, mut ok, mut lost_typed, mut lost_untyped, mut moved, mut swapped, mut beyond, mut differs) = (0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64);
+    // Each printed marker's line and its number's digits.
+    let marked_numbers: Vec<(String, String)> = keyed.marks.iter().map(|(line, said)| (line.clone(), said.chars().filter(char::is_ascii_digit).collect())).collect();
+    let marked: HashSet<(&str, &str)> = marked_numbers.iter().map(|(line, number)| (line.as_str(), number.as_str())).collect();
+    // How far the print's numbered printings are off A2AJ's count, and the lines in printings the page shows no number of.
+    let (mut shifted, mut unsure): (HashMap<i64, u64>, Vec<(&str, usize, &BTreeSet<String>, Vec<i64>)>) = (HashMap::new(), Vec::new());
     let mut lost: Vec<Value> = Vec::new();
     let mut other: Vec<Value> = Vec::new();
     // Each printing's language, by most of its lines.
@@ -319,8 +415,14 @@ fn measured(gold: &Value, record: &Value, spans: &HashMap<String, Vec<(usize, us
             if (held as usize) * 2 < words.len() || of_number(number).is_none() && keyed.printings.len() * 2 < spans.values().map(Vec::len).max().unwrap_or(0) {
                 continue;
             }
-            expected += 1;
             let id = line["id"].as_str().unwrap_or("");
+            // (A line the key gives only numbers A2AJ's text numbers nowhere: its text stops numbering, its last paragraph
+            // running on to the end, and says nothing of the print's count past it.)
+            if keyed.numbers.get(id).is_some_and(|given| given.iter().all(|k| k.parse::<usize>().is_ok_and(|k| !numbered.iter().any(|span| span.2 == k)))) {
+                beyond += 1;
+                continue;
+            }
+            expected += 1;
             let Some(given) = keyed.numbers.get(id) else {
                 if typed.contains(id) { lost_typed += 1 } else { lost_untyped += 1 }
                 if lost.len() < 30 {
@@ -333,10 +435,30 @@ fn measured(gold: &Value, record: &Value, spans: &HashMap<String, Vec<(usize, us
                 continue;
             }
             let crossed = given.iter().any(|name| keyed.printings[name].iter().enumerate().any(|(at, printing)| printing.contains(id) && own_language.get(&(name.clone(), at)).is_some_and(|major| major != language)));
-            if crossed { swapped += 1 } else { moved += 1 }
-            if other.len() < 30 {
-                other.push(json!({"line": id, "number": number, "key": given, "crossed": crossed}));
+            // (A printing the page opens with its own number, the key's, is the print's paragraph: there A2AJ's count is
+            // what differs, its paragraphs cut or numbered otherwise than the report's.)
+            let printed_here = given.iter().all(|name| keyed.printings[name].iter().any(|printing| printing.contains(id) && printing.iter().any(|line| marked.contains(&(line.as_str(), name.as_str())))));
+            let offsets: Vec<i64> = given.iter().filter_map(|name| name.parse::<i64>().ok()).map(|k| k - number as i64).collect();
+            if crossed {
+                swapped += 1
+            } else if printed_here {
+                differs += 1;
+                for offset in offsets { *shifted.entry(offset).or_default() += 1 }
+            } else {
+                unsure.push((id, number, given, offsets));
             }
+        }
+    }
+    // (A line in a printing the page shows no number of, off A2AJ's count by what twenty lines or more of the print's own
+    // numbered printings are off it in the document, follows the print as they do.)
+    for (id, number, given, offsets) in unsure {
+        if offsets.iter().any(|offset| shifted.get(offset).is_some_and(|&n| n >= 20)) {
+            differs += 1;
+            continue;
+        }
+        moved += 1;
+        if other.len() < 30 {
+            other.push(json!({"line": id, "number": number, "key": given, "crossed": false}));
         }
     }
     // The page's own numbers against the key's.
@@ -371,7 +493,7 @@ fn measured(gold: &Value, record: &Value, spans: &HashMap<String, Vec<(usize, us
     let words_in = lines.iter().filter(|line| line["text"].as_str().unwrap_or("").chars().any(char::is_alphabetic) && line["why"].as_str().is_none_or(|why| !matches!(why, "furniture" | "page_label" | "running_head" | "margin_letter"))).count();
     let spoken = lines.iter().filter(|line| keyed.speaks_for.contains(line["id"].as_str().unwrap_or(""))).count();
     json!({"citation": record["pair"]["citation"], "mode": mode_of(gold), "layout": layout_of(gold), "pages": record["pair"]["pages"], "count": keyed.count, "numbers": keyed_numbers.len(),
-           "expected": expected, "ok": ok, "lost_typed": lost_typed, "lost_untyped": lost_untyped, "moved": moved, "swapped": swapped, "lost": lost, "other": other,
+           "expected": expected, "beyond_a2aj_count": beyond, "a2aj_count_differs": differs, "ok": ok, "lost_typed": lost_typed, "lost_untyped": lost_untyped, "moved": moved, "swapped": swapped, "lost": lost, "other": other,
            "key_lines": key_lines, "wrong_language": wrong_language, "wrong": wrong, "printed": printed, "printed_chain": !chains.is_empty(), "missing": missing, "misplaced": misplaced,
            "key_unprinted": unprinted, "inversions": inversions, "body_lines": words_in, "spoken_lines": spoken, "unmatched": record["verdict"]["unmatched"], "coverage": record["verdict"]["coverage"]})
 }
@@ -397,15 +519,54 @@ pub fn quality(work: &Path, out: &Path, golds: Option<PathBuf>) -> Result<(), St
         chosen.push((sha, path, authoring));
     }
     let found = Listings::of(&keys)?;
-    let db = a2aj()?;
-    let mut rows = fs::File::create(out.join("quality.jsonl")).map_err(|e| e.to_string())?;
-    let mut tally = Tally::new();
-    for (sha, path, authoring) in &chosen {
-        let (gold, record) = (store::read_json(path)?, store::read_json(&work.join("records").join(format!("{sha}.json.gz")))?);
+    let one = |(sha, path, authoring): &(String, PathBuf, Value), db: &rusqlite::Connection| -> Result<Value, String> {
+        let record_path = work.join("records").join(format!("{sha}.json.gz"));
+        let (gold_file, record_file) = (fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?, fs::read(&record_path).map_err(|e| format!("{}: {e}", record_path.display()))?);
+        row_kept(work, sha, &gold_file, &record_file, None, authoring, &found, db)
+    };
+    let measured_rows = on_cores(&chosen, one)?;
+    write_rows(out, measured_rows)
+}
+
+/// A gold's row: made once for its gold's and record's bytes and A2AJ's listings by this measure's code, kept in
+/// WORK/quality-made, and read back after. The gold step makes it as it writes the gold, from the record it has read
+/// (`record`, the record file's bytes decoded), so no step decodes a record twice.
+#[allow(clippy::too_many_arguments)]
+pub fn row_kept(work: &Path, sha: &str, gold_file: &[u8], record_file: &[u8], record: Option<&Value>, authoring: &Value, found: &Listings, db: &rusqlite::Connection) -> Result<Value, String> {
+    {
+        let (path, record_path) = (Path::new(sha), Path::new(sha));
+        let mut listed = String::new();
+        for language in authoring["languages"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+            listed.push_str(&found.read(&format!("{}:{language}", authoring["a2aj_document_id"]))?.unwrap_or_default());
+            listed.push('\u{1}');
+        }
+        let key = {
+            use sha2::{Digest, Sha256};
+            let mut hash = Sha256::new();
+            for part in [MEASURE_CODE.as_bytes(), gold_file, record_file, listed.as_bytes()] {
+                hash.update((part.len() as u64).to_le_bytes());
+                hash.update(part);
+            }
+            store::hex(&hash.finalize())
+        };
+        let made_path = work.join("quality-made").join(format!("{sha}.json"));
+        if let Ok(made) = store::read_json(&made_path) {
+            if made["key"] == key.as_str() {
+                return Ok(made["row"].clone());
+            }
+        }
+        let parse = |file: &[u8], at: &Path| -> Result<Value, String> { serde_json::from_slice(&store::gunzip(file)?).map_err(|e| format!("{}: {e}", at.display())) };
+        let gold = parse(gold_file, path)?;
+        let parsed;
+        let record = match record {
+            Some(record) => record,
+            None => { parsed = parse(record_file, record_path)?; &parsed }
+        };
         let mut spans: HashMap<String, Vec<(usize, usize, usize)>> = HashMap::new();
+        let mut held = Held::default();
         for language in authoring["languages"].as_array().into_iter().flatten().filter_map(Value::as_str) {
             let Some(listing) = found.read(&format!("{}:{language}", authoring["a2aj_document_id"]))? else { continue };
-            let text = a2aj_text(&db, rusqlite::types::Value::Integer(authoring["a2aj_document_id"].as_i64().unwrap_or(0)), language)?.unwrap_or_default();
+            let text = a2aj_text(db, rusqlite::types::Value::Integer(authoring["a2aj_document_id"].as_i64().unwrap_or(0)), language)?.unwrap_or_default();
             let chars: Vec<char> = text.chars().collect();
             let mut units = Vec::with_capacity(chars.len() + 1);
             for (at, c) in chars.iter().enumerate() {
@@ -416,19 +577,36 @@ pub fn quality(work: &Path, out: &Path, golds: Option<PathBuf>) -> Result<(), St
             }
             units.push(chars.len());
             let cp = |unit: usize| units[unit.min(units.len() - 1)];
-            let mut numbered: Vec<(usize, usize, usize)> = nodes(&listing)?.0.iter().filter(|node| node.kind == "paragraph" && node.label.starts_with("par"))
+            let (read, notes) = nodes(&listing)?;
+            held.headings += read.iter().filter(|node| node.kind == "heading").count() as u64;
+            held.notes += notes.len() as u64;
+            let mut numbered: Vec<(usize, usize, usize)> = read.iter().filter(|node| node.kind == "paragraph" && node.label.starts_with("par"))
                 .filter_map(|node| Some((cp(node.start), cp(node.end), node.label.get(3..)?.parse().ok()?))).collect();
             numbered.sort_unstable();
             spans.insert(language.to_owned(), numbered);
         }
-        let mut row = measured(&gold, &record, &spans);
+        let mut row = measured(&gold, record, &spans);
+        for (name, value) in classes(&gold, record, &held).as_object().into_iter().flatten() {
+            row[name] = value.clone();
+        }
         row["sha"] = json!(sha);
+        // (As made, its fields in their order: the row is written out again as it stands.)
+        store::write_atomic(&made_path, &serde_json::to_vec(&json!({"key": key, "row": row})).map_err(|e| e.to_string())?)?;
+        Ok(row)
+    }
+}
+
+fn write_rows(out: &Path, measured_rows: Vec<Value>) -> Result<(), String> {
+    let mut rows = fs::File::create(out.join("quality.jsonl")).map_err(|e| e.to_string())?;
+    let mut tally = Tally::new();
+    for row in measured_rows {
         writeln!(rows, "{row}").map_err(|e| e.to_string())?;
         let group = format!("{} {}", row["mode"].as_str().unwrap_or("?"), row["layout"].as_str().unwrap_or("?"));
         add(&mut tally, &group, "documents", 1);
         add(&mut tally, &group, "numbered", (!row["count"].is_null()) as u64);
         add(&mut tally, &group, "numbers printed on the page, no key", (row["count"].is_null() && row["printed_chain"] == true) as u64);
-        for name in ["expected", "ok", "lost_typed", "lost_untyped", "moved", "swapped", "key_lines", "wrong_language", "printed", "key_unprinted", "inversions", "body_lines", "spoken_lines"] {
+        for name in ["expected", "beyond_a2aj_count", "a2aj_count_differs", "ok", "lost_typed", "lost_untyped", "moved", "swapped", "key_lines", "wrong_language", "printed", "key_unprinted", "inversions", "body_lines", "spoken_lines",
+                     "lettered_lines", "untyped_lines", "untyped_aligned", "running_heads_as_text", "typed_unplaced", "decision_words_as_matter", "heading_units", "a2aj_headings", "note_units", "a2aj_notes", "note_calls"] {
             add(&mut tally, &group, name, row[name].as_u64().unwrap_or(0));
         }
         let count = |name: &str| row[name].as_array().map_or(0, Vec::len) as u64;
@@ -437,6 +615,9 @@ pub fn quality(work: &Path, out: &Path, golds: Option<PathBuf>) -> Result<(), St
         let at = |name: &str| row[name].as_u64().unwrap_or(0);
         let clean = at("expected") == at("ok") && at("wrong_language") == 0 && count("missing") == 0 && count("misplaced") == 0 && at("inversions") == 0;
         add(&mut tally, &group, "documents clean", clean as u64);
+        add(&mut tally, &group, "documents with fewer note units than A2AJ's notes", (at("note_units") < at("a2aj_notes")) as u64);
+        add(&mut tally, &group, "documents with fewer heading units than half A2AJ's headings", (at("heading_units") * 2 < at("a2aj_headings")) as u64);
+        add(&mut tally, &group, "documents with a running head typed as text", (at("running_heads_as_text") > 0) as u64);
     }
     summary(out, "quality-summary.txt", &tally)
 }

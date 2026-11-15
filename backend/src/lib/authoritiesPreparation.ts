@@ -2,7 +2,7 @@
 import { authoritiesInputPlan } from "mike/shared/authorities-sources.mjs";
 import { authoritiesTextRoles, authorityFilingTargets, authorityPassageTargets, bookScanPolicy } from "./authoritiesBuild";
 import { authorityCitationForms, authoritiesProfile, type AuthoritiesDraft } from "./authoritiesDomain";
-import { authorityPdfOutline, authorityPdfReading } from "./authorityPdfText";
+import { authorityPdfOutline, authorityPdfReading, instrumentReading } from "./authorityPdfText";
 import { structureNative } from "./structureNative";
 
 type ReadInput = Parameters<typeof authorityPdfReading>[0];
@@ -22,6 +22,7 @@ function sourceReading(draft: AuthoritiesDraft) {
       // without bookmarks of its own is outlined by the brief's headings.
       outline: authority && plan.bookRoles.has(role) && draft.settings.bookmarks === "headings" || filing && draft.settings.finalPdf,
       text: { scannedPdfPolicy: filing ? "page-margin" as const : bookScanPolicy(draft),
+        instrument: instrumentReading(authority),
         citations: authority ? authorityCitationForms(draft, authority.id) : [],
         ocrTargets: authority ? authorityPassageTargets(draft, authority.id) : [] } };
   };
@@ -53,7 +54,8 @@ export function createAuthoritiesPreparation(draft: AuthoritiesDraft) {
   return { ...plan, textRoles,
     async prepareText(role: string, input: ReadInput) {
       input.signal?.throwIfAborted();
-      const outline = request(role).outline ? await authorityPdfOutline(input).catch((error) => {
+      const { outline: outlined, text } = request(role);
+      const outline = outlined ? await authorityPdfOutline({ ...input, instrument: text.instrument }).catch((error) => {
         if (input.signal?.aborted) throw error;
         return [];
       }) : [];

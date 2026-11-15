@@ -109,13 +109,18 @@ function configuredLegalPdfProfile(env: NodeJS.ProcessEnv = process.env): LegalP
   return profile;
 }
 
+/** The profile a reading asks for: each provider the server's own where left undefined, else the caller's. A caller
+ *  needing only text or paragraphs asks for no `doc` (DOC, the structure stage's tier 1): it reads what tier 0 gives. */
 export function profileFor(
   ocrProvider: LegalPdfOcrProvider | null | undefined,
   layout: boolean | null | undefined,
+  doc?: boolean | null,
 ) {
-  const env = ocrProvider === undefined
-    ? process.env
-    : { ...process.env, MIKE_PDF_OCR_PROVIDER: ocrProvider ?? "none" };
+  const env = {
+    ...process.env,
+    ...(ocrProvider !== undefined && { MIKE_PDF_OCR_PROVIDER: ocrProvider ?? "none" }),
+    ...(doc !== undefined && { MIKE_PDF_STRUCTURE_PROVIDER: doc ? "doc" : "none" }),
+  };
   const profile = configuredLegalPdfProfile(env);
   if (layout === false || layout === null) delete profile.layout;
   if (layout === true && !profile.layout)

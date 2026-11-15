@@ -79,6 +79,7 @@ fn walk(document: &Document, content: &[u8], resources: Option<&Dictionary>, sta
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct PageImages {
     pub size: (f64, f64),
     pub boxes: Vec<[f64; 4]>,
@@ -104,29 +105,31 @@ fn images_on(document: &Document, id: ObjectId) -> PageImages {
     PageImages { size: if rotation == 90 || rotation == 270 { (height, width) } else { (width, height) }, boxes }
 }
 
-/// Each page's size and images, in page order; an unreadable PDF has none.
-pub fn images(path: &std::path::Path) -> Vec<PageImages> {
-    images_of(path, |_, _| true)
+/// Each page's size and images, in page order, walking only the pages `wanted` (a page, the page count) names: the others
+/// stand empty. An unreadable PDF has none.
+pub fn images_in(bytes: &[u8], wanted: impl Fn(usize, usize) -> bool) -> Vec<PageImages> {
+    let Ok(document) = Document::load_mem(bytes) else { return Vec::new() };
+    images_of_document(&document, wanted)
 }
 
-/// As `images`, walking only the pages `wanted` (a page, the page count) names: the others stand empty.
-pub fn images_of(path: &std::path::Path, wanted: impl Fn(usize, usize) -> bool) -> Vec<PageImages> {
-    let Ok(bytes) = std::fs::read(path) else { return Vec::new() };
-    let Ok(document) = Document::load_mem(&bytes) else { return Vec::new() };
-    drop(bytes);
+/// A PDF loaded once, for all that is asked of it.
+pub fn load(path: &std::path::Path) -> Option<Document> {
+    Document::load_mem(&std::fs::read(path).ok()?).ok()
+}
+
+/// `images_in` a loaded PDF.
+pub fn images_of_document(document: &Document, wanted: impl Fn(usize, usize) -> bool) -> Vec<PageImages> {
     let pages = document.get_pages();
-    pages.values().enumerate().map(|(page, &id)| if wanted(page, pages.len()) { images_on(&document, id) } else { PageImages { size: (612.0, 792.0), boxes: Vec::new() } }).collect()
-}
-
-pub fn page_count(path: &std::path::Path) -> Option<usize> {
-    let bytes = std::fs::read(path).ok()?;
-    Some(Document::load_mem(&bytes).ok()?.get_pages().len())
+    pages.values().enumerate().map(|(page, &id)| if wanted(page, pages.len()) { images_on(document, id) } else { PageImages { size: (612.0, 792.0), boxes: Vec::new() } }).collect()
 }
 
 /// Each page's text layer, in page order, for a PDF the corpus has not indexed.
 pub fn page_texts(path: &std::path::Path) -> Vec<String> {
-    let Ok(bytes) = std::fs::read(path) else { return Vec::new() };
-    let Ok(document) = Document::load_mem(&bytes) else { return Vec::new() };
+    load(path).map_or_else(Vec::new, |document| texts_of(&document))
+}
+
+/// A loaded PDF's pages' text layers, in page order.
+pub fn texts_of(document: &Document) -> Vec<String> {
     let pages: Vec<u32> = document.get_pages().keys().copied().collect();
     pages.iter().map(|&page| document.extract_text(&[page]).unwrap_or_default()).collect()
 }

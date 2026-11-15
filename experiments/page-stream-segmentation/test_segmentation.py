@@ -236,28 +236,6 @@ class PipelineTests(unittest.TestCase):
             revised = next(r for r in read_json(args.out / "dataset.json")["sources"] if r["sha256"] == c)
             self.assertEqual(revised["labels"], {"3": 0})
 
-    def test_real_tree_training_excludes_unknown_gaps_and_test_file(self):
-        from train_baseline import train
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            atomic_json(root / "features.json", ["invented_measurement"])
-            sources = []
-            for split, letters in (("train", "ab"), ("development", "cd")):
-                rows = []
-                for letter in letters:
-                    sha = letter * 64
-                    sources.append(source(sha, 40, {str(p): int(p % 4 == 0) for p in range(2, 40)}, split))
-                    rows.append({"sha256": sha, "pages": list(range(40)), "features": [[float(p % 4)] for p in range(40)]})
-                (root / f"rows-{split}.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
-            (root / "rows-test.jsonl").write_text("must never be opened as training data")
-            atomic_json(root / "dataset.json", {"sources": sources, "report": {"partition_status": "invented fixture"}})
-            result = train(SimpleNamespace(dataset=root / "dataset.json", rows=root, out=root / "trained", rounds=3))
-            self.assertEqual(result["train_gaps"], 76)
-            self.assertEqual(result["development_gaps"], 76)
-            self.assertEqual(result["counts"]["unknown_gaps"], 2)
-            self.assertEqual(result["coverage"], 1)
-            self.assertTrue((root / "trained/model.txt").is_file())
-
 
 class ContextRescueTests(unittest.TestCase):
     def test_context_stays_inside_original_and_contains_the_requested_pair(self):

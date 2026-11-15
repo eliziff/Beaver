@@ -22,7 +22,8 @@ import {
   resolveDraftingOptions,
   type DraftingStyleSettings,
 } from "../draftingStyle";
-import type { EditMode } from "../docxTrackedChanges";
+import type { EditMode } from "mike/shared/engine-types/EditMode";
+import type { BlockInsert } from "mike/shared/engine-types/BlockInsert";
 import type { LibraryPageItem, LibraryStore } from "../libraryStore";
 import type { ProjectDirectoryItem, ProjectStore } from "../projectStore";
 import type {
@@ -81,7 +82,7 @@ import {
   searchSources,
 } from "./tools/sourceSearchTools";
 import { createLegalSourceSearchCitations } from "./citations";
-import type { TextOpRequest } from "../docxTextOps";
+import type { TextOpRequest } from "mike/shared/engine-types/TextOpRequest";
 import {
   buildPptxPresentation,
   presentationFromMarkdown,
@@ -149,8 +150,7 @@ function modelQuoteCheckReport(report: Awaited<ReturnType<typeof checkQuotes>>, 
     next_offset: offset + 10 < report.total ? offset + 10 : null,
     citationUnits: report.citationUnits.filter((unit) => report.quotes.some((quote) =>
       quote.unitId === unit.unitId || quote.candidates.some((candidate) => candidate.unitId === unit.unitId)))
-      .map(({ unitId, status, reasons, parts }) => ({ unitId, status,
-        ...(reasons.length ? { reasons } : {}),
+      .map(({ unitId, parts }) => ({ unitId,
         parts: parts.map(({ start, end, text, fields }) => ({ start, end, text,
           fields: Object.fromEntries(Object.entries(fields).filter(([, value]) =>
             Array.isArray(value) ? value.length : value !== "")) })) })),
@@ -424,20 +424,27 @@ const editAnnotations = (
 }));
 
 const assistantEdits = (changes: ReadonlyArray<{
-  id: string; delId?: string; insId?: string; deletedText: string;
+  id: string; delId?: string | null; insId?: string | null; deletedText: string;
   insertedText: string; contextBefore?: string; contextAfter?: string;
-  reason?: string; diff: AssistantEdit["diff"];
+  reason?: string | null; diff: AssistantEdit["diff"];
 }>): AssistantEdit[] => changes.map((change) => ({
   changeId: change.id,
-  delWId: change.delId,
-  insWId: change.insId,
+  delWId: change.delId ?? undefined,
+  insWId: change.insId ?? undefined,
   deletedText: change.deletedText,
   insertedText: change.insertedText,
   contextBefore: change.contextBefore ?? "",
   contextAfter: change.contextAfter ?? "",
-  reason: change.reason,
+  reason: change.reason ?? undefined,
   diff: change.diff,
 }));
+
+/** The engine's deterministic text ops on the document, each change its own edit. */
+const textOps = async (bytes: Buffer, ops: TextOpRequest[], author: string, mode: EditMode) => {
+  const applied = await structureNative().docxTextOps(bytes, ops, author, mode);
+  return { ...applied, edits: assistantEdits(applied.changes),
+    editErrors: applied.errors.map(({ index, reason }) => `change ${index + 1}: ${reason}`) };
+};
 
 /** What an edit that matched nothing reports: the stored version is untouched. */
 const noChanges = (documentId: string, file: DocumentContent) => ({
@@ -468,14 +475,12 @@ async function saveDocxEdits(params: {
       existing.workingRevision !== workingRevision)) return stale;
   const finalized = params.emissionMode === "auto"
     ? { bytes: params.bytes, status: "accepted" as const }
-    : params.edits.length
-    ? await (await import("../docxTrackedChanges")).finalizeTrackedEdits(
-        params.bytes,
-        params.edits.flatMap((edit) =>
-          [edit.delWId, edit.insWId].filter((id): id is string => !!id),
-        ),
-        params.editMode,
-      )
+    : params.edits.length && params.editMode === "auto"
+    ? await structureNative().docxResolveTrackedChanges(params.bytes, [...new Set(params.edits.flatMap((edit) =>
+        [edit.delWId, edit.insWId].filter((id): id is string => !!id)))], true).then((accepted) => {
+        if (!accepted) throw new Error("The automatic edit could not be verified; the document is unchanged");
+        return { bytes: accepted.bytes, status: "accepted" as const };
+      })
     : { bytes: params.bytes, status: "pending" as const };
   const committed = await params.documents.commitAssistantVersion(
     params.scope,
@@ -948,7 +953,7 @@ async function runCodingShapeCall(
       documents, scope, documentId: meta.id, source: file, bytes, edits,
       turnEditState, turnId, editMode, emissionMode });
     if (args.replace_all === true) {
-      const applied = await (await import("../docxTextOps")).applyTextOpsToDocx(file.bytes, [{
+      const applied = await textOps(file.bytes, [{
         op: "replace_text",
         find: oldString,
         replace: newString,
@@ -960,14 +965,14 @@ async function runCodingShapeCall(
         ...(applied.editErrors.length ? { edit_errors: applied.editErrors } : {}) });
       return save(applied.bytes, applied.edits, applied.emissionMode);
     }
-    const applied = await (await import("../docxTrackedChanges")).applyTrackedEdits(file.bytes, [{
+    const applied = await structureNative().docxTrackedEdits(file.bytes, [{
       find: oldString,
       replace: newString,
       context_before: "",
       context_after: "",
-    }], { author: editAuthor, mode: editMode });
+    }], editAuthor, editMode);
     if (!applied.changes.length) {
-      const sourceText = await (await import("../docxTrackedChanges")).extractDocxBodyText(file.bytes);
+      const sourceText = await structureNative().docxBodyText(file.bytes);
       const spans: string[] = [];
       for (let at = 0; at < sourceText.length && spans.length < 40; at += 12_000)
         spans.push(sourceText.slice(at, at + 15_000));
@@ -1254,13 +1259,8 @@ function compactProviderPdfLookup(resolved: ReadyProviderPdfLookup, evidence: Le
   };
 }
 
-type InsertBlocksRequest = {
-  blocks: string[]; position: "before" | "after";
-  anchorText?: string; occurrence?: number;
-};
-
 function parseAdvancedOps(raw: unknown):
-  | { insert?: InsertBlocksRequest; requests: TextOpRequest[] }
+  | { insert?: BlockInsert; requests: TextOpRequest[] }
   | string {
   const ops = raw as Array<Record<string, unknown>>;
   const inserted = ops.find(({ op }) => op === "insert_blocks");
@@ -1437,7 +1437,7 @@ async function runAdvancedDocxEdit(params: {
       });
     }
     const applied = blockInsert
-      ? await (await import("../docxTrackedChanges")).insertTrackedBlocks(file.bytes, blockInsert, { author: params.editAuthor }).then(
+      ? await structureNative().docxInsertTrackedBlocks(file.bytes, blockInsert, params.editAuthor).then(
           (inserted) => ({
             bytes: inserted.bytes,
             edits: assistantEdits(inserted.changes),
@@ -1453,7 +1453,7 @@ async function runAdvancedDocxEdit(params: {
             ),
           }),
         )
-      : await (await import("../docxTextOps")).applyTextOpsToDocx(file.bytes, resolvedRequests, params.editAuthor, params.editMode);
+      : await textOps(file.bytes, resolvedRequests, params.editAuthor, params.editMode);
     if (!applied.replacementCount || !applied.edits.length) {
       return result({
         ...(!applied.replacementCount ? noChanges(params.documentId, file) : {
@@ -1491,7 +1491,7 @@ async function runDocxWorkflow(
 ): Promise<AssistantOutcome> {
   const file = await activeDocx(documents, scope, documentId, versionId);
   if (action === "fix_supras") {
-    const cleanup = await (await import("../docxDeterministicCleanup")).fixDocxSupras(file.bytes);
+    const cleanup = await structureNative().fixDocxSupraCrossReferences(file.bytes);
     if (!cleanup.changes.length) return result({ ok: true, action: "no_changes",
       document_id: documentId, version_id: file.version.id,
       ...cleanup, bytes: undefined, changes: undefined });

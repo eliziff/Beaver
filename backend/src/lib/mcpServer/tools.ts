@@ -242,9 +242,7 @@ const definitions: Array<Tool & { run: Handler }> = [{
     const native = structureNative(), document = passage.documentArtifact;
     const pinpoints = text(args.locator) ? [{ kind: text(args.locator_kind) || "paragraph", first: text(args.locator),
       ...(text(args.end_locator) ? { last: text(args.end_locator) } : {}) }] : [];
-    const [{ match, comparison, errors = [] }] = await native.quoteLocateDocument(document,
-      reference!.provider !== "attached" ? "text" : reference!.kind === "legislation" ? "legislation" : "pdf",
-      [{ quote, pinpoints, id: "q" }]);
+    const [{ match, comparison, errors = [] }] = await native.quoteLocateDocument(document, reference!, [{ quote, pinpoints, id: "q" }]);
     if (match.location === "unmatched") return json({ ok: true, status: "unlocated",
       detail: "The quotation's words are not in the source; read the source to find it." });
     const found = match.labels[0], kind = found && found.kind !== "pdfPage" ? found.kind : undefined;

@@ -8,7 +8,7 @@
 //! print saying what they are. What A2AJ cannot label is left unlabelled: the PDF lines it does not carry. The PDF decides which
 //! lines are running heads and page numbers (in the page margins, repeated or a bare number).
 use super::conventions::numbering;
-use super::page::{column_order, in_gutter, margin, masked, number_like, page_number, same_row, Bbox, Placed, Sizes, DEFAULT_PAGE};
+use super::page::{column_order, in_gutter, margin, masked, number_like, page_number, recurring, same_row, Bbox, Placed, Sizes, DEFAULT_PAGE};
 use super::printed::{rising, Candidate};
 use super::words::{self, is_digits, is_space};
 use regex::Regex;
@@ -216,7 +216,28 @@ fn span_of(text: &str) -> Result<(usize, usize), String> {
 /// The census listing's nodes and notes.
 pub fn nodes(listing: &str) -> Result<(Vec<Node>, Vec<NoteNode>), String> {
     let (mut found, mut notes) = (Vec::new(), Vec::new());
-    for item in listing.split(';').filter(|item| !item.is_empty()) {
+    // Items are separated by ';', which a node's label can also hold ("... too; ..."): a piece that does not end on a span
+    // goes on with the next.
+    let ends_on_span = |item: &str| {
+        let parts: Vec<&str> = item.split(' ').collect();
+        let at = if parts[0] == "note" { 2 } else { parts.len().wrapping_sub(2) };
+        parts.get(at).is_some_and(|part| span_of(part).is_ok())
+    };
+    let mut items: Vec<String> = Vec::new();
+    let mut pending = String::new();
+    for piece in listing.split(';') {
+        if !pending.is_empty() {
+            pending.push(';');
+        }
+        pending.push_str(piece);
+        if !pending.is_empty() && ends_on_span(&pending) {
+            items.push(std::mem::take(&mut pending));
+        }
+    }
+    if !pending.is_empty() {
+        items.push(pending);
+    }
+    for item in &items {
         let parts: Vec<&str> = item.split(' ').collect();
         if parts[0] == "note" {
             let (label, body) = (span_of(parts.get(1).ok_or("a note with no label")?)?, span_of(parts.get(2).ok_or("a note with no body")?)?);
@@ -473,18 +494,24 @@ impl<'a> Pdf<'a> {
     #[allow(clippy::too_many_arguments)]
     fn new(lines: Vec<&'a Line>, pages: &'a Sizes, text: &'a [char], listing: &str, outline: &[Value], begin: usize, cuts: HashMap<String, Cut>,
            numbers: &'a HashSet<String>, folios: &'a HashSet<String>) -> Result<Pdf<'a>, String> {
+        let mut laps = super::store::Laps::new();
         let painted = segments(text, listing, outline)?;
+        laps.lap("segments");
         let mut pdf = Pdf {
             lines, pages, text, begin, segs: painted.segs, owner: painted.owner, a2aj_words: Vec::new(), seg_of: Vec::new(), pdf_words: Vec::new(),
             matches: HashMap::new(), to_pdf: HashMap::new(), pieces: Vec::new(), bullets: HashSet::new(), bullet_of: HashMap::new(), columns: HashMap::new(),
             fallback: (72.0, 540.0), body_size: 0.0, stats: Map::new(), decisions: BTreeMap::new(), unlabelled: 0, cuts, numbers, folios,
         };
         pdf.align();
+        laps.lap("words");
         pdf.cut();
+        laps.lap("cut");
         pdf.late_furniture();
+        laps.lap("furniture");
         pdf.detached_bullets();
         pdf.page_margins();
         pdf.trailing();
+        laps.lap("margins+tail");
         pdf.gate()?;
         Ok(pdf)
     }
@@ -601,7 +628,7 @@ impl<'a> Pdf<'a> {
             let mask = masked(&texts[n]);
             if place == "head" && page_number(&texts[n], Some(&line.bbox), &others) {
                 self.pieces[k].owner = Owner::PageLabel;
-            } else if !number_like(&texts[n]) && pages[&mask].len() >= 2 && mask.chars().count() >= 3 {
+            } else if !number_like(&texts[n]) && recurring(pages[&mask].len(), self.pages.len()) && mask.chars().count() >= 3 {
                 self.pieces[k].owner = Owner::Furniture;
             }
         }
@@ -846,6 +873,30 @@ impl<'a> Pdf<'a> {
         "text"
     }
 
+    /// Whether lines read as a title: two rows at most, fifteen words at most, ending on a word or a closing bracket, and not
+    /// a transcript's question or answer ("Q. Where was this?", "A. Okay --", "Q." alone).
+    fn titled(&self, members: &[Piece]) -> bool {
+        let rows: BTreeSet<usize> = members.iter().map(|m| m.line).collect();
+        let said: Vec<String> = rows.iter().map(|&r| spell(&self.lines[r].text)).collect();
+        let words: Vec<&str> = said.iter().flat_map(|text| text.split(is_space).filter(|w| !w.is_empty())).collect();
+        let last = said.last().and_then(|text| text.trim_end_matches(is_space).chars().last());
+        let transcript = words.first().is_some_and(|first| matches!(*first, "Q." | "A." | "R." | "Q:" | "A:" | "R:" | "Q" | "A" | "R"));
+        rows.len() <= 2 && !words.is_empty() && words.len() <= 15 && last.is_some_and(|c| c.is_alphanumeric() || c == ')') && !transcript
+    }
+
+    /// A heading A2AJ reads that a scan, which gives no type to read, shows as one: a short line that ends on a word and opens
+    /// on a number or stands centred ("1. The Findings of the trial judge"), where "Q. Where was this?" or "A. Down by the
+    /// school --" is a transcript's line.
+    fn numbered_heading(&self, members: &[Piece]) -> bool {
+        let rows: BTreeSet<usize> = members.iter().map(|m| m.line).collect();
+        let words: usize = rows.iter().map(|&r| spell(&self.lines[r].text).split(is_space).filter(|w| !w.is_empty()).count()).sum();
+        let last = strip(&self.lines[*rows.iter().next_back().unwrap()].text).last().copied();
+        let first = spell(&self.lines[*rows.first().unwrap()].text);
+        let question = matches!(first.split(is_space).find(|w| !w.is_empty()), Some("Q." | "Q:" | "R." | "R:"));
+        rows.iter().all(|&r| self.lines[r].size == 0.0) && rows.len() <= 2 && words <= 15 && last.is_some_and(char::is_alphanumeric) && !question
+            && (numbered_opening(&spell(&self.lines[*rows.first().unwrap()].text)) || rows.iter().all(|&r| self.style(r).2))
+    }
+
     /// A2AJ reads the matter after the reasons (a signature block, the disposition and counsel, a formal judgment, an
     /// appendix) as lines of the last numbered paragraph. The lines after the last of that paragraph's own words,
     /// quotations (set apart in the PDF) and list items are that matter: text when they are a few short lines; when they
@@ -979,6 +1030,7 @@ impl<'a> Pdf<'a> {
                 inner.insert(h);
             }
         }
+        let numbered_reasons = self.segs.iter().any(|seg| seg.kind == Kind::Paragraph && seg.extra.number.as_deref().is_some_and(|n| !n.is_empty()));
         for (s, ks) in &groups {
             let (s, seg) = (*s, self.segs[*s].clone());
             let spoken = || SPOKEN.is_match(&joined(&self.text[seg.start..seg.end]));
@@ -991,14 +1043,20 @@ impl<'a> Pdf<'a> {
             } else if seg.kind == Kind::Paragraph && seg.extra.number.as_deref().is_none_or(str::is_empty)
                 && ks.iter().map(|&k| self.pieces[k].line).collect::<HashSet<_>>().len() >= 2
                 && self.evidence(&ks.iter().map(|&k| self.pieces[k]).collect::<Vec<_>>(), false, true) == "quote" {
-                None // a block quotation A2AJ reads as an unnumbered paragraph: the print sets it apart
+                Some("quote") // a block quotation A2AJ reads as an unnumbered paragraph: the print sets it apart
             } else if seg.kind == Kind::Heading && spoken() {
                 Some("text") // "The judgment of the Court was delivered by", "LAMER J. --", "... as follows:"
-            } else if seg.kind == Kind::Heading && inner.contains(&s) {
+            } else if seg.kind == Kind::Heading && (inner.contains(&s) || !numbered_reasons) {
                 // Inside a numbered paragraph a heading is one where the print shows it; else its paragraph's words go on, or quote.
-                match self.evidence(&ks.iter().map(|&k| self.pieces[k]).collect::<Vec<_>>(), false, true) {
+                // So in reasons A2AJ numbers nowhere, where its census reads any short line as a heading (a transcript's
+                // "Q. You went by the tracks?").
+                let members: Vec<Piece> = ks.iter().map(|&k| self.pieces[k]).collect();
+                match self.evidence(&members, false, true) {
                     "heading" => Some("heading"),
                     "quote" => Some("quote"),
+                    _ if self.numbered_heading(&members) => Some("heading"),
+                    // (Where A2AJ numbers nothing, its heading stands unless the line reads as a sentence or a transcript's.)
+                    _ if !numbered_reasons && self.titled(&members) => Some("heading"),
                     _ => Some("text"),
                 }
             } else {
@@ -1520,7 +1578,9 @@ fn lines_of_record(record: &Value) -> Vec<(Line, Option<String>, Option<String>,
 /// heads, the gutter's line letters) is units of its own; every other line is unlabelled, typed by no line. Units carry no
 /// levels or depths, and the first says the document is a judgment. A language whose labelling refuses refuses the gold.
 pub fn gold(record: &Value, texts: &Map<String, Value>, listings: &Map<String, Value>, outlines: &Map<String, Value>, labels_only: bool) -> Result<Value, String> {
+    let mut laps = super::store::Laps::new();
     let rows = lines_of_record(record);
+    laps.lap("rows");
     let sizes: Sizes = record["pages"].as_object().ok_or("the record has no pages")?.iter()
         .map(|(page, size)| Ok((page.parse::<i64>().map_err(|e| e.to_string())?, (size[0].as_f64().unwrap_or(0.0), size[1].as_f64().unwrap_or(0.0)))))
         .collect::<Result<_, String>>()?;
@@ -1531,6 +1591,7 @@ pub fn gold(record: &Value, texts: &Map<String, Value>, listings: &Map<String, V
     // What the page prints decides where paragraphs open and which lines are its folios, before any language is labelled.
     let (mut cuts, numbers) = margin_numbers(&rows, &gutter);
     let (folio_lines, folio_spans, not_folios) = folios(&rows, &sizes, &numbers);
+    laps.lap("page numbers");
     let (mut typed, mut groups, mut notes): (Vec<Entry>, Vec<Vec<usize>>, Vec<(usize, String, usize, usize)>) = (Vec::new(), Vec::new(), Vec::new());
     let mut labelled = Map::new();
     for (k, (line, _, why, status)) in rows.iter().enumerate() {
@@ -1578,6 +1639,7 @@ pub fn gold(record: &Value, texts: &Map<String, Value>, listings: &Map<String, V
         let outline = outlines[language].as_array().unwrap_or(&empty);
         let mut pdf = Pdf::new(own, &sizes, &text, listing, outline, begin, cuts.remove(language.as_str()).unwrap_or_default(), &numbers, &folio_lines)?;
         let (found, unit_seg) = pdf.typed(labels_only);
+        laps.lap("typed");
         let (base, members) = (typed.len(), units_of(&found));
         let unit_of: HashMap<usize, usize> = members.iter().enumerate().flat_map(|(u, unit)| unit.iter().map(move |&t| (t, u))).collect();
         let mut first_typed: HashMap<usize, usize> = HashMap::new();

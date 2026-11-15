@@ -1,9 +1,7 @@
 import { normalizeWhitespace } from "./text";
 
-export type VerifiedPdfEvidence = {
-  url: string;
-  pdfOnly: boolean;
-};
+export type { VerifiedPdf as VerifiedPdfEvidence } from "mike/shared/engine-types/VerifiedPdf";
+import type { VerifiedPdf as VerifiedPdfEvidence } from "mike/shared/engine-types/VerifiedPdf";
 
 function decodeHtmlEntities(value: string) {
   return value

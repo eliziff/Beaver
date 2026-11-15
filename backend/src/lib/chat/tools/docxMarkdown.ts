@@ -2,7 +2,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { IParagraphStylePropertiesOptions, ParagraphChild } from "docx";
-import { openDocxSession } from "../../docx/session";
+import { loadZip } from "../../zip";
 import { escapeXmlText } from "../../text";
 import { isJsonRecord } from "../../value";
 
@@ -665,10 +665,11 @@ async function bindContentControls(
   values: Readonly<Record<string, string>>,
 ) {
   if (!tags.size) return bytes;
-  const session = await openDocxSession(bytes);
+  // The package was generated a moment ago, so it is read as it stands.
+  const zip = await loadZip(bytes);
   const [relationships, contentTypes] = await Promise.all([
-    session.readText("word/_rels/document.xml.rels"),
-    session.readText("[Content_Types].xml"),
+    zip.file("word/_rels/document.xml.rels")?.async("string"),
+    zip.file("[Content_Types].xml")?.async("string"),
   ]);
   if (relationships == null || contentTypes == null) {
     throw new Error("Generated DOCX is missing required package metadata.");
@@ -693,8 +694,8 @@ async function bindContentControls(
     ["customXml/_rels/item1.xml.rels",
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/></Relationships>'],
   ];
-  for (const [path, content] of parts) session.write(path, content);
-  return session.save();
+  for (const [path, content] of parts) zip.file(path, content);
+  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
 function inlineText(children: DocxMarkdownInline[]) {

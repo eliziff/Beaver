@@ -7,7 +7,8 @@ import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
 import { authorityPdfOutline, authorityPdfReading } from "./authorityPdfText";
 import type { NativeDocument } from "./structureNative";
 
-vi.mock("./authorityPdfText", () => ({ authorityPdfReading: vi.fn(), authorityPdfOutline: vi.fn(async () => []) }));
+vi.mock("./authorityPdfText", () => ({ authorityPdfReading: vi.fn(), authorityPdfOutline: vi.fn(async () => []),
+  instrumentReading: (authority?: { kind: string }) => authority?.kind === "legislation" }));
 const pdfReading = vi.mocked(authorityPdfReading);
 const kept = { document: {} as NativeDocument };
 const hash = "a".repeat(64), id = "d".repeat(64);

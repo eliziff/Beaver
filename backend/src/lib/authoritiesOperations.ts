@@ -6,18 +6,22 @@ import { AUTHORITIES_BOOK_SLOTS } from "mike/shared/authorities-sources.mjs";
 import { reject } from "./applicationError";
 import { excerptPageCounts } from "./authoritiesBuild";
 import { structureNative } from "./structureNative";
-import { authoritySourceServices, authorityStatuteText, resolveAuthoritiesSources } from "./authoritiesSourceResolution";
-import { gatherAuthoritySources } from "./authoritiesCore";
+import { authorityStatuteText, bookSourceServices, gatherAuthoritySources, resolveAuthoritiesSources,
+  type PreparedAuthoritySource } from "./authoritiesBookSources";
 import { authoritiesSourceText, createAuthoritiesPreparation } from "./authoritiesPreparation";
 import { attachBookFile, authoritiesBookFrontPdf, authorityAnnotations, buildAuthoritiesDraft } from "./authoritiesBookCore";
 import { sha256 } from "./hash";
 import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
-import { createAuthoritiesSourceOperations, draft, draftResult, fileResult, givenSource, inRuns, json, keptByPage, requiredSource,
+import { createAuthoritiesSourceOperations, draft, fileResult, givenSource, inRuns, json, keptByPage, requiredSource,
   sourceBytes, standaloneSource, value, type OperationContext, type OperationsOptions } from "./authoritiesSourceOperations";
 import { text } from "./authoritiesActionContract";
+import type { AuthoritiesDraft } from "./authoritiesDomain";
 import type { AuthoritiesOperationInput, AuthoritiesRuntimeResult } from "mike/shared/runtime/authoritiesRuntime.mjs";
 
 const MAX_BUILD_INPUT_BYTES = 512 * 1024 * 1024;
+
+/** A draft and the PDFs its sources' step fetched or typeset for the book, for the page to keep. */
+const draftResult = (data: AuthoritiesDraft, attachments: PreparedAuthoritySource[]): AuthoritiesRuntimeResult => ({ data, attachments });
 
 export function assertAuthoritiesBuildUploadSize(
   files: ReadonlyArray<{ size: number }>,
@@ -27,7 +31,7 @@ export function assertAuthoritiesBuildUploadSize(
 }
 
 export function createAuthoritiesOperations(options: OperationsOptions = {}) {
-  const { services = authoritySourceServices, citedCases = "resolve" } = options;
+  const { citedCases = "resolve" } = options, services = { ...bookSourceServices, ...options.services };
   const shared = createAuthoritiesSourceOperations(options);
   return { ...shared, ...inRuns({
     // Every app's lookups, and then each authority's PDF fetched or, where there is no original, typeset from its

@@ -529,11 +529,13 @@ mod corpus {
         let opening = |words: &str| words.chars().take(32).collect::<String>();
         let mut opens = HashMap::<String, HashSet<usize>>::new();
         for (number, lines) in &reading.paragraphs {
-            let first = &lines[..lines.len().min(6)];
-            for line in first {
+            // (A paragraph's lines come in reading order: a parallel report's second column opens after the first's whole
+            // paragraph, beside the number the two share, so the number alone is looked for among all its lines.)
+            let marks: Vec<&Held> = lines.iter().filter(|mark| stream(unnumbered(&mark.text, *number)).is_empty() && !stream(&mark.text).is_empty()).collect();
+            for (at, line) in lines.iter().enumerate() {
                 let words = stream(unnumbered(&line.text, *number));
                 // The words a number stands before, on their line or on its row.
-                let numbered = words != stream(&line.text) || first.iter().any(|mark| stream(unnumbered(&mark.text, *number)).is_empty()
+                let numbered = at < 6 && words != stream(&line.text) || marks.iter().any(|mark| !std::ptr::eq(*mark, line)
                     && mark.page == line.page && mark.rect[1] < line.rect[3] && line.rect[1] < mark.rect[3]);
                 if numbered && words.chars().count() >= 16 {
                     opens.entry(opening(&words)).or_default().insert(*number);

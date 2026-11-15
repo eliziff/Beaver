@@ -81,6 +81,11 @@ pub enum StructureRequest {
 
 pub(crate) enum NativeProduct {
     Structure(DocumentStructure),
+    /// A store's document, known by its revision and derived where its structure is first read: a source is looked up
+    /// for many citations whose text is never read.
+    #[cfg(feature = "a2aj")]
+    Reading { revision: String, input: std::sync::Mutex<Option<legal_structure::ProviderTextInput>>,
+        structure: std::sync::OnceLock<DocumentStructure> },
     #[cfg(feature = "legalpdf")]
     Pdf(legalpdf::PdfDocument),
 }
@@ -92,11 +97,14 @@ pub struct NativeDocument {
     /// caller asks (`keep`): a quicker check of each later quotation for the memory the readings hold (some 250 MiB
     /// for the Criminal Code).
     quotes: std::sync::Mutex<legal_structure_features::QuoteLocator>,
+    /// The CanLII page of the document's source, where its reading names one (an A2AJ document's, read with its
+    /// metadata): where a passage of it is routed.
+    pub(crate) canlii: Option<String>,
 }
 
 impl NativeDocument {
     pub(crate) fn new(product: NativeProduct) -> Self {
-        Self { product, query: DocumentQuery::new(), quotes: Default::default() }
+        Self { product, query: DocumentQuery::new(), quotes: Default::default(), canlii: None }
     }
 
     /// A structure the engine read, as its document.
@@ -104,9 +112,36 @@ impl NativeDocument {
         Self::new(NativeProduct::Structure(structure))
     }
 
+    /// A store's reading, as its document (`a2aj_store::Make`).
+    #[cfg(feature = "a2aj")]
+    pub(crate) fn reading(reading: legal_structure_features::a2aj_store::Reading) -> Self {
+        Self { query: DocumentQuery::with_cited_names(reading.cited_names), canlii: reading.canlii, ..Self::new(NativeProduct::Reading {
+            revision: reading.revision, input: std::sync::Mutex::new(Some(reading.input)), structure: std::sync::OnceLock::new() }) }
+    }
+
+    /// The document's revision, known without deriving a store's reading.
+    pub fn revision(&self) -> &str {
+        match &self.product {
+            #[cfg(feature = "a2aj")]
+            NativeProduct::Reading { revision, .. } => revision,
+            _ => &self.structure().revision,
+        }
+    }
+
     pub fn structure(&self) -> &DocumentStructure {
         match &self.product {
             NativeProduct::Structure(structure) => structure,
+            #[cfg(feature = "a2aj")]
+            NativeProduct::Reading { revision, input, structure } => structure.get_or_init(|| {
+                let input = input.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).take()
+                    .expect("a reading is derived once");
+                let (citation, kind) = (input.citation.clone(), input.source_kind);
+                let reading = |input| legal_structure_features::a2aj_store::derived_structure(
+                    legal_structure_features::a2aj_store::Reading { revision: revision.clone(), input, cited_names: None, canlii: None });
+                // A text the reader cannot read is a document without text, as its lookup found it.
+                reading(input).unwrap_or_else(|_| reading(legal_structure::ProviderTextInput::new(citation, kind, ""))
+                    .expect("an empty text is read"))
+            }),
             #[cfg(feature = "legalpdf")]
             NativeProduct::Pdf(document) => document.structure(),
         }
@@ -175,34 +210,36 @@ pub fn reporter_start_pages(citations: &[String]) -> Vec<u32> {
     pages.filter(|page| *page > 0).collect::<std::collections::BTreeSet<u32>>().into_iter().collect()
 }
 
-/// Each quotation located in a document's text and, with `compare`, compared with it, with what grounded_prose_errors
-/// says of the quotation against the passage it was found in (the whole text where it was not), the evidence named by
-/// its id.
-pub fn quote_locate_document(document: &NativeDocument, source: legal_structure_features::QuoteSource,
+/// Each quotation located in a document's text (read as `source`'s text or PDF) and, with `compare`, compared with it,
+/// with what grounded_prose_errors says of the quotation against the passage it was found in (the whole text where it
+/// was not), the evidence named by its id; and the link opening the source at its words (`quote_link`).
+pub fn quote_locate_document(document: &NativeDocument, source: &legal_structure_features::LinkedSource,
     quotes: &[legal_structure_features::QuoteToLocate], compare: bool, keep: bool) -> CoreResult<Vec<LocatedQuotation>> {
     let text = document_text(document, None);
-    let locate = |locator: &mut legal_structure_features::QuoteLocator| {
-        legal_structure_features::locate_document_quotes(locator, document.structure(), &document.query, source, quotes, compare)
-    };
+    let locate = |locator: &mut legal_structure_features::QuoteLocator| legal_structure_features::locate_document_quotes(
+        locator, document.structure(), &document.query, source.quote_source(), quotes, compare);
     let located = if keep {
         locate(&mut document.quotes.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
     } else {
         locate(&mut Default::default())
     };
     Ok(located.into_iter().zip(quotes).map(|(located, item)| {
+        let link = legal_structure_features::quote_link(&document.query, document.structure(), document.canlii.as_deref(), source,
+            &located.found, &item.quote);
         if !compare {
-            return LocatedQuotation { located, errors: None };
+            return LocatedQuotation { located, errors: None, link };
         }
         let id = item.id.clone().unwrap_or_default();
         let evidence = if located.found.text.is_empty() { text } else { located.found.text.as_str() };
         let evidence = VisibleEvidenceText { evidence_id: id.clone(), text: evidence.to_owned(), labels: Vec::new() };
         let errors = grounded_prose_errors(&format!("\u{201c}{}\u{201d}", item.quote), std::slice::from_ref(&id), &[evidence]);
-        LocatedQuotation { located, errors: Some(errors) }
+        LocatedQuotation { located, errors: Some(errors), link }
     })
     .collect())
 }
 
-/// A quotation located in a document, and where it was compared, the grounding errors its words leave (`errors`).
+/// A quotation located in a document, where it was compared the grounding errors its words leave (`errors`), and the
+/// link opening its source at its words.
 #[derive(Serialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
 pub struct LocatedQuotation {
@@ -211,6 +248,7 @@ pub struct LocatedQuotation {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "binding-types", ts(optional))]
     pub errors: Option<Vec<String>>,
+    pub link: Option<String>,
 }
 
 pub use legal_structure_features::{citation_key_version, AliasGroup};

@@ -1,4 +1,4 @@
-import { openDocument, PLAIN_PDF, preparePdf, type PdfPreparationProgress } from "./sourceDocument";
+import { preparePdf, type PdfPreparationProgress } from "./sourceDocument";
 import type { PdfProfileSelection } from "./documentStore";
 import { sha256 } from "./hash";
 import { structureNative, type NativeDocument } from "./structureNative";
@@ -7,16 +7,20 @@ import type { AuthoritiesBuildSettings } from "./authoritiesDomain";
 
 type Prepared = Awaited<ReturnType<typeof preparePdf>>;
 
+/** Whether an authority's PDF is read as an instrument: a legislation authority's is, so the parser reads its numbered
+ *  provisions as its sections. Every reader of an authority's PDF asks this, and so asks for one reading of it. */
+export const instrumentReading = (authority?: { kind: string }) => authority?.kind === "legislation";
+
 /** The authority's own headings, read from the PDF it is reproduced from. */
 export async function authorityPdfOutline(input: {
   bytes: Buffer; documentId?: string; versionId?: string; sourceSha256?: string;
-  pdfProfile?: PdfProfileSelection; signal?: AbortSignal;
+  pdfProfile?: PdfProfileSelection; instrument?: boolean; signal?: AbortSignal;
 }) {
   const sourceSha256 = input.sourceSha256 ?? sha256(input.bytes);
   const reference = { documentId: input.documentId ?? `standalone-authority:${sourceSha256}`,
     versionId: input.versionId ?? sourceSha256, sourceSha256 };
   // Recognized text already retained for the source is read too; nothing new is recognized.
-  const prepared = await preparePdf({ ...reference, bytes: input.bytes, signal: input.signal,
+  const prepared = await preparePdf({ ...reference, bytes: input.bytes, signal: input.signal, instrument: input.instrument,
     ...(input.pdfProfile ? { pdfProfile: input.pdfProfile } : { ocrProvider: null, layout: false }) });
   return structureNative().documentOutline(prepared.document)
     .flatMap(({ title, ...entry }) => entry.kind === "heading" && title ? [{ ...entry, title }] : []);
@@ -34,6 +38,8 @@ export async function authorityPdfReading(input: {
   versionId?: string;
   sourceSha256?: string;
   pdfProfile?: PdfProfileSelection;
+  /** The PDF is an instrument (`instrumentReading`). */
+  instrument?: boolean;
   /** The passages a cited-pages scan setting recognizes the pages of. */
   ocrTargets?: PassageTarget[];
   scannedPdfPolicy?: AuthoritiesBuildSettings["scannedPdfPolicy"];
@@ -47,7 +53,7 @@ export async function authorityPdfReading(input: {
   const policy = input.scannedPdfPolicy ?? "page-margin";
   const targets = input.ocrTargets ?? [];
   const pageOnly = targets.length > 0 && targets.every(target => target.locatorKind === "page" && !target.exactQuotes?.length);
-  const options = { ...reference, bytes: input.bytes, signal: input.signal };
+  const options = { ...reference, bytes: input.bytes, instrument: input.instrument, signal: input.signal };
   // Physical page selection needs folios, not a whole-document layout model.
   const recognition = { ...options, ...(pageOnly ? { layout: false } : {}),
     ...(input.progress && { progress: (step: PdfPreparationProgress) => {
@@ -58,7 +64,9 @@ export async function authorityPdfReading(input: {
   const retained = input.pdfProfile;
   const native = await preparePdf({ ...options, ...(retained ? { pdfProfile: retained }
     : { ocrProvider: null, ...(pageOnly ? { layout: false } : {}) }) });
-  if (retained && native.cacheKey !== retained.cacheKey) throw new Error("Prepared authority PDF profile changed.");
+  // A retained preparation of another kind of reading (one not read as an instrument) names none of this one's.
+  if (retained && retained.profile.profile === native.profile.profile && native.cacheKey !== retained.cacheKey)
+    throw new Error("Prepared authority PDF profile changed.");
   if (!native.pageCount) return null;
   const citations = input.citations ?? [];
   let recognized = native;
@@ -67,12 +75,10 @@ export async function authorityPdfReading(input: {
     recognized = await preparePdf({ ...recognition, ocrProvider: "indra" });
   } else if (policy === "cited-pages") {
     if (targets.length && targets.every(({ locatorKind }) => locatorKind === "page")) {
-      // Each pinpoint's PDF pages, zero-based, by the page map of the PDF as `prepared` reads it: its plain reading,
-      // without recognition or layout.
-      const locate = async (prepared: Prepared) => structureNative().pdfPrintedPages(await openDocument({ ...reference,
-        readBytes: () => input.bytes, pdfProfile: prepared }, { signal: input.signal, ...PLAIN_PDF }),
+      // Each pinpoint's PDF pages, zero-based, by the page map of the PDF as `prepared` reads it.
+      const locate = (prepared: Prepared) => structureNative().pdfPrintedPages(prepared.document,
         citations, targets.map(target => target.locator)).map(pages => pages.map(page => page - 1));
-      let located = await locate(native);
+      let located = locate(native);
       // Cited-page OCR is explicitly requested: establish the reporter offset
       // before resolving its pinpoints, retaining the anchor in the partial pass.
       const openingPages: number[] = [];
@@ -82,7 +88,7 @@ export async function authorityPdfReading(input: {
           if (!recognized.pagesNeedingOcr.includes(page - 1)) continue;
           openingPages.push(page);
           recognized = await preparePdf({ ...recognition, ocrProvider: "indra", pages: [...openingPages] });
-          located = await locate(recognized);
+          located = locate(recognized);
         }
       }
       // A pinpoint no known printed page answers to is read from the whole scan, as a

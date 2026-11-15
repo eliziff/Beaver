@@ -42,6 +42,11 @@ static PAGE_MARK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[Page (\d+)\]
 static NOTE_CALL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[^\s\x1c-\x1f]\[\d+\]").unwrap());
 static DIGIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\A\d+\z").unwrap());
 static NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^\[?(\d+)\]?").unwrap());
+// What A2AJ's text of a tribunal's web page carries that no PDF prints: its notes' labels ("Footnote 35", "Note de bas de page
+// 2"), their heading, and the page's table of contents ("On this page Decision Overview Issue Analysis Conclusion").
+static WEB_MATTER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?s)\A(?:(?:Footnotes?|Notes? de bas de page)(?:\s+\d+)?|(?:On this page|Sur cette page)\b.*)\z").unwrap()
+});
 static LINE_LETTER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\A[a-j]\z").unwrap());
 
 /// A decision's text as the census read it: its JavaScript white space trimmed, so the listing's offsets hold.
@@ -360,6 +365,7 @@ fn placed_of(lines: &[Line]) -> Vec<Placed<'_>> {
     lines.iter().map(|line| Placed { page: line.page, bbox: line.bbox, text: &line.text }).collect()
 }
 
+#[derive(Clone)]
 struct Aligned {
     status: &'static str,
     exact: String,
@@ -368,6 +374,7 @@ struct Aligned {
     words: Vec<WordPair>,
 }
 
+#[derive(Clone)]
 enum Slot {
     Open,
     Gutter,
@@ -376,21 +383,36 @@ enum Slot {
 
 /// Each line's alignment: its language, status, slice of that language's text and word pairs. The main language goes
 /// first; then, over the lines still unmatched and the words not yet placed, the other language's column, and notes and
-/// other matter A2AJ sets elsewhere than the print (once more in each language, without the running heads and folios
-/// furniture finds: among leftovers a running head "[2012] 2 S.C.R." would take the style of cause's citation). A cover
+/// other matter A2AJ sets elsewhere than the print (once more in each language, without the folios furniture finds). The
+/// running matter furniture finds is in no pass: a running head "[2012] 2 S.C.R. SMITH v. JONES" would take the style of
+/// cause's words or citation, which A2AJ prints once. A cover
 /// page the PDF does not print (Source::cover) is left out, lest its parties and citation take the style of cause's
 /// place, and so are the gutter's letters (in_gutter). A line fenced to a language (`fence`) is aligned with that language alone.
+/// What the main language's first pass placed is returned, and taken as `first` where a caller knows that pass would place
+/// the same again (the same lines, main language and covers, every line open to that language).
 #[allow(clippy::too_many_arguments)]
 fn align_lines(lines: &mut [Line], order: &[usize], sources: &[Source], main: &str, covers: &[Option<[u32; 2]>], gutter: &[bool],
-               page_matter: &[Option<&'static str>], fence: &[Option<&'static str>], words: &Words) {
+               page_matter: &[Option<&'static str>], fence: &[Option<&'static str>], words: &Words, first: Option<Vec<Slot>>) -> Vec<Slot> {
     let mut result: Vec<Slot> = order.iter().map(|&i| if gutter[i] { Slot::Gutter } else { Slot::Open }).collect();
     let mut languages: Vec<usize> = (0..sources.len()).filter(|&k| sources[k].language == main).collect();
     languages.extend((0..sources.len()).filter(|&k| sources[k].language != main));
     let passes: Vec<usize> = languages.iter().chain(&languages).copied().collect();
+    let resumed = first.is_some();
+    if let Some(first) = first {
+        result = first;
+    }
+    let mut after_first: Option<Vec<Slot>> = None;
     for (again, &language) in passes.iter().enumerate() {
+        if again == 1 {
+            after_first = Some(result.clone());
+        }
+        if again == 0 && resumed {
+            continue;
+        }
         let source = &sources[language];
         let left: Vec<usize> = (0..result.len())
-            .filter(|&k| matches!(result[k], Slot::Open) && !(again >= languages.len() && page_matter[order[k]].is_some()) && fence[order[k]].is_none_or(|own| own == source.language))
+            .filter(|&k| matches!(result[k], Slot::Open) && !(again >= languages.len() && page_matter[order[k]].is_some()) && page_matter[order[k]] != Some("furniture")
+                && fence[order[k]].is_none_or(|own| own == source.language))
             .collect();
         if left.is_empty() {
             if result.iter().any(|slot| matches!(slot, Slot::Open)) {
@@ -419,12 +441,14 @@ fn align_lines(lines: &mut [Line], order: &[usize], sources: &[Source], main: &s
             }
         }
     }
+    let after_first = after_first.unwrap_or_else(|| result.clone());
     for (slot, &i) in result.into_iter().zip(order) {
         if let Slot::Done(aligned) = slot {
             let line = &mut lines[i];
             (line.status, line.exact, line.span, line.lang, line.words) = (aligned.status, Some(aligned.exact), Some(aligned.span), Some(aligned.lang), aligned.words);
         }
     }
+    after_first
 }
 
 /// The share of the decision's words that the PDF's lines place.
@@ -551,6 +575,7 @@ fn recover(lines: &mut [Line], gutter: &[bool], fence: &[Option<&'static str>], 
 /// Each run of the decision's words that the PDF's lines do not place, with where it falls on the PDF (after the placed
 /// word before it: its line and offset) and why:
 ///   cover_unprinted   in the court's cover page, which the PDF does not print (Source::cover)
+///   web_matter        a web page's note labels and table of contents (WEB_MATTER), which no PDF prints
 ///   note_call         a footnote call A2AJ writes `[3]`, which the print sets as a superscript
 ///   notes             in the notes A2AJ gathers after the decision (the print sets them at the pages' feet)
 ///   paragraph_number  a paragraph number A2AJ writes at a paragraph's start (its 1, 2, 3 ... through the decision);
@@ -619,6 +644,8 @@ fn unplaced(lines: &[Line], source: &Source, cover: Option<[u32; 2]>, words: &Wo
             && !is_space(chars[s as usize - 2]) && DIGIT.is_match(&spelled(s, e));
         let why = if cover.is_some_and(|cover| cover[0] <= s && s < cover[1]) {
             "cover_unprinted".to_owned()
+        } else if WEB_MATTER.is_match(spelled(s, e).trim()) {
+            "web_matter".to_owned()
         } else if s >= notes {
             "notes".to_owned()
         } else if run.len() == 1 && note_call {
@@ -720,11 +747,13 @@ fn count<'a>(names: impl Iterator<Item = &'a str>) -> Map<String, Value> {
 pub struct Made {
     pub json: Vec<u8>,
     pub verdict: Value,
+    /// How many of its words the alignment paired each way (exact, fuzzy, ...): what the report counts of a record.
+    pub kinds: std::collections::BTreeMap<String, u64>,
 }
 
-/// A pair's alignment record, from its reading (the file's bytes, and their digest) and A2AJ's store.
+/// A pair's alignment record, from its reading (the file's bytes, and its key: `corpus::reading_key`) and A2AJ's store.
 pub fn record_of(pair: &Value, reading: &[u8], digest: String, db: &Connection) -> Result<Made, String> {
-    let mut reading: Reading = serde_json::from_slice(reading).map_err(|error| error.to_string())?;
+    let mut reading: Reading = legalpdf::unpack(reading).map_err(|error| error.to_string())?;
     // A pair of one decision in a bound volume names the volume's pages that hold it ("window": [first, last]).
     if let Some([first, last]) = pair["window"].as_array().and_then(|w| Some([w.first()?.as_i64()?, w.get(1)?.as_i64()?])) {
         reading.pages.retain(|page| first <= page.number && page.number <= last);
@@ -734,6 +763,13 @@ pub fn record_of(pair: &Value, reading: &[u8], digest: String, db: &Connection) 
 
 /// [`record_of`] from a reading already parsed (a bound volume's pages for one of its decisions).
 pub fn record_of_reading(pair: &Value, reading: Reading, digest: String, db: &Connection) -> Result<Made, String> {
+    // A2AJ_GOLD_TIMES set: each stage's time, on stderr.
+    let timed = std::env::var_os("A2AJ_GOLD_TIMES").is_some();
+    let mut clock = std::time::Instant::now();
+    let mut lap = |stage: &str| if timed {
+        eprintln!("  {stage:>12} {:7.1} ms", clock.elapsed().as_secs_f64() * 1000.0);
+        clock = std::time::Instant::now();
+    };
     let id = match &pair["a2aj"] {
         Value::Number(number) => Sql::Integer(number.as_i64().ok_or("the pair's document id")?),
         Value::String(text) => Sql::Text(text.clone()),
@@ -754,40 +790,70 @@ pub fn record_of_reading(pair: &Value, reading: Reading, digest: String, db: &Co
         let text = text.as_deref().map(trimmed).filter(|text| !text.is_empty()).ok_or(format!("no {language} text"))?;
         sources.push(Source::new(language, text.to_owned(), &mut words));
     }
+    lap("texts");
     let (mut lines, pages) = lines_of(reading, &mut words)?;
     let sizes: Sizes = pages.iter().copied().collect();
-    let main = if sources.iter().any(|source| source.language == "en") { "en" } else { "fr" };
+    lap("lines");
+    let mut main = if sources.iter().any(|source| source.language == "en") { "en" } else { "fr" };
     let covers: Vec<Option<[u32; 2]>> = sources.iter().map(|source| source.cover(&lines)).collect();
-    let aligned = |lines: &mut [Line], fence: &[Option<&'static str>], words: &Words| {
+    let aligned = |lines: &mut [Line], fence: &[Option<&'static str>], words: &Words, main: &str, first: Option<Vec<Slot>>| {
         let (order, gutter, matter) = {
             let placed = placed_of(lines);
             (column_order(&placed, &sizes), in_gutter(&placed, &sizes), furniture(&placed, &sizes))
         };
-        align_lines(lines, &order, &sources, main, &covers, &gutter, &matter, fence, words);
-        (gutter, matter)
+        let first = align_lines(lines, &order, &sources, main, &covers, &gutter, &matter, fence, words, first);
+        (gutter, matter, first)
+    };
+    let unaligned = |lines: &mut [Line]| for line in lines.iter_mut() {
+        (line.status, line.exact, line.span, line.lang, line.words) = ("unmatched", None, None, None, Vec::new());
     };
     let mut fence = vec![None; lines.len()];
-    let (mut gutter, mut matter) = aligned(&mut lines, &fence, &words);
+    let (mut gutter, mut matter, mut first) = aligned(&mut lines, &fence, &words, main, None);
+    // A PDF that prints only the other language (a tribunal's French decision A2AJ also holds in English) is aligned in that
+    // language first: aligned in English first, the names, dates, citations and numbers both texts share take the French
+    // lines for English, and the French words those lines print are left unplaced.
+    if let Some(other) = sources.iter().filter(|source| source.language != main).max_by(|a, b| coverage(&lines, a).total_cmp(&coverage(&lines, b))) {
+        let own = sources.iter().find(|source| source.language == main).map_or(0.0, |source| coverage(&lines, source));
+        // (A report printing both places most of each: its main language stays.)
+        if own < 0.5 && coverage(&lines, other) > own {
+            main = other.language;
+            unaligned(&mut lines);
+            (gutter, matter, first) = aligned(&mut lines, &fence, &words, main, None);
+        }
+    }
+    // A PDF that prints one of the languages only is aligned in that one alone: the other's text places a few of its lines by
+    // the citations and names both texts share (a note at a page's foot, which the printed language's text sets out of its
+    // order at its end, goes to the other language's like note), and those lines' words are lost to the printed language.
+    let printed: Vec<&'static str> = sources.iter().filter(|source| coverage(&lines, source) >= PRINTED).map(|source| source.language).collect();
+    let alone = sources.len() > 1 && printed.len() == 1;
+    if alone && lines.iter().any(|line| line.lang.is_some_and(|language| language != printed[0])) {
+        fence = vec![Some(printed[0]); lines.len()];
+        unaligned(&mut lines);
+        // (Its main language's first pass, open to every line as it was, places what it placed: it is taken as it stands.)
+        let again = (printed[0] == main).then(|| std::mem::take(&mut first));
+        (gutter, matter, _) = aligned(&mut lines, &fence, &words, main, again);
+    }
+    lap("align");
     // A parallel report's columns print a language each. Words alike in both (a list of authorities, a citation) may land on the
     // other column's line, and a line run across both is half lost: the alignment read, each column goes again in its own language.
-    if sources.len() > 1 {
+    if sources.len() > 1 && !alone {
         let columns = column_languages(&lines, &sizes);
         let lines_were = lines.len();
         lines = split_joined(lines, &columns, &matter, &sizes, &mut words);
         fence = fences(&lines, &columns, &sizes);
         let strays = lines.iter().zip(&fence).any(|(line, own)| line.lang.is_some() && own.is_some() && line.lang != *own);
         if strays || lines.len() != lines_were {
-            for line in &mut lines {
-                (line.status, line.exact, line.span, line.lang, line.words) = ("unmatched", None, None, None, Vec::new());
-            }
-            (gutter, matter) = aligned(&mut lines, &fence, &words);
+            unaligned(&mut lines);
+            (gutter, matter, _) = aligned(&mut lines, &fence, &words, main, None);
         }
     }
+    lap("columns");
     for source in &sources {
         if coverage(&lines, source) >= PRINTED {
             recover(&mut lines, &gutter, &fence, &sizes, source, &words);
         }
     }
+    lap("recover");
     let by_language = count(lines.iter().filter_map(|line| line.lang));
     let mut most = 0;
     let mut main = main.to_owned();
@@ -831,6 +897,7 @@ pub fn record_of_reading(pair: &Value, reading: Reading, digest: String, db: &Co
     for &k in &printed {
         breaks.insert(sources[k].language.to_owned(), Value::Array(page_breaks(&lines, &sources[k])));
     }
+    lap("unplaced");
     let verdict = json!({
         "main": main, "coverage": covered, "not_printed": not_printed, "by_language": by_language,
         "status": count(lines.iter().map(|line| line.status)),
@@ -868,7 +935,12 @@ pub fn record_of_reading(pair: &Value, reading: Reading, digest: String, db: &Co
         lines: &lines,
     };
     let json = serde_json::to_vec(&record).map_err(|error| error.to_string())?;
-    Ok(Made { json, verdict })
+    let mut kinds = std::collections::BTreeMap::new();
+    for word in lines.iter().flat_map(|line| &line.words) {
+        *kinds.entry(word.4.to_owned()).or_default() += 1;
+    }
+    lap("written");
+    Ok(Made { json, verdict, kinds })
 }
 
 /// Why each unmatched line has no text: a page number or running matter (furniture), a running head (in the page head

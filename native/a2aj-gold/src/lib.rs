@@ -29,10 +29,11 @@ const USAGE: &str = "a2aj-gold <step>
                                             --by-citation adds PDFs without one (of these corpus collections, or all), by the
                                             citation on their first pages and the words they share, and lists the rest with
                                             why -> WORK/unpaired.jsonl
-  read [--part K/N] [--export DIR]          the product's reading of each pair's PDF -> WORK/read/<sha>.json (A2AJ_GOLD_READ/<sha>.json
-                                            where that names another work folder's readings); --part K/N takes every Nth pair from
-                                            the Kth, --export DIR stages that part to read on another machine
-  read-list LIST OUT                        the PDFs LIST names (one `<sha256>\\t<path>` line each) read -> OUT/<sha256>.json
+  read [--part K/N] [--export DIR] [--threads N]
+                                            the product's reading of each pair's PDF, where the structure grader keeps its inputs ->
+                                            STRUCTURE_GOLD_INPUTS (else gold-inputs/ in the data home)/<identity>/<sha>.pack.gz; --part K/N
+                                            takes every Nth pair from the Kth, --export DIR stages that part to read on another machine
+  read-list LIST OUT [--threads N]          the PDFs LIST names (one `<sha256>\\t<path>` line each) read -> OUT/<sha256>.json.gz
   align [--only S ...] [--limit N] [--threads N]
                                             align every read pair without a current record -> WORK/records/<sha>.json.gz
   text-layer                                each line of a scan's records with its exact text -> WORK/text-layers/<sha>.json
@@ -68,6 +69,10 @@ fn value(args: &[String], name: &str) -> Option<String> {
     values(args, name)?.into_iter().next()
 }
 
+fn threads(args: &[String]) -> Result<Option<usize>, String> {
+    value(args, "--threads").map(|n| n.parse().map_err(|_| "--threads takes a number".to_owned())).transpose()
+}
+
 fn number(args: &[String], name: &str, default: usize) -> Result<usize, String> {
     value(args, name).map_or(Ok(default), |given| given.parse().map_err(|_| format!("{name} takes a number")))
 }
@@ -76,11 +81,19 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let Some(command) = args.first() else { return Err(USAGE.to_owned()) };
     let rest = &args[1..];
     let work = store::work();
-    let only = values(rest, "--only").unwrap_or_default();
+    // (`--only @FILE`: the starts of sha256s or the citations a file lists, one a line.)
+    let mut only = Vec::new();
+    for given in values(rest, "--only").unwrap_or_default() {
+        match given.strip_prefix('@') {
+            Some(file) => only.extend(std::fs::read_to_string(file).map_err(|e| format!("{file}: {e}"))?.lines().map(|line| line.trim_start_matches('\u{feff}').trim())
+                .filter(|line| !line.is_empty()).map(str::to_owned)),
+            None => only.push(given),
+        }
+    }
     match command.as_str() {
         "pairs" => pairs::pairs(&work, values(rest, "--by-citation"), !rest.iter().any(|arg| arg == "--no-register")),
-        "read" => modes::read(&work, &value(rest, "--part").unwrap_or_else(|| "1/1".to_owned()), value(rest, "--export").map(PathBuf::from)),
-        "read-list" => modes::read_list(PathBuf::from(rest.first().ok_or(USAGE)?).as_path(), PathBuf::from(rest.get(1).ok_or(USAGE)?).as_path()),
+        "read" => modes::read(&work, &value(rest, "--part").unwrap_or_else(|| "1/1".to_owned()), value(rest, "--export").map(PathBuf::from), threads(rest)?),
+        "read-list" => modes::read_list(PathBuf::from(rest.first().ok_or(USAGE)?).as_path(), PathBuf::from(rest.get(1).ok_or(USAGE)?).as_path(), threads(rest)?),
         "register" => store::register().map(|counts| println!("registered {counts}")),
         "diff" => match rest {
             [a, b, out, ..] => quality::diff(a.as_ref(), b.as_ref(), out.as_ref(), rest.iter().any(|arg| arg == "--records")),
@@ -91,11 +104,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
             quality::quality(&work, out.as_ref(), value(rest, "--golds").map(PathBuf::from))
         }
         "align" => {
-            let threads = value(rest, "--threads").map(|n| n.parse().map_err(|_| "--threads takes a number")).transpose()?;
             let limit = value(rest, "--limit").map(|n| n.parse().map_err(|_| "--limit takes a number")).transpose()?;
-            let done = corpus::align_all(&work, &store::a2aj_db(), &only, limit, threads)?;
-            println!("{} aligned, {} failed in {:.1} s on {} threads (reading {:.1} s, aligning {:.1} s over the threads, writing {:.1} s)", done["aligned"], done["failed"],
-                     done["seconds"].as_f64().unwrap_or(0.0), done["threads"], done["reading_seconds"].as_f64().unwrap_or(0.0), done["aligning_seconds"].as_f64().unwrap_or(0.0), done["writing_seconds"].as_f64().unwrap_or(0.0));
+            let done = corpus::align_all(&work, &store::a2aj_db(), &only, limit, threads(rest)?)?;
+            println!("{} aligned, {} current, {} failed in {:.1} s on {} threads (reading and aligning {:.1} s over the threads, writing {:.1} s)", done["aligned"], done["current"], done["failed"],
+                     done["seconds"].as_f64().unwrap_or(0.0), done["threads"], done["aligning_seconds"].as_f64().unwrap_or(0.0), done["writing_seconds"].as_f64().unwrap_or(0.0));
             Ok(())
         }
         "freeze" => {
@@ -106,7 +118,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         "gold" => make::gold(&work, make::GoldArgs { check: rest.iter().any(|arg| arg == "--check"), only, stage: value(rest, "--stage").map(PathBuf::from), all: rest.iter().any(|arg| arg == "--all"),
                                                           mode: value(rest, "--mode"), limit: value(rest, "--limit").map(|n| n.parse().map_err(|_| "--limit takes a number")).transpose()?,
                                                           labels_only: rest.iter().any(|arg| arg == "--labels-only"),
-                                                          threads: value(rest, "--threads").map(|n| n.parse().map_err(|_| "--threads takes a number")).transpose()? }),
+                                                          threads: threads(rest)? }),
         "repair" => make::repair(&work, make::RepairArgs { only, write: rest.iter().any(|arg| arg == "--write"),
                                                            ledger: value(rest, "--ledger").map_or_else(|| PathBuf::from("E:/OpenLegalData/a2aj-gold-next/repairs.jsonl"), PathBuf::from),
                                                            changes: value(rest, "--changes").map(PathBuf::from) }),

@@ -1,5 +1,6 @@
-//! Every read pair without a current record aligned: one thread reads the disk in order, one writes it, and each core
-//! aligns between them. A record is current while this crate's code and the PDF's reading are the ones that made it.
+//! Every read pair without a current record aligned: one thread hands the pairs out in order, one writes the records, and
+//! each core reads, checks and aligns between them. A record is current while this crate's code and the PDF's reading are the
+//! ones that made it: the reading by its place (`reading_key`), the extraction's identity and the PDF, which fix what it holds.
 use super::record::{record_of, CODE};
 use super::store;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
@@ -32,37 +33,71 @@ fn stamp(path: &Path) -> Option<(Vec<u8>, Vec<u8>)> {
     Some((found[1].to_vec(), found[2].to_vec()))
 }
 
-fn digest_of(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().take(8).map(|byte| format!("{byte:02x}")).collect()
+/// The reading a record was aligned from, by its place: its folder (the extraction's identity) and its name (the PDF's),
+/// which fix what it holds however it is written down.
+pub fn reading_key(file: &Path) -> String {
+    let name = |path: Option<&Path>| path.and_then(Path::file_name).map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+    let place = format!("{}/{}", name(file.parent()), name(Some(file)));
+    Sha256::digest(place.as_bytes()).iter().take(8).map(|byte| format!("{byte:02x}")).collect()
 }
 
 struct Job {
     pair: Value,
-    reading: Vec<u8>,
-    digest: String,
+    file: PathBuf,
+    record: PathBuf,
 }
 
 struct Done {
     pair: Value,
-    outcome: Result<(Vec<u8>, Value), String>,
+    /// None: the record is current.
+    outcome: Option<Result<(Vec<u8>, Value, std::collections::BTreeMap<String, u64>), String>>,
 }
 
+/// A job's reading, unless the record is current: read, hashed and unzipped on the worker's own core.
 fn align_one(job: Job, db: &Connection) -> Done {
-    let Job { pair, reading, digest } = job;
+    let Job { pair, file, record } = job;
+    // A2AJ_GOLD_TIMES set: each part's time, on stderr.
+    let timed = std::env::var_os("A2AJ_GOLD_TIMES").is_some();
+    let mut clock = Instant::now();
+    let mut lap = |part: &str| if timed {
+        eprintln!("  {part:>12} {:7.1} ms", clock.elapsed().as_secs_f64() * 1000.0);
+        clock = Instant::now();
+    };
+    let digest = reading_key(&file);
+    let stamped = stamp(&record);
+    if stamped.as_ref().is_some_and(|(code, read)| code == CODE.as_str().as_bytes() && read == digest.as_bytes()) {
+        return Done { pair, outcome: None };
+    }
+    lap("stamp");
+    let compressed = match fs::read(&file) {
+        Ok(bytes) => bytes,
+        Err(error) => return Done { pair, outcome: Some(Err(format!("{}: {error}", file.display()))) },
+    };
+    lap("file");
+    let mut reading = Vec::with_capacity(compressed.len() * 8);
+    if let Err(error) = GzDecoder::new(compressed.as_slice()).read_to_end(&mut reading) {
+        return Done { pair, outcome: Some(Err(format!("{}: {error}", file.display()))) };
+    }
+    drop(compressed);
+    lap("gunzip");
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let made = record_of(&pair, &reading, digest, db)?;
+        lap("record_of");
         let mut stream = GzEncoder::new(Vec::with_capacity(made.json.len() / 8), Compression::new(6));
         stream.write_all(&made.json).map_err(|error| error.to_string())?;
-        Ok((stream.finish().map_err(|error| error.to_string())?, made.verdict))
+        let gz = stream.finish().map_err(|error| error.to_string())?;
+        lap("gzip");
+        Ok((gz, made.verdict, made.kinds))
     }))
     .unwrap_or_else(|panic| Err(panic.downcast_ref::<String>().cloned().unwrap_or_else(|| "panicked".to_owned())));
-    Done { pair, outcome }
+    Done { pair, outcome: Some(outcome) }
 }
 
 /// Align the pairs of WORK/pairs.jsonl (those `only` names, by the start of their sha256 or their citation) that have a
 /// reading and no current record, at most `limit`. A pair that fails is reported and the run goes on.
 pub fn align_all(work: &Path, a2aj: &Path, only: &[String], limit: Option<usize>, threads: Option<usize>) -> Result<Value, String> {
     let started = Instant::now();
+    let takes = store::Only::of(only);
     let pairs = fs::read_to_string(work.join("pairs.jsonl")).map_err(|error| error.to_string())?;
     let chosen: Vec<Value> = pairs
         .lines()
@@ -72,7 +107,7 @@ pub fn align_all(work: &Path, a2aj: &Path, only: &[String], limit: Option<usize>
         .into_iter()
         .filter(|pair| {
             let (sha, citation) = (pair["sha256"].as_str().unwrap_or(""), pair["citation"].as_str());
-            only.is_empty() || only.iter().any(|o| sha.starts_with(o.as_str()) || citation == Some(o.as_str()))
+            takes.takes(sha, citation)
         })
         .collect();
     let records = work.join("records");
@@ -81,28 +116,21 @@ pub fn align_all(work: &Path, a2aj: &Path, only: &[String], limit: Option<usize>
     let (to_workers, from_reader) = sync_channel::<Job>(threads * 2);
     let (to_writer, from_workers) = sync_channel::<Done>(threads * 2);
     let from_reader = Mutex::new(from_reader);
-    let (mut aligned, mut failed, mut aligning) = (0usize, 0usize, Duration::ZERO);
+    let (mut aligned, mut failed, mut current, mut aligning) = (0usize, 0usize, 0usize, Duration::ZERO);
     let mut writing = Duration::ZERO;
     let timed: Mutex<Duration> = Mutex::new(Duration::ZERO);
-    let read_time = std::thread::scope(|scope| {
-        let reader = scope.spawn(|| {
-            let reader_started = Instant::now();
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
             let mut taken = 0;
             for pair in chosen {
                 let sha = pair["sha256"].as_str().unwrap_or("").to_owned();
                 // a pair may name its reading (a bound volume's, shared by its decisions) instead of taking its own
-                let file = pair["read"].as_str().map(PathBuf::from).unwrap_or_else(|| store::reading(work, &sha));
+                let file = pair["read"].as_str().map(PathBuf::from).unwrap_or_else(|| store::reading(&sha));
                 if !file.is_file() {
                     continue;
                 }
-                let stamped = stamp(&records.join(format!("{sha}.json.gz")));
-                let same_code = stamped.as_ref().is_some_and(|(code, _)| code == CODE.as_str().as_bytes());
-                let Ok(reading) = fs::read(&file) else { continue };
-                let digest = digest_of(&reading);
-                if same_code && stamped.as_ref().is_some_and(|(_, read)| read == digest.as_bytes()) {
-                    continue;
-                }
-                if to_workers.send(Job { pair, reading, digest }).is_err() {
+                let record = records.join(format!("{sha}.json.gz"));
+                if to_workers.send(Job { pair, file, record }).is_err() {
                     break;
                 }
                 taken += 1;
@@ -111,7 +139,6 @@ pub fn align_all(work: &Path, a2aj: &Path, only: &[String], limit: Option<usize>
                 }
             }
             drop(to_workers);
-            reader_started.elapsed()
         });
         for _ in 0..threads {
             let (from_reader, to_writer, timed): (&Mutex<Receiver<Job>>, _, _) = (&from_reader, to_writer.clone(), &timed);
@@ -136,7 +163,8 @@ pub fn align_all(work: &Path, a2aj: &Path, only: &[String], limit: Option<usize>
             let citation = done.pair["citation"].as_str().unwrap_or("").to_owned();
             let sha = done.pair["sha256"].as_str().unwrap_or("").to_owned();
             match done.outcome {
-                Ok((bytes, verdict)) => {
+                None => current += 1,
+                Some(Ok((bytes, verdict, kinds))) => {
                     let begun = Instant::now();
                     let path = records.join(format!("{sha}.json.gz"));
                     let temporary = path.with_extension("tmp");
@@ -145,21 +173,25 @@ pub fn align_all(work: &Path, a2aj: &Path, only: &[String], limit: Option<usize>
                         let _ = writeln!(output, "FAILED {citation}: {error}");
                         continue;
                     }
+                    // (What the report counts of the record, kept by the record's digest as the report keeps it.)
+                    let summary = json!({"key": store::hex(&Sha256::digest(&bytes)), "verdict": verdict.clone(), "code": CODE.as_str(), "kinds": kinds});
+                    if let Ok(body) = serde_json::to_vec(&summary) {
+                        let _ = store::write_atomic(&work.join("report-made").join(format!("{sha}.json")), &body);
+                    }
                     writing += begun.elapsed();
                     aligned += 1;
                     let refused = verdict["refused"].as_str().map_or(String::new(), |why| format!(" REFUSED {why}"));
                     let _ = writeln!(output, "{aligned} {citation:<22} {:<11} {:>3}pp coverage {} {} unmatched {} unplaced {}{refused}",
                                      done.pair["mode"].as_str().unwrap_or(""), done.pair["pages"], verdict["coverage"], verdict["status"], verdict["unmatched"], verdict["unplaced"]);
                 }
-                Err(error) => {
+                Some(Err(error)) => {
                     failed += 1;
                     let _ = writeln!(output, "FAILED {citation}: {error}");
                 }
             }
         }
-        reader.join().unwrap_or(Duration::ZERO)
     });
     aligning += *timed.lock().unwrap();
-    Ok(json!({"aligned": aligned, "failed": failed, "threads": threads, "seconds": started.elapsed().as_secs_f64(),
-              "reading_seconds": read_time.as_secs_f64(), "aligning_seconds": aligning.as_secs_f64(), "writing_seconds": writing.as_secs_f64()}))
+    Ok(json!({"aligned": aligned, "failed": failed, "current": current, "threads": threads, "seconds": started.elapsed().as_secs_f64(),
+              "aligning_seconds": aligning.as_secs_f64(), "writing_seconds": writing.as_secs_f64()}))
 }

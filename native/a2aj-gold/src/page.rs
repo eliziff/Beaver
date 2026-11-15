@@ -128,9 +128,17 @@ pub fn page_number(text: &str, b: Option<&Bbox>, others: &[(&str, Option<Bbox>)]
     })
 }
 
+/// Whether words that stand in the page margins of `seen` pages of a document of `pages` recur as running matter does: on a
+/// quarter of its pages, and two at least. A note at a page's foot citing a report ("(1946), 329 U.S. 40.", digits masked)
+/// recurs on a few pages of a long judgment; a running head on every other page.
+pub fn recurring(seen: usize, pages: usize) -> bool {
+    seen >= pages.div_ceil(4).max(2)
+}
+
 /// 'furniture' or 'page_label' for each line in the page margins that is a page number, or whose words (digits masked)
-/// recur in the margins of another page.
+/// recur in the margins of other pages (`recurring`).
 pub fn furniture(lines: &[Placed], sizes: &Sizes) -> Vec<Option<&'static str>> {
+    let count = pages(lines).len();
     let place: Vec<Option<&'static str>> =
         lines.iter().map(|line| margin(&line.bbox, sizes.get(&line.page).copied().unwrap_or(DEFAULT_PAGE))).collect();
     let mut seen: HashMap<String, HashSet<i64>> = HashMap::new();
@@ -151,7 +159,7 @@ pub fn furniture(lines: &[Placed], sizes: &Sizes) -> Vec<Option<&'static str>> {
         };
         if place == "head" && page_number(line.text, Some(&line.bbox), &others()) {
             out[i] = Some("page_label");
-        } else if !number_like(line.text) && !keys[i].is_empty() && seen[&keys[i]].len() >= 2 {
+        } else if !number_like(line.text) && !keys[i].is_empty() && recurring(seen[&keys[i]].len(), count) {
             out[i] = Some("furniture");
         }
     }

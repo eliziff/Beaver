@@ -1,4 +1,4 @@
-import { compareDocxVersions } from "../../docxCompareVersions";
+import { structureNative } from "../../structureNative";
 import type { DocumentScope, DocumentStore } from "../../documentStore";
 import type { Tool } from "../../llm";
 import { DOCUMENT_OR_DRAFT_PATTERN } from "mike/shared/runtime/resourceReferences.mjs";
@@ -72,9 +72,7 @@ export async function compareDocumentVersions(
       detail: `file types are ${oldFile.fileType} and ${newFile.fileType}`,
     };
   }
-  const comparison = await compareDocxVersions(oldFile.bytes, newFile.bytes, {
-    author: "Beaver compare",
-  });
+  const comparison = await structureNative().docxCompareVersions(oldFile.bytes, newFile.bytes, "Beaver compare");
   const summary: Record<string, unknown> = {
     ok: true,
     baseline_version_id: oldVersionId,

@@ -11,9 +11,9 @@ export type SourceLinkRequest = {
  */
 url?: string | null, 
 /**
- * The A2AJ dataset (`SCC`, `LEGISLATION-ON`), the document's citation and its other one.
+ * The document's citation, as A2AJ Law Web's reader finds it.
  */
-dataset: string, citation: string, alternateCitation?: string | null, language?: string, 
+citation: string, 
 /**
  * `cases` or `laws`.
  */

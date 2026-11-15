@@ -176,6 +176,8 @@ pub(crate) struct StoreDocument {
     id: Option<i64>,
     #[serde(flatten)]
     metadata: legal_structure_features::a2aj::Metadata,
+    /// The document's CanLII page, as its metadata read it.
+    canlii_url: Option<String>,
     native: Handle,
     search_native: Handle,
 }
@@ -186,6 +188,7 @@ impl StoreDocument {
         let search = found.search.unwrap_or_else(|| Arc::clone(&found.native));
         Self {
             id,
+            canlii_url: found.metadata.canlii_url.clone(),
             metadata: found.metadata,
             native: Handle(found.native),
             search_native: Handle(search),
@@ -193,16 +196,85 @@ impl StoreDocument {
     }
 }
 
-/// A statute's provision as the store holds it: found, or the provision or the statute missing.
-#[cfg(feature = "a2aj")]
+use legal_structure_features::journal_store as journal;
+
+/// A journal article as JavaScript is given it: its fields and its document.
 #[derive(Serialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
-#[serde(tag = "status", rename_all = "snake_case")]
-pub(crate) enum Provision {
-    Found { native: Handle },
-    MissingProvision,
-    MissingStatute,
+#[serde(rename_all = "camelCase")]
+pub(crate) struct JournalDocument {
+    #[serde(flatten)]
+    article: journal::Article,
+    native: Handle,
 }
+
+use legal_structure_features::http::{self, Outcome};
+
+/// A decision a publisher abroad holds: its publisher, the id it files it under, its citation, title and page, the one
+/// PDF it gives of it, the PDFs it offers, and its document.
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ForeignCase {
+    provider: &'static str,
+    id: String,
+    citation: String,
+    title: Option<String>,
+    url: String,
+    pdf_url: Option<String>,
+    attachments: Vec<legal_structure_features::foreign_case::Attachment>,
+    native: Handle,
+}
+
+use legal_structure_features::courtlistener as court_listener;
+
+/// One opinion of a CourtListener case: its id, type, author, page and PDF, and its document where CourtListener holds a
+/// rendition of it.
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS), ts(rename = "CourtListenerOpinionRead"))]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CourtListenerOpinion {
+    id: Option<u64>,
+    kind: Option<String>,
+    author: Option<String>,
+    url: Option<String>,
+    pdf_url: Option<String>,
+    native: Option<Handle>,
+}
+
+/// A CourtListener case: its cluster's id, name and date, its page, its one PDF, its citations as printed, its opinions.
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS), ts(rename = "CourtListenerCase"))]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CourtListenerCase {
+    id: u64,
+    case_name: Option<String>,
+    date_filed: Option<String>,
+    url: String,
+    pdf_url: Option<String>,
+    citations: Vec<String>,
+    opinions: Vec<CourtListenerOpinion>,
+}
+
+fn court_listener_case(access: &court_listener::Access, id: u64, opinion: Option<u64>) -> Result<Option<CourtListenerCase>, http::Error> {
+    let Some(case) = court_listener::case(access, id, opinion)? else { return Ok(None) };
+    let opinions = case.opinions.into_iter().map(|opinion| Ok(CourtListenerOpinion { id: opinion.id, kind: opinion.kind,
+        author: opinion.author, native: opinion.record.map(|record| engine::derive_document_structure(
+            engine::StructureRequest::Opinion { record, url: opinion.url.clone() })).transpose()?.map(Handle::new),
+        url: opinion.url, pdf_url: opinion.pdf_url })).collect::<Result<Vec<_>, String>>()?;
+    Ok(Some(CourtListenerCase { id: case.id, case_name: case.case_name, date_filed: case.date_filed, url: case.url,
+        pdf_url: case.pdf_url, citations: case.citations, opinions }))
+}
+
+fn foreign_case(text: &str, only: Option<&str>, saved: Option<&str>) -> Result<Option<ForeignCase>, http::Error> {
+    let Some(found) = legal_structure_features::foreign_case::foreign_case(text, only, saved)? else { return Ok(None) };
+    let input = found.input;
+    let native = crate::source::derived_once(&format!("foreign:{}:{}", found.provider, found.id),
+        || engine::derive_document_structure(engine::StructureRequest::NativeMarkup { input }))?;
+    Ok(Some(ForeignCase { provider: found.provider, id: found.id, citation: found.citation, title: found.title, url: found.url,
+        pdf_url: found.pdf_url, attachments: found.attachments, native: Handle(native) }))
+}
+
 
 /// A value TypeScript is not told the shape of (`unknown`): a PDF's parse request, a record A2AJ's API answered with.
 pub struct Untyped<T>(pub T);
@@ -261,11 +333,46 @@ impl<T: ts_rs::TS> ts_rs::TS for Defaulted<T> {
 }
 
 /// A PDF the engine wrote, or a Word document it rewrote: its bytes after the reply's JSON, and what it says of them.
-#[cfg(feature = "legalpdf")]
+#[cfg(feature = "docx")]
 #[derive(Serialize)]
 #[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
-pub(crate) struct WrittenPdf {
+pub(crate) struct Written {
     bytes: Buffer,
+}
+
+/// A Word document an assistant's edits were written into, and what each wrote or why it was left out.
+#[cfg(feature = "docx")]
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+pub(crate) struct TrackedEdited {
+    bytes: Buffer,
+    #[serde(flatten)]
+    edits: legalpdf::TrackedEdits,
+}
+
+#[cfg(feature = "docx")]
+fn tracked(mut edits: legalpdf::TrackedEdits) -> TrackedEdited {
+    TrackedEdited { bytes: Buffer(std::mem::take(&mut edits.bytes)), edits }
+}
+
+/// The new version with the old one's changes tracked, each change, and what the redline leaves unshown.
+#[cfg(feature = "docx")]
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+pub(crate) struct Compared {
+    bytes: Buffer,
+    #[serde(flatten)]
+    compared: legalpdf::ComparedVersions,
+}
+
+/// A Word document the assistant's text ops were written into, with each op's report.
+#[cfg(feature = "docx")]
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+pub(crate) struct TextOpsWritten {
+    bytes: Buffer,
+    #[serde(flatten)]
+    applied: legalpdf::TextOpsApplied,
 }
 
 #[cfg(feature = "legalpdf")]
@@ -315,6 +422,84 @@ pub(crate) struct SupraCleanup {
     bytes: Buffer,
     #[serde(flatten)]
     cleanup: legalpdf::DocxSupraCleanup,
+}
+
+/// A Word document written into: its bytes, whether each write was made, and the ids of the revisions written.
+#[cfg(feature = "docx")]
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+pub(crate) struct DocxWritten {
+    bytes: Buffer,
+    written: Vec<bool>,
+    revisions: Vec<u32>,
+}
+
+#[cfg(feature = "docx")]
+fn docx_written(written: legalpdf::DocxSpansWritten) -> DocxWritten {
+    DocxWritten { bytes: Buffer(written.bytes), written: written.written, revisions: written.revisions }
+}
+
+/// Accepted corrections written as tracked changes by "Beaver", each word they change its own; refused whole where any
+/// no longer matches the document.
+#[cfg(feature = "docx")]
+fn docx_corrected(bytes: &[u8], units: &[legalpdf::DocxUnit], corrections: &[legal_structure_features::BriefCorrection]) -> Result<DocxWritten, String> {
+    let refused = || "The accepted correction no longer matches the reviewed Word document.".to_owned();
+    let writes = corrections.iter().map(|correction| units.iter().find(|unit| unit.id == correction.unit_id)
+        .and_then(|unit| legal_structure_features::correction_words(&unit.text, correction)).ok_or_else(refused))
+        .collect::<Result<Vec<_>, _>>()?.into_iter().flatten().map(|word| legalpdf::DocxSpanWrite { unit_id: word.unit_id,
+            start: word.start, end: word.end, expected: word.expected, edit: legalpdf::DocxEdit::Replace { replacement: word.replacement } })
+        .collect::<Vec<_>>();
+    let written = legalpdf::write_docx_spans(bytes, units, &writes, "Beaver").map_err(|error| error.to_string())?;
+    if written.written.iter().any(|made| !made) { return Err(refused()); }
+    Ok(docx_written(written))
+}
+
+/// A source the ALR verifier's run reads: the document the host read for a part.
+impl alr_verifier::Source for Handle {
+    fn query(&self) -> &legal_structure::DocumentQuery { &self.0.query }
+    fn structure(&self) -> &legal_structure::DocumentStructure { self.0.structure() }
+    fn canlii(&self) -> Option<&str> { self.0.canlii.as_deref() }
+    fn key(&self) -> usize { Arc::as_ptr(&self.0) as usize }
+}
+
+/// The ALR verifier's runs waiting on their host's answers, by number; a run its host abandoned gives way to newer ones.
+static RUNS: Mutex<(u32, Vec<(u32, alr_verifier::Run<Handle>)>)> = Mutex::new((0, Vec::new()));
+const RUNS_KEPT: usize = 8;
+
+/// Where an ALR verifier run stands: asking its host (`run` resumes it), or its workbook written.
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS), ts(rename = "AlrStep"))]
+#[serde(tag = "step", rename_all = "camelCase")]
+pub(crate) enum AlrStep {
+    Ask { run: u32, question: alr_verifier::Question },
+    Done { name: String, workbook: Buffer, rows: Vec<alr_verifier::Row>, references: alr_verifier::References, signature: Option<String> },
+}
+
+/// A run's next step; one still asking is kept until its answer comes.
+fn alr_step(mut run: alr_verifier::Run<Handle>, answer: Option<alr_verifier::Answer<Handle>>, number: Option<u32>) -> Result<AlrStep, String> {
+    Ok(match run.resume(answer)? {
+        alr_verifier::Step::Done(written) => AlrStep::Done { name: written.name, workbook: Buffer(written.workbook), rows: written.rows,
+            references: written.references, signature: written.signature },
+        alr_verifier::Step::Ask(question) => {
+            let mut runs = RUNS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let number = number.unwrap_or_else(|| { runs.0 += 1; runs.0 });
+            runs.1.push((number, run));
+            let excess = runs.1.len().saturating_sub(RUNS_KEPT);
+            runs.1.drain(..excess);
+            AlrStep::Ask { run: number, question }
+        }
+    })
+}
+
+/// Briefs read and waiting on their host's statute lookups, by number, as runs wait (RUNS_KEPT).
+static READINGS: Mutex<(u32, Vec<(u32, legal_structure_features::BriefReading)>)> = Mutex::new((0, Vec::new()));
+
+/// A brief read (`reading`, its number for briefReview) and the statutes it names whose pages A2AJ is to confirm.
+#[derive(Serialize)]
+#[cfg_attr(feature = "binding-types", derive(ts_rs::TS))]
+pub(crate) struct BriefStatutes {
+    reading: u32,
+    statutes: Vec<legal_structure_features::StatuteCandidate>,
 }
 
 /// An argument named as JavaScript names it ("start_char" is "startChar").
@@ -389,6 +574,64 @@ operations! { progress;
     off "deriveDocumentStructure" (request: engine::StructureRequest) -> Handle {
         Handle::new(engine::derive_document_structure(request)?)
     }
+    /// Writes into a Word document's units as the reading read them (`units`, each with its reviewed text): each
+    /// write's span replaced as a tracked change by `author`, highlighted, or linked; a write the document no longer
+    /// holds, or that crosses a tab, a break or a field, is left out and said to be.
+    #[cfg(feature = "docx")]
+    off "docxWriteSpans" (bytes: Bytes, units: Vec<legalpdf::DocxUnit>, writes: Vec<legalpdf::DocxSpanWrite>, author: String) -> DocxWritten {
+        docx_written(legalpdf::write_docx_spans(&bytes, &units, &writes, &author).map_err(|error| error.to_string())?)
+    }
+    /// The brief with its table of authorities as `delivery` asks: TA marks at the citations `marks` names in `units`,
+    /// and the table appended where asked (Word's own fields, a linked list or a ruled table).
+    #[cfg(feature = "docx")]
+    off "docxTableOfAuthorities" (bytes: Bytes, units: Vec<legalpdf::DocxUnit>, marks: Vec<legalpdf::DocxAuthorityMark>,
+        delivery: legalpdf::DocxTableDelivery, linked: Vec<legalpdf::DocxLinkedAuthority>) -> DocxWritten {
+        DocxWritten { bytes: Buffer(legalpdf::apply_table_of_authorities(&bytes, &units, &marks, delivery, &linked).map_err(|error| error.to_string())?),
+            written: Vec::new(), revisions: Vec::new() }
+    }
+    /// Accepted corrections written as tracked changes by "Beaver", each word they change its own revision, with the
+    /// ids that reject them again; refused whole where any no longer matches the document.
+    #[cfg(feature = "docx")]
+    off "docxApplyCorrections" (bytes: Bytes, units: Vec<legalpdf::DocxUnit>, corrections: Vec<legal_structure_features::BriefCorrection>) -> DocxWritten {
+        docx_corrected(&bytes, &units, &corrections)?
+    }
+    /// Accepts or rejects the tracked changes `ids` names, in every story; none where any is not one of the document's.
+    #[cfg(feature = "docx")]
+    off "docxResolveTrackedChanges" (bytes: Bytes, ids: Vec<String>, accept: bool) -> Option<Written> {
+        legalpdf::resolve_tracked_changes(&bytes, &ids, accept).map_err(|error| error.to_string())?.map(|bytes| Written { bytes: Buffer(bytes) })
+    }
+    /// An assistant's edits, each found by its text and context on the document's accepted text (or at its pinned
+    /// offsets), written as tracked changes by `author` or directly ("auto"); an edit left out says why.
+    #[cfg(feature = "docx")]
+    off "docxTrackedEdits" (bytes: Bytes, edits: Vec<legalpdf::EditInput>, author: String, mode: legalpdf::EditMode) -> TrackedEdited {
+        tracked(legalpdf::apply_tracked_edits(&bytes, &edits, &author, mode).map_err(|error| error.to_string())?)
+    }
+    /// Deterministic text ops (case, find and replace, spacing, quotes, dashes, ellipses, spelling flags) run on their
+    /// scopes of the accepted text, each change written as its own edit by `author`; with each op's report.
+    #[cfg(feature = "docx")]
+    off "docxTextOps" (bytes: Bytes, ops: Vec<legalpdf::TextOpRequest>, author: String, mode: legalpdf::EditMode) -> TextOpsWritten {
+        let mut applied = legalpdf::apply_text_ops(&bytes, &ops, &author, mode).map_err(|error| error.to_string())?;
+        TextOpsWritten { bytes: Buffer(std::mem::take(&mut applied.edits.bytes)), applied }
+    }
+    /// The new version with what changed from the old one as tracked changes by `author`.
+    #[cfg(feature = "docx")]
+    off "docxCompareVersions" (before: Bytes, after: Bytes, author: String) -> Compared {
+        let mut compared = legalpdf::compare_docx_versions(&before, &after, &author).map_err(|error| error.to_string())?;
+        Compared { bytes: Buffer(std::mem::take(&mut compared.bytes)), compared }
+    }
+    /// New paragraphs inserted as tracked text by `author`, where `insert` puts them.
+    #[cfg(feature = "docx")]
+    off "docxInsertTrackedBlocks" (bytes: Bytes, insert: legalpdf::BlockInsert, author: String) -> TrackedEdited {
+        tracked(legalpdf::insert_tracked_blocks(&bytes, &insert, &author).map_err(|error| error.to_string())?)
+    }
+    /// The document's accepted text as edits are found on it: its body's paragraphs joined by a newline.
+    #[cfg(feature = "docx")]
+    off "docxBodyText" (bytes: Bytes) -> String { legalpdf::docx_body_text(&bytes).map_err(|error| error.to_string())? }
+    /// Every tracked change in the document's stories, in reading order: its kind ("ins" or "del") and id.
+    #[cfg(feature = "docx")]
+    off "docxTrackedChangeIds" (bytes: Bytes) -> Vec<(&'static str, String)> {
+        legalpdf::docx_tracked_change_ids(&bytes).map_err(|error| error.to_string())?
+    }
     /// A Word document's supra references made cross-references, and what was found and changed.
     #[cfg(feature = "docx")]
     off "fixDocxSupraCrossReferences" (bytes: Bytes) -> SupraCleanup {
@@ -406,9 +649,9 @@ operations! { progress;
     /// unchanged, then the annotations; with `disarm` (default true) also what the PDF would run, launch, submit or fetch.
     #[cfg(feature = "legalpdf")]
     now "pdfWriteAnnotations" (bytes: Bytes, marks: Vec<legalpdf::AnnotationMark>, namespace: String, disarm: Option<bool>)
-        -> WrittenPdf {
+        -> Written {
         let written = legalpdf::write_annotations(&bytes, &marks, &namespace, disarm.unwrap_or(true)).map_err(|error| error.to_string())?;
-        WrittenPdf { bytes: Buffer(written) }
+        Written { bytes: Buffer(written) }
     }
     /// A source's own PDF set from its provider's text (assembly/statute.rs): a statute by its provisions, a judgment by
     /// its paragraphs.
@@ -527,7 +770,9 @@ operations! { progress;
     now "docxStructureLint" (document: Handle) -> legal_structure::DocxLintReport { engine::docx_structure_lint_json(&document)? }
     now "documentText" (document: Handle, limit: Option<u32>) -> &str { engine::document_text(&document, limit) }
     now "documentTextBytes" (document: Handle) -> usize { document.structure().query_text().len() }
-    now "documentRevision" (document: Handle) -> &String { &document.structure().revision }
+    now "documentRevision" (document: Handle) -> &str { document.revision() }
+    /// Reads the document's structure, here off the caller's thread: a store's document is derived where first read.
+    off "readDocument" (document: Handle) -> () { document.structure(); }
     now "readDocumentTextWindow" (document: Handle, offset: usize, start_char: usize, limit: usize)
         -> legal_structure::DocumentTextWindow<'_> {
         document.query.text_window(document.structure(), offset, start_char, limit)
@@ -618,18 +863,33 @@ operations! { progress;
         cite::api::url(&cite::api::UrlRequest { citation: Some(citation), anchor: anchor.unwrap_or(false), ..Default::default() })
             .map_err(|error| error.to_string())?.urls.into_iter().next().and_then(|url| url.url)
     }
-    /// The statute or regulation a CanLII legislation page is of; null for another page.
-    now "canliiLawPage" (url: String) -> Option<cite::url::CanliiLawPage> { cite::url::canlii_law_page(&url) }
-    /// A CanLII PDF link as its page, its anchor kept, unless it names a PDF page.
-    now "canliiPdfPage" (url: String) -> String { cite::url::canlii_pdf_page(&url) }
-    /// A CanLII page at the anchor of its first paragraph or section pinpoint fragment ("par12", "sec6(1)(c)").
-    now "canliiPinpointUrl" (url: String, pinpoints: Vec<String>) -> String { cite::url::canlii_pinpoint_url(&url, &pinpoints) }
+    /// Each source court's code with its CanLII route ("fc": "fct").
+    now "canliiRoutes" () -> std::collections::HashMap<String, String> { cite::url::source_canlii_routes().clone() }
+    /// The CanLII page an alias's target ("onca/2019onca1") names, in French where `french`; with `pdf`, its PDF; null
+    /// where the target names no decision.
+    now "canliiAliasTarget" (target: String, french: Option<bool>, pdf: Option<bool>) -> Option<String> {
+        let language = if french.unwrap_or(false) { cite::format::Language::Fr } else { cite::format::Language::En };
+        let page = cite::url::canlii_alias_target(&target, language);
+        if pdf.unwrap_or(false) { page.and_then(|page| cite::url::canlii_pdf_url(&page)) } else { page }
+    }
+    /// Each number the pinpoints write, linked on its own to the place the page at `url` has for it.
+    now "pinpointLinks" (pinpoints: Vec<cite::Pinpoint>, url: String) -> Vec<cite::url::PinpointLink> {
+        cite::url::pinpoint_links(&pinpoints, &url)
+    }
+    /// Each numbered label of a kind as the numbers it names, a run written out ("12–14": 12, 13, 14): null for one
+    /// naming no number or run, or a run reversed or spanning more than `limit` past its first number.
+    now "expandLabels" (labels: Vec<String>, kind: String, limit: usize) -> Vec<Option<Vec<String>>> {
+        legal_structure::expand_labels(&labels, &kind, limit)
+    }
     /// The anchor a source's page has for each label of a locator kind ("par12", "page 3", "2(1)"); null where none.
     now "sourceAnchor" (url: String, kind: String, labels: Vec<String>, depth: Option<usize>) -> Vec<Option<String>> {
         labels.iter().map(|label| cite::url::source_anchor_within(&url, &kind, label, depth)).collect()
     }
-    /// A source's link at `anchor` where given, else the anchor it has; null for an address that cannot be linked.
-    now "sourceUrl" (url: String, anchor: Option<String>) -> Option<String> { cite::url::source_url(&url, anchor.as_deref()) }
+    /// A source's link at `anchor` where given, else the anchor it has; null for an address that cannot be linked. A
+    /// path on the host stays a path.
+    now "sourceUrl" (url: String, anchor: Option<String>) -> Option<String> {
+        legal_structure_features::host_source_url(&url, anchor.as_deref())
+    }
     /// A reference's link: its origin's link moved to the reference's own pinpoint.
     now "reanchorReference" (link: String, text: String) -> String { cite::short_forms::reanchor_reference(&link, &text) }
     /// Whether a reference is an ibid or a supra, the notes it numbers, and its words normalized.
@@ -647,10 +907,6 @@ operations! { progress;
         cite::api::split_sources(&cite::api::SplitSourcesRequest { text, recall_first, offset_unit: offset_unit.unwrap_or_default(),
             ..Default::default() })
     }
-    /// A split part's citation fields.
-    now "sourceFields" (part: cite::source::SourcePart) -> cite::source::SourceFields {
-        cite::source::extract_fields(&part, part.us_forms())
-    }
     /// Each note split into its parts (UTF-16 offsets), each with the first authority it refers to and its fields.
     off "quoteCitationUnits" (texts: Vec<String>) -> Vec<cite::api::QuoteCitationUnit> { cite::api::quote_citation_units(texts) }
     /// Each note's proposition in a brief's body text (its body units in order, each followed by a line break): the
@@ -661,24 +917,47 @@ operations! { progress;
         -> legal_structure_features::FootnotePropositions {
         legal_structure_features::footnote_propositions(&units, context.unwrap_or(legal_structure_features::QuoteContext::Passage))
     }
-    /// A brief's text, its units joined by a blank line, and its notes in reading order as the citation engine reads
-    /// them (number u32::MAX where unprinted, the span, the sequence, the call).
-    now "briefText" (units: Vec<legal_structure_model::AuthorityTextUnit>) -> legal_structure_features::BriefText {
-        legal_structure_features::brief_text(&units)
+    /// The quotations to check in a brief's units, each with the citation parts it is checked against: a body
+    /// quotation's in the note whose proposition holds it, else its own unit's that cite after it (`citations`, each
+    /// unit's citations and parts). With `textOnly`, the body's quotations alone. Offsets in UTF-16 units.
+    now "propositionQuotations" (units: Vec<legal_structure_model::AuthorityTextUnit>,
+        citations: Vec<legal_structure_features::UnitCitations>, context: Option<legal_structure_features::QuoteContext>,
+        text_only: Option<bool>) -> Vec<legal_structure_features::PropositionQuotation> {
+        legal_structure_features::proposition_quotations(&units, &citations,
+            context.unwrap_or(legal_structure_features::QuoteContext::Passage), text_only.unwrap_or(false))
     }
-    /// A brief's citations as its book of authorities reads them, before the statutes it names are looked up: its text,
-    /// notes, citations, note parts and what each cites, its units as joined (with `joinBodies`, the body units a
-    /// citation runs across are one) and its citations in reading order, and each cited case's aliases in the A2AJ store
-    /// at `store`. `fileNumber`: the brief's own court file number, which cites nothing.
+    /// A brief's citations read (legal_structure_features::brief_reading), each cited case's aliases from the A2AJ store
+    /// at `store`, and kept here for its review (`briefReview`, by `reading`); what the host looks up for it first: the
+    /// statutes whose CanLII pages A2AJ is to confirm. `fileNumber`: the brief's own court file number, which cites nothing.
     now "briefReading" (units: Vec<legal_structure_model::AuthorityTextUnit>, split_tier: legal_structure::citations::SplitTier,
-        join_bodies: bool, file_number: Option<String>, store: std::path::PathBuf) -> legal_structure_features::BriefReading {
-        legal_structure_features::brief_reading(&units, split_tier, join_bodies, file_number.as_deref(),
-            |keys| Ok(alias_groups(&store, &keys)?.into_iter().map(|group| group.keys).collect()))?
+        join_bodies: bool, file_number: Option<String>, store: std::path::PathBuf) -> BriefStatutes {
+        let reading = legal_structure_features::brief_reading(&units, split_tier, join_bodies, file_number.as_deref(),
+            |keys| Ok(alias_groups(&store, &keys)?.into_iter().map(|group| group.keys).collect()))?;
+        let statutes = reading.statutes.clone();
+        let mut readings = READINGS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        readings.0 += 1;
+        let number = readings.0;
+        readings.1.push((number, reading));
+        let excess = readings.1.len().saturating_sub(RUNS_KEPT);
+        readings.1.drain(..excess);
+        BriefStatutes { reading: number, statutes }
     }
-    /// The brief's references resolved, its citations grouped by authority, and each authority's reading.
-    now "briefAuthorities" (sources: legal_structure_features::BriefSources) -> legal_structure_features::BriefAuthorities {
-        legal_structure_features::brief_authorities(sources)?
+    /// The draft's review of a brief read (`reading`, from briefReading): its units and their note parts, its citations'
+    /// occurrences and its authorities. `pages`: each statute candidate's CanLII pages A2AJ confirmed (statuteUrls).
+    now "briefReview" (reading: u32, pages: Vec<Vec<String>>) -> legal_structure_features::BriefReview {
+        let reading = {
+            let mut readings = READINGS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let at = readings.1.iter().position(|(number, _)| *number == reading)
+                .ok_or_else(|| "This brief's reading is no longer kept.".to_owned())?;
+            readings.1.remove(at).1
+        };
+        legal_structure_features::brief_review(reading, &pages)?
     }
+    /// The CanLII pages of the statutes A2AJ found (`hits`) that are a statute candidate's.
+    now "statuteUrls" (candidate: legal_structure_features::StatuteCandidate, hits: Vec<legal_structure_features::StatuteHit>)
+        -> Vec<String> { legal_structure_features::statute_urls(&candidate, &hits) }
+    /// A statute's name as statute names are compared: two names alike give one key.
+    now "statuteNameKey" (name: String) -> String { legal_structure_features::statute_name_key(&name) }
     now "citationLookupKeys" (texts: Vec<String>) -> Vec<String> {
         texts.iter().map(|text| legal_structure::citation_lookup_key(text)).collect()
     }
@@ -687,37 +966,42 @@ operations! { progress;
     now "providerCitationsInText" (text: String) -> Vec<legal_structure::ProviderCitationMatch> {
         legal_structure::provider_citations_in_text(&text)
     }
-    /// The CanLII page of the first decision the citations name by a neutral or CanLII citation with its court written,
-    /// of `court` where given and routed; null where none.
-    now "canliiCaseUrl" (citations: Vec<String>, language: Option<String>, court: Option<String>) -> Option<String> {
-        legal_structure::canlii_case_url(&citations, &language.unwrap_or_default(), court.as_deref())
-    }
-    /// The CanLII page, in `language` (English by default), of the first statute or regulation the text cites; null
-    /// where none. `consolidated` where it is a statute in force as consolidated (an A2AJ legislation record).
-    now "canliiLawUrl" (text: String, language: Option<String>, consolidated: Option<bool>) -> Option<String> {
-        legal_structure::canlii_law_url(&text, &language.unwrap_or_default(), consolidated.unwrap_or(false))
-    }
     /// A passage's link on a source's page with the fragments planned against the document (legal-structure
-    /// passage_links).
+    /// passage_links). A page on the host stays a path.
     now "passageLink" (document: Handle, request: legal_structure_features::PassageLinkRequest) -> Option<legal_structure_features::PassageLink> {
-        legal_structure_features::passage_link(&document.query, document.structure(), &request)
+        legal_structure_features::host_passage_link(&document.query, document.structure(), &request)
     }
-    /// The link citing a passage by its anchor, with its paragraph's or provision's fragments where they plan whole.
+    /// The link citing a passage by its anchor, with its paragraph's or provision's fragments where they plan whole. A
+    /// page on the host stays a path.
     now "citedPassageLink" (document: Handle, url: String, pinpoints: Vec<String>) -> Option<String> {
-        legal_structure_features::cited_passage_link(&document.query, document.structure(), &url, &pinpoints)
+        legal_structure_features::on_host(&url, |url| legal_structure_features::cited_passage_link(&document.query, document.structure(), url, &pinpoints))
     }
     /// The link a passage of an A2AJ document is routed to: the publisher's where its page prints an anchor for the
     /// pinpoint, else CanLII's, else A2AJ Law Web's.
     now "sourceLink" (document: Handle, request: legal_structure_features::SourceLinkRequest) -> Option<String> {
-        legal_structure_features::source_link(&document.query, document.structure(), &request)
+        legal_structure_features::source_link(&document.query, document.structure(), document.canlii.as_deref(), &request)
+    }
+    /// The ALR Quote Verifier's "[CHECKED]" workbook of a draft and its quote check, read in one run (native/alr-verifier):
+    /// its first step, which asks the host what only it can answer, or its workbook written.
+    off "alrWorkbook" (request: alr_verifier::Request) -> AlrStep { alr_step(alr_verifier::Run::start(request), None, None)? }
+    /// A run's next step, given its host's answer to the question it asked.
+    off "alrAnswer" (run: u32, answer: alr_verifier::Answer<Handle>) -> AlrStep {
+        let waiting = {
+            let mut runs = RUNS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let at = runs.1.iter().position(|(number, _)| *number == run).ok_or_else(|| "This workbook's run is no longer waiting.".to_owned())?;
+            runs.1.remove(at).1
+        };
+        alr_step(waiting, Some(answer), Some(run))?
     }
     /// Whether the engine's registry routes a court code to CanLII.
-    now "canliiCourtRoute" (court: String) -> bool { legal_structure::canlii_court_route(&court) }
-    now "citationOccurrencesInText" (text: String) -> Vec<legal_structure::CitationOccurrence> {
-        legal_structure::citation_occurrences_in_text(&text)
+    /// Whether a model's answer links a Canadian decision, which it must cite by citation, not address.
+    now "canadianDecisionLink" (answer: String) -> bool { legal_structure::canadian_decision_link(&answer) }
+    /// The citations read in a text, placed in UTF-16 units of the unit it starts at `offset` in.
+    now "citationOccurrencesInText" (text: String, offset: Option<usize>) -> Vec<legal_structure::CitationOccurrence> {
+        legal_structure::citation_occurrences_in_text(&text, offset.unwrap_or(0))
     }
-    now "authorityReferencesInText" (text: String) -> Vec<legal_structure::AuthorityReferenceOccurrence> {
-        legal_structure::authority_references_in_text(&text)
+    now "authorityReferencesInText" (text: String, offset: Option<usize>) -> Vec<legal_structure::AuthorityReferenceOccurrence> {
+        legal_structure::authority_references_in_text(&text, offset.unwrap_or(0))
     }
     now "hasCitationInText" (text: String) -> bool { legal_structure::has_citation_in_text(&text)? }
     now "groundedProseErrors" (text: String, cited_evidence_ids: Vec<String>, visible_evidence: Vec<legal_structure_features::VisibleEvidenceText>)
@@ -740,18 +1024,6 @@ operations! { progress;
     /// sentence of a line.
     now "documentTextUnits" (document: Handle, sentences: bool) -> Vec<[usize; 2]> {
         legal_structure::text_units(engine::document_text(&document, None), sentences)
-    }
-    /// The searches of a journal index's names for the articles a citation quotes the titles of (FTS5 queries).
-    now "journalTitleSearches" (citation: String) -> Vec<legal_structure_features::JournalTitleSearch> {
-        legal_structure_features::journal_title_searches(&citation)
-    }
-    /// The article whose found name is closest to the title searched for it, when close enough.
-    now "journalTitleChoice" (hits: Vec<legal_structure_features::JournalTitleHit>) -> Option<i64> {
-        legal_structure_features::journal_title_choice(&hits)
-    }
-    /// Where a quotation's words are in a source passage, the passage it is compared with, and what differs.
-    now "quoteComparison" (authored: String, source: String) -> legal_structure_features::QuoteComparison {
-        legal_structure_features::quote_text_comparison(&authored, &source)
     }
     /// The source's words as the author quoted them: the author's changes bracketed, omissions an ellipsis.
     now "editorialQuote" (authored: String, source: String) -> String { legal_structure_features::editorial_quote(&authored, &source) }
@@ -776,79 +1048,145 @@ operations! { progress;
     now "highlightRuns" (text: String, plan: Vec<(usize, usize, String)>, base: Option<usize>) -> Vec<(usize, usize, bool)> {
         legal_structure_features::highlight_runs(&text, &plan, base.unwrap_or(0))
     }
+    /// The citations whose cited passage the Authorities review reads: each note's one citation, where its proposition
+    /// marks a quotation.
+    now "authoritiesDiscrepancyOccurrences" (units: Vec<legal_structure_features::BriefUnit>,
+        occurrences: std::collections::HashMap<String, legal_structure_features::BriefOccurrence>) -> Vec<String> {
+        legal_structure_features::discrepancy_occurrences(&units, &occurrences)
+    }
+    /// The Authorities review's findings against the passages the draft's citations cite: a quotation the cited passage
+    /// holds otherwise, or one another passage of its source holds.
+    now "authoritiesDiscrepancies" (units: Vec<legal_structure_features::BriefUnit>,
+        occurrences: std::collections::HashMap<String, legal_structure_features::BriefOccurrence>,
+        sources: Vec<legal_structure_features::DiscrepancySource>) -> Vec<legal_structure_features::DiscrepancyFinding> {
+        legal_structure_features::discrepancies(&units, &occurrences, &sources)
+    }
+    /// What a decision on a finding writes into the brief; none for "ignore", or where the brief no longer holds what
+    /// the finding read.
+    now "authoritiesDiscrepancyCorrection" (units: Vec<legal_structure_features::BriefUnit>,
+        occurrences: std::collections::HashMap<String, legal_structure_features::BriefOccurrence>,
+        finding: legal_structure_features::DiscrepancyFinding, action: String) -> Option<legal_structure_features::BriefCorrection> {
+        legal_structure_features::discrepancy_correction(&units, &occurrences, &finding, &action)
+    }
     /// The source passage an authored quotation's words closely align with, where it occurs once.
     now "verbatimRepair" (authored: String, source: String) -> Option<String> { legal_structure_features::verbatim_repair(&authored, &source) }
     /// Each quotation located through the source structure the engine holds (each with the paragraphs, pages and
     /// provisions its citation names) and compared with the source's words there, with groundedProseErrors of it
     /// against the passage it was found in (the whole text where not), named by its id; with `compare` false, located
-    /// only. `source`: a provider's text, a PDF read by the locators it prints, or a statute's PDF read by its
-    /// provisions. With `keep`, what was read of the document is kept for the quotations located in it after.
-    off "quoteLocateDocument" (document: Handle, source: legal_structure_features::QuoteSource, quotes: Vec<legal_structure_features::QuoteToLocate>,
+    /// only. Each is checked against `source` (its status, why, its passage's hash) and linked on its page at its words.
+    /// `source`: a provider's text, or a PDF attached for it, read by the locators it prints (a statute's by its
+    /// provisions). With `keep`, what was read of the document is kept for the quotations located in it after.
+    off "quoteLocateDocument" (document: Handle, source: legal_structure_features::LinkedSource, quotes: Vec<legal_structure_features::QuoteToLocate>,
         compare: Option<bool>, keep: Option<bool>) -> Vec<engine::LocatedQuotation> {
-        engine::quote_locate_document(&document, source, &quotes, compare.unwrap_or(true), keep.unwrap_or(false))?
+        engine::quote_locate_document(&document, &source, &quotes, compare.unwrap_or(true), keep.unwrap_or(false))?
     }
-    /// The one document the local A2AJ store at `store` holds under a citation's key, with its provisions' document and
-    /// its full text's; null where the store, or the document, is missing.
+    /// The document a citation names (`request`), with its provisions' document and its full text's: the store's at
+    /// `store`, else A2AJ's where `request.remote`.
     #[cfg(feature = "a2aj")]
-    off "a2ajDocument" (store: PathBuf, lookup: a2aj::Lookup) -> Option<StoreDocument> {
-        a2aj::document(&store, &lookup, NativeDocument::of)?.map(|found| StoreDocument::of(None, found))
+    off "a2ajLookup" (store: PathBuf, request: a2aj::remote::Request) -> Outcome<a2aj::remote::Looked<StoreDocument>> {
+        http::outcome(a2aj::remote::document_asking(&store, &request, NativeDocument::reading)
+            .map(|looked| looked.map(|found| StoreDocument::of(None, found))))?
     }
+    /// One provision (`section`) of the statute `request` names, as an excerpt of the document `excerpt` describes: the
+    /// store's, else A2AJ's; null where neither holds its text.
+    #[cfg(feature = "a2aj")]
+    off "a2ajProvisionLookup" (store: PathBuf, request: a2aj::remote::Request, section: String, excerpt: legal_structure_features::a2aj::Excerpt)
+        -> Outcome<Option<Handle>> {
+        http::outcome(a2aj::remote::provision_asking(&store, &request, &section, excerpt, NativeDocument::reading).map(|found| found.map(Handle)))?
+    }
+    /// The citation of the one decision the store holds (else A2AJ, where `remote`) under a style of cause, in a year, of one of
+    /// `courts` (any where none): a decision cited by an identifier A2AJ does not carry, a CanLII number. Null where
+    /// none answers, or several.
+    #[cfg(feature = "a2aj")]
+    off "a2ajNamedLookup" (store: PathBuf, named: a2aj::Named, language: Option<legal_structure_features::a2aj::Language>, remote: bool)
+        -> Outcome<Option<String>> {
+        http::outcome(a2aj::remote::named_asking(&store, &named, self::language(language), remote))?
+    }
+    /// The courts and tribunals (`cases`) or statute collections (`laws`) A2AJ holds, as its coverage lists them.
+    #[cfg(feature = "a2aj")]
+    off "a2ajCoverage" (doc_type: String) -> Outcome<Vec<a2aj::remote::Coverage>> {
+        http::outcome(a2aj::remote::coverage(legal_structure_features::a2aj::doc_type(&doc_type)))?
+    }
+    /// The name of the jurisdiction a statute collection's suffix names ("LEGISLATION-ON" is Ontario); null where none.
+    #[cfg(feature = "a2aj")]
+    now "a2ajCollectionJurisdiction" (collection: String) -> Option<String> {
+        a2aj::remote::collection_jurisdiction(&collection).map(|(_, name)| name)
+    }
+    /// Forgets every answer and hold the engine's requests kept, as a run that starts over does.
+    now "lookupsForget" () -> () { http::forget() }
+    /// A Decisia decision's page as its index (query and fragment dropped); null for any other address.
+    now "decisiaIndex" (address: String) -> Option<String> { legal_structure_features::decisia_index(&address) }
+    /// The PDF a Decisia decision's index page (`markup`, at `index`) offers in its own controls.
+    now "decisiaMarkupPdf" (markup: String, index: String) -> Option<legal_structure_features::VerifiedPdf> {
+        legal_structure_features::decisia_markup_pdf(&markup, &index)
+    }
+    /// The Constitution Act or annual statute of Canada `text` cites, from Justice Laws (an annual statute only with
+    /// `remote`, as its title is read off its page there); null for any other citation.
+    off "justiceLaws" (text: String, remote: bool) -> Outcome<Option<legal_structure_features::foreign_case::JusticeLaws>> {
+        http::outcome(legal_structure_features::foreign_case::justice_laws(&text, remote))?
+    }
+    /// The publishers abroad the citations in `text` name (tna, govuk-et, govinfo), in the order they are asked.
+    now "foreignCaseClaimed" (text: String) -> Vec<&'static str> { legal_structure_features::foreign_case::claimed(&text) }
+    /// The decision the citations in `text` name, from the first publisher abroad that holds it (`only`: that one alone):
+    /// a UK neutral citation's at Find Case Law, a tribunal case number's at GOV.UK, a US federal docket's at GovInfo; a
+    /// source kept from an earlier lookup (`saved`, its page) read there without searching again.
+    off "foreignCase" (text: String, only: Option<String>, saved: Option<String>) -> Outcome<Option<ForeignCase>> {
+        http::outcome(foreign_case(&text, only.as_deref(), saved.as_deref()))?
+    }
+    /// The one CourtListener case a US reporter citation in `text` names: the bulk store's, else its citation lookup's.
+    off "courtlistenerCluster" (access: court_listener::Access, text: String) -> Outcome<Option<u64>> {
+        http::outcome(court_listener::cluster_of(&access, &text))?
+    }
+    /// A CourtListener case with its opinions (`opinion` alone where given), each read whole: the bulk store's, else
+    /// the API's.
+    off "courtlistenerCase" (access: court_listener::Access, cluster: u64, opinion: Option<u64>) -> Outcome<Option<CourtListenerCase>> {
+        http::outcome(court_listener_case(&access, cluster, opinion))?
+    }
+    /// The CourtListener cases a search finds: the bulk store's, else CourtListener's search.
+    off "courtlistenerSearch" (access: court_listener::Access, search: court_listener::Search) -> Outcome<Vec<court_listener::Hit>> {
+        http::outcome(court_listener::search(&access, &search))?
+    }
+    /// The PDF a Decisia decision's page offers, its index asked for; null where none could be had.
+    off "decisiaPdf" (page: String) -> Option<legal_structure_features::VerifiedPdf> { legal_structure_features::decisia_pdf(&page) }
+    /// The journals database's path: as configured, else the shared one, else the one the search index was built from.
+    now "journalPath" (stores: journal::JournalStores) -> String { journal::database_path(&stores)?.to_string_lossy().into_owned() }
+    /// The journal articles answering a search, at most 25.
+    now "journalSearch" (stores: journal::JournalStores, search: journal::Search) -> Vec<journal::Hit> { journal::search(&stores, &search)? }
+    /// The article an identifier (its number, citation or name) names, with its document; null where no one article
+    /// with a public text and address answers.
+    off "journalDocument" (stores: journal::JournalStores, identifier: String) -> Option<JournalDocument> {
+        journal::document(&stores, &identifier, |source| {
+            let filename = source.package.map(|package| package.to_string_lossy().into_owned());
+            engine::derive_document_structure(engine::StructureRequest::Journal { article_id: source.article_id, url: Some(source.url),
+                text: filename.is_none().then_some(source.text), filename, page_rows: source.pages })
+        })?.map(|(article, native)| JournalDocument { article, native: Handle(native) })
+    }
+    /// The number of the article a citation (or one of its other forms) names; null where none, or several.
+    now "journalNamed" (stores: journal::JournalStores, texts: Vec<String>) -> Option<i64> { journal::named(&stores, &texts)? }
+    /// An article's PDF opened at a printed page; null where its page map lacks the page.
+    now "journalPageLink" (stores: journal::JournalStores, identity: String, page: String) -> Option<String> {
+        journal::page_link(&stores, &identity, &page)?
+    }
+    /// Closes the journal files and forgets what was read of them.
+    now "journalForget" () -> () { journal::forget() }
     /// The document a record A2AJ's API answered with holds, read and derived as a store's row is; null for a record
     /// without a text or a citation.
     #[cfg(feature = "a2aj")]
     off "a2ajRecord" (record: Untyped<Value>, language: Option<legal_structure_features::a2aj::Language>, doc_type: String) -> Option<StoreDocument> {
-        a2aj::record(&record.0, self::language(language), &doc_type, NativeDocument::of)?.map(|found| StoreDocument::of(None, found))
-    }
-    /// One provision of a statute, from the records A2AJ's API answered a lookup of it with, as an excerpt of the
-    /// document `excerpt` describes; null where no record of the collection and address asked for holds its text.
-    #[cfg(feature = "a2aj")]
-    off "a2ajRecordProvision" (records: Vec<Untyped<Value>>, lookup: a2aj::ProvisionLookup, excerpt: legal_structure_features::a2aj::Excerpt)
-        -> Option<Handle> {
-        let records = records.into_iter().map(|record| record.0).collect::<Vec<_>>();
-        a2aj::record_provision(&records, &lookup, excerpt, NativeDocument::of)?.map(Handle)
-    }
-    /// A record A2AJ's API answered with, as a search lists it; null for one without a citation.
-    #[cfg(feature = "a2aj")]
-    now "a2ajRecordListing" (record: Untyped<Value>, language: Option<legal_structure_features::a2aj::Language>)
-        -> Option<legal_structure_features::a2aj::Listing> {
-        a2aj::record_listing(&record.0, self::language(language))
-    }
-    /// The places, among records A2AJ's API answered with, of those answering a citation (by its key or one of
-    /// `aliases`), of the collection and at the address asked for.
-    #[cfg(feature = "a2aj")]
-    now "a2ajRecordMatches" (records: Vec<Untyped<Value>>, query: legal_structure_features::a2aj::Query) -> Vec<usize> {
-        a2aj::record_matches(&records.into_iter().map(|record| record.0).collect::<Vec<_>>(), &query)
-    }
-    /// One provision of a statute the store holds, as an excerpt of the document `excerpt` describes, or that the store
-    /// lacks the provision or the statute.
-    #[cfg(feature = "a2aj")]
-    off "a2ajSection" (store: PathBuf, lookup: a2aj::Lookup, section: String, excerpt: legal_structure_features::a2aj::Excerpt) -> Provision {
-        match a2aj::section(&store, &lookup, &section, excerpt, NativeDocument::of)? {
-            Some(Some(native)) => Provision::Found { native: Handle(native) },
-            Some(None) => Provision::MissingProvision,
-            None => Provision::MissingStatute,
-        }
+        a2aj::record(&record.0, self::language(language), &doc_type, NativeDocument::reading)?.map(|found| StoreDocument::of(None, found))
     }
     /// Each citation's exact aliases and authored forms in the store's inventory; its own key alone where there is
     /// no store.
     now "a2ajAliasGroups" (store: std::path::PathBuf, keys: Vec<String>) -> Vec<engine::AliasGroup> { alias_groups(&store, &keys)? }
-    /// The citation of the one decision the store holds under a style of cause, in a year, of one of `courts` (any
-    /// where none): a decision cited by an identifier A2AJ does not carry. Null where none answers, or several.
-    #[cfg(feature = "a2aj")]
-    now "a2ajNamedCase" (store: PathBuf, named: a2aj::Named) -> Option<String> { a2aj::named_case(&store, &named)? }
-    /// The same of the records A2AJ's API answered a search of the name with.
-    #[cfg(feature = "a2aj")]
-    now "a2ajNamedRecord" (records: Vec<Untyped<Value>>, named: a2aj::Named, language: Option<legal_structure_features::a2aj::Language>)
-        -> Option<String> {
-        a2aj::named_record(&records.into_iter().map(|record| record.0).collect::<Vec<_>>(), &named, self::language(language))
-    }
     /// Each style of cause compared as its words: the key of the store's names and of CanLII's titles.
     #[cfg(feature = "a2aj")]
     now "a2ajNameKeys" (names: Vec<String>) -> Vec<String> { names.iter().map(|name| a2aj::name_key(name)).collect() }
-    /// The store's documents answering a search, as a search lists them (never their text); null where there is no
-    /// store or it has no full-text indexes.
+    /// The documents answering a search, as a search lists them (never their text): the store's, else A2AJ's where the
+    /// store has no full-text indexes, where `remote`.
     #[cfg(feature = "a2aj")]
-    now "a2ajSearch" (store: PathBuf, search: a2aj::Search) -> Option<Vec<legal_structure_features::a2aj::Listing>> { a2aj::search(&store, &search)? }
+    off "a2ajSearch" (store: PathBuf, search: a2aj::Search, remote: bool) -> Outcome<Vec<legal_structure_features::a2aj::Listing>> {
+        http::outcome(a2aj::remote::search_asking(&store, search, remote))?
+    }
     /// The id of the one document the store holds under a citation; null where none, or no store.
     #[cfg(feature = "a2aj")]
     now "a2ajFind" (store: PathBuf, lookup: a2aj::Lookup) -> Option<i64> { a2aj::find_id(&store, &lookup)? }
@@ -861,7 +1199,7 @@ operations! { progress;
     #[cfg(feature = "a2aj")]
     off "a2ajStoreDocuments" (store: PathBuf, ids: Vec<i64>, doc_type: Option<String>, language: Option<legal_structure_features::a2aj::Language>)
         -> Option<Vec<StoreDocument>> {
-        a2aj::documents(&store, &ids, doc_type.as_deref().unwrap_or("cases"), self::language(language), NativeDocument::of)?
+        a2aj::documents(&store, &ids, doc_type.as_deref().unwrap_or("cases"), self::language(language), NativeDocument::reading)?
             .map(|found| found.into_iter().map(|(id, found)| StoreDocument::of(Some(id), found)).collect())
     }
     /// The same documents' text and provisions as the store holds them, for experiments that read the text itself.

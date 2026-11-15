@@ -5,16 +5,17 @@
 import { reject } from "../applicationError";
 import { attachedAuthoritySources, type AuthoritiesDraft } from "../authoritiesDomain";
 import { openDocument } from "../sourceDocument";
-import { writeDocxSpans } from "../docxOperations";
+import { instrumentReading } from "../authorityPdfText";
 import { sha256 } from "../hash";
 import { legalSourceOperations } from "../legalSourceApplication";
 import { FOREIGN_CASE_PROVIDERS, type LegalSourcePassageRequest, type LegalSourceReference,
   type LegalSourceResolveRequest } from "../legalSources";
 import { checkQuotes, type QuoteLink } from "../quoteCheck";
 import type { QuoteContext } from "../authoritiesQuotations";
-import type { NativeDocument } from "../structureNative";
+import { structureNative, type NativeDocument } from "../structureNative";
 import { alrCheckedWorkbook, type AlrModel, type AlrWorkbookOptions } from "./checkedWorkbook";
-import { documentWrites, wordResult, type WordCitation, type WordCopy, type WordResult } from "./wordResult";
+import { wordResult, type WordCitation, type WordCopy, type WordResult } from "./wordResult";
+import { docxWrites, wordWrites } from "./wordWrites";
 
 export type QuoteVerification = Awaited<ReturnType<typeof checkQuotes>>;
 export type AttachedSources = Map<string, { document: NativeDocument; source: LegalSourceReference }>;
@@ -37,7 +38,8 @@ export async function attachedSourceDocuments(draft: AuthoritiesDraft, files: Re
     const pdf = attachedAuthoritySources(authority.source).find((source) => source.bindingRole === file.role)!;
     if (pdf.origin === "reconstructed") continue;
     attached.set(authority.id, { document: await openDocument({ documentId: `standalone-authority:${digest}`,
-      versionId: digest, sourceSha256: digest, fileType: "pdf", readBytes: () => bytes }, { signal }),
+      versionId: digest, sourceSha256: digest, fileType: "pdf", readBytes: () => bytes },
+      { signal, doc: false, instrument: instrumentReading(authority) }),
     source: { provider: "attached", id: digest, kind: authority.kind === "legislation" ? "legislation" : "case",
       citation: authority.citation, title: authority.displayName ?? authority.name, url: pdf.sourceUrl } });
   }
@@ -95,8 +97,8 @@ export async function writeVerifiedWordCopy(draft: AuthoritiesDraft, bytes: Uint
   author: string) {
   if (draft.import.kind !== "document" || draft.import.fileType !== "docx")
     reject(400, "Only a document added as a Word document has a Word copy.");
-  const writes = documentWrites(word, copy);
-  const { bytes: written, written: placed } = await writeDocxSpans(Buffer.from(bytes), draft.units, writes, author);
+  const writes = docxWrites(wordWrites(word, copy));
+  const { bytes: written, written: placed } = await structureNative().docxWriteSpans(bytes, draft.units, writes, author);
   return { bytes: written, writes: writes.length, written: placed.filter(Boolean).length };
 }
 

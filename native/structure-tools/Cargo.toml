@@ -21,3 +21,7 @@ serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"]
 regex = "1.13"
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 unicode-normalization = "0.1"
+# workbook-equivalence reads two workbooks' packages, with the engine's readers.
+calamine = "0.38"
+zip = { version = "9", default-features = false }
+quick-xml = "0.42"

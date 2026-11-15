@@ -8,7 +8,7 @@ import { pdfFailureKind } from "./structureNative";
 export async function validateAuthoritiesPdf(bytes: Buffer) {
   const sourceSha256 = sha256(bytes);
   const { pageCount } = await preparePdf({ documentId: `standalone-authority:${sourceSha256}`, versionId: sourceSha256,
-    sourceSha256, bytes, ocrProvider: null }).catch((error: unknown) => {
+    sourceSha256, bytes, ocrProvider: null, doc: false }).catch((error: unknown) => {
     const kind = pdfFailureKind(error);
     if (kind === "encrypted") throw new ApplicationError(400, "PDF is encrypted. Save an unencrypted copy, then upload it again.");
     if (kind === "corrupt" || kind === "parser") throw new ApplicationError(400, "PDF is invalid or corrupt. Choose a readable PDF.");

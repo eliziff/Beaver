@@ -2,7 +2,7 @@
 const fs = require('node:fs'), path = require('node:path');
 const out = path.resolve('tmp/pdf-pagination');
 process.env.MIKE_LOCAL_DATA_DIR = path.join(out, 'authorities-store');
-const { resolveAuthoritiesSources } = require('../../backend/dist/lib/authoritiesSourceResolution');
+const { resolveAuthoritiesSources } = require('../../backend/dist/lib/authoritiesBookSources');
 const { createAuthoritiesDraft, reduceAuthoritiesDraft, decodeAuthoritiesDraft, authorityCitationForms } = require('../../backend/dist/lib/authoritiesDomain');
 const { documentProjectionService: service } = require('../../backend/dist/lib/documentProjectionService');
 const { reporterStartPages } = require('../../backend/dist/lib/pdfPagination');

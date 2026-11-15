@@ -6,7 +6,6 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import type JSZip from "jszip";
-import { createParser, elAttrs, elChildren, elName, getTextContent, type XNode } from "./docx/core";
 import { decodeXmlText } from "./text";
 import { assertBoundedZip, loadZip, readZipEntry, zipReadBudget } from "./zip";
 import { isolatedProcessEnv } from "./subprocessEnv";
@@ -40,12 +39,10 @@ let wordToPdf: boolean | undefined;
 /** Whether this host can turn a Word brief into PDF itself; asked once per process. */
 export const wordToPdfAvailable = () => wordToPdf ??= resolveSofficeBinary() !== null;
 
-function xmlElements(nodes: XNode[], wanted: string): XNode[] {
-  return nodes.flatMap((node) => [
-    ...(elName(node)?.split(":").at(-1) === wanted ? [node] : []),
-    ...xmlElements(elChildren(node), wanted),
-  ]);
-}
+/** Each `wanted` element's open tag (any prefix), and with `content` its text up to its close. */
+const xmlElements = (xml: string, wanted: string, content = false) => [...xml.matchAll(content
+  ? new RegExp(`<(?:[\\w.-]+:)?${wanted}\\b[^>]*>([\\s\\S]*?)</(?:[\\w.-]+:)?${wanted}>`, "gu")
+  : new RegExp(`<(?:[\\w.-]+:)?${wanted}\\b[^>]*>`, "gu"))];
 
 export async function assertSafeOfficeConversion(zip: JSZip) {
   const budget = zipReadBudget(128 * 1024 * 1024);
@@ -59,9 +56,11 @@ export async function assertSafeOfficeConversion(zip: JSZip) {
     if (name.endsWith(".rels")) {
       const xml = (await readZipEntry(entry, 64 * 1024 * 1024, budget,
         "Office XML")).toString("utf8");
-      for (const relationship of xmlElements(createParser().parse(xml) as XNode[], "Relationship")) {
-        const attrs = elAttrs(relationship);
-        const attribute = (name: string) => decodeXmlText(attrs[`@_${name}`] ?? "");
+      for (const [relationship] of xmlElements(xml, "Relationship")) {
+        const attribute = (name: string) => {
+          const value = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "u").exec(relationship);
+          return decodeXmlText(value?.[1] ?? value?.[2] ?? "");
+        };
         if (attribute("TargetMode") === "External" &&
             (!attribute("Type").endsWith("/hyperlink") ||
               !/^(?:https?:|mailto:)/iu.test(attribute("Target")))) {
@@ -72,10 +71,9 @@ export async function assertSafeOfficeConversion(zip: JSZip) {
     if (name === "word/document.xml") {
       const xml = (await readZipEntry(entry, 64 * 1024 * 1024, budget,
         "Office document XML")).toString("utf8");
-      const parsed = createParser().parse(xml) as XNode[];
-      const instructions = xmlElements(parsed, "instrText")
-        .map(getTextContent).join("").replace(/\s+/gu, "");
-      if (xmlElements(parsed, "altChunk").length ||
+      const instructions = xmlElements(xml, "instrText", true)
+        .map(([, text]) => decodeXmlText(text ?? "")).join("").replace(/\s+/gu, "");
+      if (xmlElements(xml, "altChunk").length ||
           /(?:DDEAUTO|INCLUDETEXT|INCLUDEPICTURE)/iu.test(instructions)) {
         throw new Error("Office document contains active linked content");
       }

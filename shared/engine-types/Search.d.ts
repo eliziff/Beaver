@@ -2,18 +2,10 @@
 import type { Language } from "./Language";
 
 /**
- * What a search asks of the store. The full-text index's query comes built (searchQuery.ts builds every search's).
+ * What a search asks of the store (and of A2AJ, where the store has no full-text indexes).
  */
 export type Search = { query: string, docType?: string | null, searchType?: string | null, language?: Language | null, 
 /**
  * How many are wanted: ten unless asked, at most fifty.
  */
-size?: number | null, dataset?: string | null, startDate?: string | null, endDate?: string | null, sortResults?: string | null, 
-/**
- * The query in the full-text index's syntax.
- */
-match: string, 
-/**
- * Whether the query uses the index's operators.
- */
-operators: boolean, };
+size?: number | null, dataset?: string | null, startDate?: string | null, endDate?: string | null, sortResults?: string | null, };

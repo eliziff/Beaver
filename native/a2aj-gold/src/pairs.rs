@@ -75,10 +75,14 @@ fn local_pdfs(db: &Connection) -> Result<Vec<Local>, String> {
 
 /// A PDF's pages' text, as the corpus indexed it; else its text layer.
 fn page_texts(db: &Connection, sha: &str, path: &Path) -> Vec<String> {
-    let indexed: Vec<String> = db.prepare_cached("select text from pages where sha256 = ? order by page")
-        .and_then(|mut query| query.query_map([sha], |row| row.get::<_, Option<String>>(0)).map(|rows| rows.flatten().map(Option::unwrap_or_default).collect()))
-        .unwrap_or_default();
+    let indexed = indexed_texts(db, sha);
     if indexed.is_empty() { pdf::page_texts(path) } else { indexed }
+}
+
+fn indexed_texts(db: &Connection, sha: &str) -> Vec<String> {
+    db.prepare_cached("select text from pages where sha256 = ? order by page")
+        .and_then(|mut query| query.query_map([sha], |row| row.get::<_, Option<String>>(0)).map(|rows| rows.flatten().map(Option::unwrap_or_default).collect()))
+        .unwrap_or_default()
 }
 
 /// The pages of six spread through a PDF of `n`.
@@ -87,8 +91,8 @@ fn sampled(n: usize) -> BTreeSet<usize> {
 }
 
 /// ocr when at least half of six sampled pages are mostly one image or carry no text, else digitalborn.
-fn mode_of(path: &Path, texts: &[String]) -> &'static str {
-    let images = pdf::images_of(path, |page, count| sampled(count).contains(&page));
+fn mode_of(document: Option<&lopdf::Document>, texts: &[String]) -> &'static str {
+    let images = document.map_or_else(Vec::new, |document| pdf::images_of_document(document, |page, count| sampled(count).contains(&page)));
     let n = images.len().max(texts.len());
     if n == 0 {
         return "ocr";
@@ -286,33 +290,51 @@ pub fn pairs(work: &Path, citation: Option<Vec<String>>, register: bool) -> Resu
             found.entry(sha).or_insert((path, id, "citation"));
         }
     }
-    let (mut rows, mut printed): (Vec<Value>, HashMap<String, String>) = (Vec::new(), HashMap::new());
-    for (sha, (path, id, route)) in &found {
-        let texts = page_texts(&files, sha, path);
+    // Each pair's PDF read on its own core (its pages' text, its count, its mode) and its decision's fields; then, in order,
+    // the PDFs over the page limit and the copies of another left out.
+    let entries: Vec<(&String, &(PathBuf, i64, &str))> = found.iter().collect();
+    let read = store::on_cores_with(&entries, || Ok((a2aj()?, corpus()?)), |(sha, (path, id, route)), (cases, files)| {
+        // (The PDF loaded once: its text layer where the corpus has not indexed it, its page count where the corpus has
+        // none, its images.)
+        let document = pdf::load(path);
+        let indexed = indexed_texts(files, sha);
+        let texts = if indexed.is_empty() { document.as_ref().map_or_else(Vec::new, pdf::texts_of) } else { indexed };
         let filed: Option<usize> = files.query_row("select pages from files where sha256 = ?", [sha], |row| row.get::<_, Option<i64>>(0)).ok().flatten().filter(|&n| n > 0).map(|n| n as usize);
-        let pages = filed.or_else(|| pdf::page_count(path)).unwrap_or(texts.len());
+        let pages = filed.or_else(|| document.as_ref().map(|document| document.get_pages().len())).unwrap_or(texts.len());
         if pages > MAX_PAGES {
-            *refused.entry("over 150 pages").or_default() += 1;
-            why.insert(sha.clone(), "over 150 pages".to_owned());
-            continue;
+            return Ok((pages, None, Value::Null));
         }
-        // A re-saved or highlighted copy of a PDF prints the same text: one of them is the document.
         let text = texts.join("\u{c}");
-        if !text.trim().is_empty() && printed.entry(store::hex(&Sha256::digest(text.as_bytes()))).or_insert_with(|| sha.clone()) != sha {
-            *refused.entry("copy of another PDF").or_default() += 1;
-            why.insert(sha.clone(), "a copy of another PDF".to_owned());
-            continue;
+        let printed = (!text.trim().is_empty()).then(|| store::hex(&Sha256::digest(text.as_bytes())));
+        let mode = mode_of(document.as_ref(), &texts);
+        // (A digital PDF's images, which the gold's page rules read, kept now that it is loaded.)
+        if let (Some(document), "digitalborn") = (&document, mode) {
+            store::keep_found_images(sha, &pdf::images_of_document(document, |_, _| true));
         }
-        let mode = mode_of(path, &texts);
         let row = cases.query_row("select citation_en, citation_fr, name_en, name_fr, document_date_en, document_date_fr, dataset from document where id = ?", [id], |row| {
             Ok((row.get::<_, Option<String>>(0)?, row.get::<_, Option<String>>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, Option<String>>(3)?,
                 row.get::<_, Option<String>>(4)?, row.get::<_, Option<String>>(5)?, row.get::<_, Option<String>>(6)?))
         }).map_err(|e| e.to_string())?;
         let some = |a: Option<String>, b: Option<String>| a.filter(|t| !t.is_empty()).or(b.filter(|t| !t.is_empty()));
         let date: String = some(row.4, row.5).unwrap_or_default().chars().take(10).collect();
-        let languages: Vec<&str> = ["en", "fr"].into_iter().filter(|language| super::make::a2aj_text(&cases, rusqlite::types::Value::Integer(*id), language).ok().flatten().is_some_and(|t| !trimmed(&t).is_empty())).collect();
-        rows.push(json!({"sha256": sha, "path": path, "pages": pages, "mode": mode, "route": route, "a2aj": id, "citation": some(row.0, row.1), "name": some(row.2, row.3),
-                         "date": date, "court": row.6, "languages": languages}));
+        let languages: Vec<&str> = ["en", "fr"].into_iter().filter(|language| super::make::a2aj_text(cases, rusqlite::types::Value::Integer(*id), language).ok().flatten().is_some_and(|t| !trimmed(&t).is_empty())).collect();
+        Ok((pages, printed, json!({"sha256": sha, "path": path, "pages": pages, "mode": mode, "route": route, "a2aj": id, "citation": some(row.0, row.1), "name": some(row.2, row.3),
+                                    "date": date, "court": row.6, "languages": languages})))
+    })?;
+    let (mut rows, mut printed): (Vec<Value>, HashMap<String, String>) = (Vec::new(), HashMap::new());
+    for ((sha, _), (pages, text, row)) in entries.iter().zip(read) {
+        if pages > MAX_PAGES {
+            *refused.entry("over 150 pages").or_default() += 1;
+            why.insert((*sha).clone(), "over 150 pages".to_owned());
+            continue;
+        }
+        // A re-saved or highlighted copy of a PDF prints the same text: one of them is the document.
+        if text.is_some_and(|text| printed.entry(text).or_insert_with(|| (*sha).clone()) != *sha) {
+            *refused.entry("copy of another PDF").or_default() += 1;
+            why.insert((*sha).clone(), "a copy of another PDF".to_owned());
+            continue;
+        }
+        rows.push(row);
     }
     let mut body = String::new();
     for row in &rows {

@@ -1,4 +1,4 @@
-﻿// A persistent host for the existing citation engine; no citation grammar lives here.
+// A persistent host for the existing citation engine; no citation grammar lives here.
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -14,12 +14,16 @@ const module = { exports: {} };
 process.dlopen(module, nativeAddonFile(filename, root));
 const addon = "call" in module.exports
   ? structureEngineAddon(module.exports, { toBuffer: bytes => Buffer.from(bytes) }) : module.exports;
-const call = (method, request) => addon.citationEngineCall(method, request);
-const grammarBytes = readFileSync(new URL("../../common-law-cite/crates/legal-grammar/data/grammar-corpus.json", import.meta.url));
-const version = call("version", {});
-const grammarSha256 = createHash("sha256").update(grammarBytes).digest("hex");
-if (grammarSha256 !== version.grammar.sha256) throw new Error("Screen and native citation grammars differ.");
-console.log(JSON.stringify({ version, grammarSha256,
+// The engine's typed citation ops, by the method names the screen sends.
+const methods = {
+  extract: request => addon.citationExtract(request.text, request.options ?? {}, request.offsetUnit),
+  supraHint: request => addon.supraHint(request.text, request.aggressive, request.fallback),
+};
+const call = (method, request) => {
+  if (!methods[method]) throw new Error(`No engine op for ${method}.`);
+  return methods[method](request);
+};
+console.log(JSON.stringify({ version: { keyVersion: addon.citationKeyVersion() },
   nativeSha256: createHash("sha256").update(readFileSync(filename)).digest("hex") }));
 const run = (method, request) => {
   const result = call(method, request);

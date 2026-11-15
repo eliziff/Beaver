@@ -2,7 +2,6 @@ import { ApplicationError, type ApplicationScope } from "./applicationError";
 import {
   authoritySeedFromReceipts,
   createAuthoritiesDraft,
-  isObservedSourceUrl,
   reduceAuthoritiesDraft,
   type AuthoritiesFreshReview,
   type AuthoritiesCover,
@@ -11,9 +10,6 @@ import {
   type AuthorityCitationLedger,
   type AuthoritiesSourceMode,
   type AuthoritiesBuildSettings,
-  type AuthorityIdentity,
-  type AuthorityKind,
-  type AuthorityOccurrence,
 } from "./authoritiesDomain";
 import { sourceDocumentFields } from "mike/shared/court-record-source-fields.mjs";
 import type { LegalEvidenceReceipt } from "./chat/legalEvidence";
@@ -21,16 +17,13 @@ import { preparePdf } from "./sourceDocument";
 import type { DocumentStore } from "./documentStore";
 import { sha256 } from "./hash";
 import { pdfFailureKind, structureNative } from "./structureNative";
-import type { AuthorityReferenceOccurrence } from "mike/shared/engine-types/AuthorityReferenceOccurrence";
 import type { AuthorityTextUnit } from "mike/shared/engine-types/AuthorityTextUnit";
-import type { CitationOccurrence } from "mike/shared/engine-types/CitationOccurrence";
+import type { StatuteCandidate } from "mike/shared/engine-types/StatuteCandidate";
 import type { WorkProductInput } from "./workProduct";
 import { a2ajStorePath } from "./legalDataPath";
 import { a2ajLegalSourceProvider } from "./legalSources/a2aj";
 import { mapBounded } from "./mapBounded";
 import { registerWorkExtents } from "mike/shared/work-extents.mjs";
-import type { Citation } from "mike/shared/engine-types/Citation";
-import type { SourcePart } from "mike/shared/engine-types/SourcePart";
 
 type DocumentInput = Extract<WorkProductInput, { kind: "document" }>;
 type SupraLinking = NonNullable<AuthoritiesBuildSettings["supraLinking"]>;
@@ -42,8 +35,6 @@ export type GroundedReceiptSeed = {
 
 export type AuthoritiesImportSource = { kind: "manual" } | DocumentInput |
   { kind: "receipts"; seeds: readonly GroundedReceiptSeed[] };
-
-type Span = { start: number; end: number };
 
 async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<AuthorityTextUnit[]>) {
   try { return await read(); }
@@ -57,372 +48,54 @@ async function readImportUnits(fileType: "docx" | "pdf", read: () => Promise<Aut
     throw error;
   }
 }
-function occurrenceSpans(unitText: string, authority: Span, core: Span,
-  pinpoints: Span[], phrase: Span | undefined, offset = 0) {
-  const span = ({ start, end }: Span) => ({
-    start: offset + start, end: offset + end,
-    text: unitText.slice(offset + start, offset + end),
-  });
-  const ordered = [...pinpoints].sort((left, right) => left.start - right.start);
-  const pinpoint = ordered.length ? { start: ordered[0].start, end: ordered.at(-1)!.end } : null;
-  return { authoritySpan: span(authority), coreSpan: span(core), pinpointSpan: pinpoint && span(pinpoint),
-    // The pinpoints as written, with the words that introduce them: "at para 105".
-    ...(pinpoint && phrase && phrase.start <= pinpoint.start && phrase.end >= pinpoint.end &&
-      { pinpointPhrase: span(phrase) }) };
-}
 
-/** Format an already parsed range; never infer ranges from gaps between tokens. A single
- *  pinpoint names its locator as the engine reads it: "110ff" locates para 110. Each keeps
- *  where its unit writes it, the parsed text starting at `offset` in that unit. */
-export function pinpointValues<Kind extends string>(pinpoints: ReadonlyArray<{ kind: Kind; text: string;
-  start: number; end: number; first?: string; last?: string | null }>, offset = 0) {
-  return pinpoints.map(({ kind, text, start, end, first, last }) => ({ kind,
-    text: last ? `${first}-${last}` : first ?? text,
-    ...first ? { first } : {}, ...last ? { last } : {}, start: offset + start, end: offset + end }));
-}
-export const nativeOccurrenceSpans = (match: CitationOccurrence, text: string, offset = 0) =>
-  occurrenceSpans(text, match.styledCitation, match.coreCitation, match.pinpoints, match.pinpointPhrase, offset);
-/** Keep the written short name with the reference marker and its pinpoints separate. */
-export const nativeReferenceSpans = (reference: AuthorityReferenceOccurrence, text: string, offset = 0) =>
-  occurrenceSpans(text, { start: reference.start, end: reference.token.end }, reference.token,
-    reference.pinpoints, reference.pinpointPhrase, offset);
-
-/** A federal, Ontario or B.C. statute's CanLII page, as the citation engine reads it: its language, jurisdiction and id. */
-const canliiStatute = (url: string | null | undefined, native: ReturnType<typeof structureNative>) => {
-  const page = url ? native.canliiLawPage(url) : null;
-  // A CanLII page's language is its path's: "en" or "fr".
-  return page && Object.hasOwn(STATUTE_DATASET, page.jurisdiction) && ["stat", "astat"].includes(page.kind)
-    ? { ...page, language: page.language as "en" | "fr" } : null;
-};
-const STATUTE_DATASET = { ca: "LEGISLATION-FED", on: "LEGISLATION-ON",
-  bc: "LEGISLATION-BC" } as const;
-const sourceName = (value: string) => value.normalize("NFKC").toLowerCase()
-  .replace(/[^a-z0-9 ]/gu, "").replace(/\s+/gu, " ").trim();
-const slugKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/gu, "");
-const statuteCore = (citation: Citation) => {
-  const { series, year, chapter } = citation.fields;
-  return series && year && chapter ? slugKey(`${series}-${year}-c-${chapter}`) : null;
-};
-
-/** A2AJ verifies a source's name and canonical statute citation before its URL enters the registry. */
-async function enrichStatuteSources(parts: SourcePart[], citations: Citation[],
-  native: ReturnType<typeof structureNative>) {
-  const candidates = parts.flatMap((part, partIndex) => {
-    const full = citations.filter((citation) => citation.form === "full" &&
-      citation.authority === "statute" && part.start <= citation.span.start &&
-      citation.span.end <= part.end);
-    if (full.length !== 1 || !statuteCore(full[0])) return [];
-    const citation = full[0];
-    const name = citation.shortName?.trim();
-    if (!name || !sourceName(part.text).includes(sourceName(name))) return [];
-    const url = native.citationUrl(citation, true);
-    const page = canliiStatute(url, native);
-    if (!page) return [];
-    const core = statuteCore(citation)!;
-    if (!slugKey(page.id).startsWith(core) && !core.startsWith(slugKey(page.id))) return [];
-    return [{ partIndex, part, citation, url: url!, language: page.language,
-      dataset: STATUTE_DATASET[page.jurisdiction as keyof typeof STATUTE_DATASET],
-      jurisdiction: page.jurisdiction, name, core }];
-  });
-  if (!candidates.length) return parts;
+/** A2AJ verifies a source's name and canonical statute citation before its URL enters the registry: the CanLII pages,
+ *  for each statute the engine's reading names a candidate, of the statutes A2AJ holds that its part names (the engine's
+ *  statuteUrls). */
+async function statutePages(statutes: StatuteCandidate[], native: ReturnType<typeof structureNative>) {
+  type Hit = { collection?: string | null; title?: string | null; citation?: string | null };
+  const urls = (candidate: StatuteCandidate, hits: readonly Hit[]) => native.statuteUrls(candidate,
+    hits.map(({ collection, title, citation }) => ({ collection: collection ?? null, title: title ?? null, citation: citation ?? null })));
   // The statute A2AJ holds under the citation itself is checked first, a lookup by citation as finding its source later
   // makes (and keeps); its name is searched for only where that holds no statute that passes.
-  const held = await mapBounded(candidates, async (candidate) => {
-    const found = await a2ajLegalSourceProvider.document({ citation: candidate.citation.span.text, docType: "laws",
-      language: candidate.language, dataset: candidate.dataset }).catch(() => null);
-    return found ? statuteUrls(candidate, [{ collection: found.dataset, title: found.name, citation: found.citation }]) : [];
+  const held = await mapBounded(statutes, async (candidate) => {
+    const found = await a2ajLegalSourceProvider.document({ citation: candidate.citation, docType: "laws",
+      language: candidate.language as "en" | "fr", dataset: candidate.dataset }).catch(() => null);
+    return found ? urls(candidate, [{ collection: found.dataset, title: found.name, citation: found.citation }]) : [];
   });
-  const searched = candidates.filter((_, at) => !held[at].length);
-  const queries = [...new Map(searched.map(({ dataset, name, language }) =>
-    [`${dataset}:${language}:${sourceName(name)}`, { dataset, name, language }])).values()];
-  const hits = new Map((await mapBounded(queries, async ({ dataset, name, language }) => {
+  // One search for each dataset, language and name (the engine's comparison of names keys it: compared alike, searched once).
+  const searchKey = ({ dataset, language, name }: (typeof statutes)[number]) =>
+    `${dataset}:${language}:${native.statuteNameKey(name)}`;
+  const queries = [...new Map(statutes.filter((_, at) => !held[at].length).map((candidate) =>
+    [searchKey(candidate), candidate])).values()];
+  const hits = new Map(await mapBounded(queries, async (candidate) => {
     try {
-      return [
-        `${dataset}:${language}:${sourceName(name)}`,
-        await a2ajLegalSourceProvider.search!({ text: name, kinds: ["legislation"],
-          searchType: "name", collection: dataset, language, limit: 50 }),
-      ] as const;
-    } catch { return [`${dataset}:${language}:${sourceName(name)}`, []] as const; }
-  })).map(([key, results]) => [key, results]));
-  return parts.map((part, index) => {
-    const at = candidates.findIndex(({ partIndex }) => partIndex === index), candidate = candidates[at];
-    if (!candidate) return part;
-    const urls = held[at].length ? held[at]
-      : statuteUrls(candidate, hits.get(`${candidate.dataset}:${candidate.language}:${sourceName(candidate.name)}`) ?? []);
-    return urls.length === 1 && urls[0] !== candidate.url
-      ? { ...part, resolvedUrl: urls[0] } : part;
-  });
-
-  /** The CanLII statute pages of the found statutes a candidate's part names, at its anchor: one A2AJ statute of the
-   *  cited jurisdiction and chapter whose title the part writes. */
-  function statuteUrls(candidate: (typeof candidates)[number],
-    found: ReadonlyArray<{ collection?: string | null; title?: string | null; citation?: string | null }>) {
-    const matches = found
-      .filter((hit) => hit.collection?.toUpperCase() === candidate.dataset && hit.title &&
-        sourceName(candidate.part.text).includes(sourceName(hit.title)))
-      .flatMap((hit) => {
-        const parsed = native.citationExtract(hit.citation ?? "", { resolve: false });
-        const statutes = parsed.citations.filter((citation) => citation.form === "full" &&
-          citation.authority === "statute");
-        if (statutes.length !== 1 || statuteCore(statutes[0]) !== candidate.core) return [];
-        const base = structureNative().canliiLawUrl(hit.citation ?? "", candidate.language, true);
-        const route = canliiStatute(base, native);
-        if (!route || route.language !== candidate.language ||
-          route.jurisdiction !== candidate.jurisdiction) return [];
-        const fragment = new URL(candidate.url).hash;
-        return [base!.split("#")[0] + fragment];
-      });
-    return [...new Set(matches)];
-  }
+      return [searchKey(candidate), await a2ajLegalSourceProvider.search!({ text: candidate.name, kinds: ["legislation"],
+        searchType: "name", collection: candidate.dataset, language: candidate.language as "en" | "fr", limit: 50 })] as const;
+    } catch { return [searchKey(candidate), []] as const; }
+  }));
+  return statutes.map((candidate, at) => held[at].length ? held[at]
+    : urls(candidate, hits.get(searchKey(candidate)) ?? []));
 }
 
-/** `supraLinking`: the citation engine's splitting tier its references are resolved at (the draft setting). */
+/** A brief's draft review, as the engine reads it (briefReading, briefReview): its citations (a PDF's body units a
+ *  citation runs across joined), less its own court file number (its cover's), each statute's CanLII page checked
+ *  against A2AJ, every reference resolved at the citation engine's splitting tier (`supraLinking`, the draft setting). */
 async function scanReview(
   imported: AuthoritiesImport,
   bindings: Record<string, WorkProductInput>,
   units: AuthorityTextUnit[],
   supraLinking: SupraLinking = "safe",
 ): Promise<AuthoritiesFreshReview> {
-  const occurrences: Record<string, AuthorityOccurrence> = {};
-  const authorities: Record<string, AuthorityIdentity> = {};
-  const authorityOrder: string[] = [];
   const native = structureNative();
-  // The brief's citations as the engine reads them (a PDF's body units a citation runs across joined), less its own
-  // court file number (its cover's), and the note parts that cite.
   const cover = importedCover(units);
-  const reading = native.briefReading(units, supraLinking, imported.kind === "document" && imported.fileType === "pdf",
-    cover.courtFileNumber || null, a2ajStorePath());
-  const { text, citations, references } = reading;
-  const ranges = reading.units.map((unit, index) => ({ unit, start: reading.starts[index], end: reading.starts[index] + unit.text.length }));
-  const enriched = await enrichStatuteSources(references.map(({ part }) => part), citations, native);
-  const indexOf = new Map(reading.sourceParts.map((part, index) => [`${part.start}:${part.end}`, index]));
-  const partIndex = (part: SourcePart) => indexOf.get(`${part.start}:${part.end}`) ?? -1;
-  const enrichedAt = new Map(references.map((source, at) => [partIndex(source.part), enriched[at]]));
-  const sourceParts = reading.sourceParts.map((part, index) => enrichedAt.get(index) ?? part);
+  const { reading, statutes } = native.briefReading(units, supraLinking,
+    imported.kind === "document" && imported.fileType === "pdf", cover.courtFileNumber || null, a2ajStorePath());
+  const pages = await statutePages(statutes, native);
   // How far the cited works run (Beaver's works pack), so a pinpoint past a work's end refuses a reference's link.
   registerWorkExtents(native);
-  // Every reference's association, the one each consumer reads (the verifier's workbook and quotation check, Sources),
-  // and each authority's reading.
-  const result = native.briefAuthorities({ text, notes: reading.notes, citations, sourceParts, order: reading.order,
-    aliasGroups: reading.aliasGroups, splitTier: supraLinking });
-  const byIndex = new Map(result.citations.map((citation) => [citation.index, citation]));
-  const byResolution = new Map(result.resolutions.map((resolution) => [resolution.index, resolution]));
-  const authorityOf = new Map<number, string>();
-  const documentHash = sha256(text);
-  const kindOf = (authority: Citation["authority"]): AuthorityKind => {
-    switch (authority) {
-      case "case": return "case";
-      case "statute": case "regulation": case "constitution": case "court_rule":
-      case "treaty": case "bill": return "legislation";
-      case "journal": case "book": case "book_chapter": case "webpage": return "commentary";
-      default: return "other";
-    }
-  };
-  const origins = new Set(result.resolutions.flatMap(({ sourcePart }) => sourcePart == null ? [] : [sourcePart]));
-  const originParts = references.flatMap((source) => origins.has(partIndex(source.part)) &&
-    source.references.every(({ form }) => form !== "citation")
-    ? [{ ...source, index: partIndex(source.part), reference: source.references[0] }] : []);
-  const sourceGroups = new Map<number, string>();
-  const unkeyed = new Map<string, string>();
-  // The link each citation writes ("online: <…>", a URL in its text), by citation.
-  const linkOf = new Map(references.flatMap(({ references: found }) => found.flatMap((reference) =>
-    reference.citation != null && reference.link ? [[reference.citation, reference.link] as const] : [])));
-  const readings = result.readings, groupKeys: string[] = [];
-  for (const [position, group] of result.authorities.entries()) {
-    const reading = readings[position];
-    const full = group.map((index) => byIndex.get(index))
-      .filter((citation): citation is Citation => citation?.form === "full");
-    const sourceUrl = sourceParts.find((part) => part.resolvedUrl &&
-      full.length === 1 && part.start <= full[0].span.start &&
-      full[0].span.end <= part.end)?.resolvedUrl;
-    const referenceUrl = group.map((index) => byResolution.get(index)?.url)
-      .find(isObservedSourceUrl);
-    const url = sourceUrl ??
-      full.map((citation) => withScheme(linkOf.get(citation.index) ?? citation.fields.url)).find(isObservedSourceUrl) ??
-      (full.length && referenceUrl ? referenceUrl.split("#")[0] : referenceUrl);
-    const origin = group.map(index => byResolution.get(index)?.sourcePart).find(index => index != null);
-    const source = !full.length ? originParts.find(({ index }) => index === origin) : undefined;
-    const representative = (reading?.representative === undefined ? undefined : byIndex.get(reading.representative)) ??
-      (source ? group.map((index) => byIndex.get(index)).find(Boolean) : undefined);
-    if (!representative) continue;
-    // A document-local review identity keeps unkeyed sources visible without
-    // asserting a bibliographic identity; a citation written alike, style and all, names one.
-    // An order cited by its judge, date and number ("Order of Mr. Justice Butler dated August 13,
-    // 2015, No. S-154746") is that order whatever matter is written before it.
-    const selfNamed = representative.format === "docket" && representative.span.text.includes("Order of");
-    const written = full.length ? `${selfNamed ? "" : representative.style?.text ?? ""} ${representative.span.text}`
-      .replace(/\s+/gu, " ").trim() : null;
-    // A recognizer may misread a letter of the name ("Re Pacifio …" for "Re Pacific …"): an order cited
-    // by the same file number under a name a letter or two apart is the same order.
-    const misread = written && representative.format === "docket" ? [...unkeyed].find(([other]) =>
-      other.endsWith(` ${representative.span.text.replace(/\s+/gu, " ").trim()}`) && withinTwoEdits(other, written))?.[1] : undefined;
-    const key = full.length && representative.key || written && (unkeyed.get(written) ?? misread) ||
-      `scan:${documentHash}:${source ? `source:${source.index}` : representative.index}`;
-    if (written) unkeyed.set(written, key);
-    group.forEach((index) => authorityOf.set(index, key));
-    groupKeys[position] = key;
-    if (authorities[key]) continue;
-    const sourceLink = withScheme(source?.reference.link ?? url);
-    const explicitUrl = isObservedSourceUrl(sourceLink) ? sourceLink : null;
-    if (source) sourceGroups.set(source.index, key);
-    const observedText = source?.reference.text ?? (full.length ? reading.citation! : representative.fullSpan.text);
-    authorities[key] = { id: key, key, kind: kindOf((source?.reference ?? representative).authority),
-      ...(full.length && full.every(citation => citation.authority === "case" &&
-          ["database", "docket"].includes(citation.format ?? ""))
-        ? { citationFormat: representative.format as "database" | "docket" } : {}),
-      // A citation or name a PDF's line or page break runs through is one line ("RSC ⏎⏎ 1985").
-      citation: oneLine(observedText),
-      name: source ? null : reading?.name ?? null,
-      // A decision's other names in the brief: its short forms, and the case the sentence a note
-      // hangs from names. They tell whether the case a source holds at its citation is the one meant.
-      ...(() => {
-        if (kindOf(representative.authority) !== "case") return {};
-        const shortNames = [...new Set(full.flatMap((citation) => citation.explicitShortName?.trim()
-          ? [oneLine(citation.explicitShortName)] : []))];
-        const mentionedAs = full.map((citation) =>
-          (citation.fields as { anchorMention?: { text: string } }).anchorMention?.text).find((value) => value?.trim());
-        return { ...shortNames.length && { shortNames }, ...mentionedAs && { mentionedAs: oneLine(mentionedAs) } };
-      })(),
-      displayName: null, excluded: false,
-      evidenceIds: [], locators: [], sourceIdentity: null,
-      source: { kind: "unresolved" }, scanOnly: true,
-      ...(explicitUrl ? { sourceUrl: explicitUrl } : {}) };
-    authorityOrder.push(key);
-  }
-  // A decision the engine reads as another's subsequent history ("…, 2010 ABQB 242, aff'd 2010
-  // ABCA 191") records which authority it follows, and is known by its case's name unless the brief
-  // gives it one of its own.
-  for (const [position, reading] of readings.entries()) {
-    const child = groupKeys[position], parent = reading.historyOf === undefined ? undefined : groupKeys[reading.historyOf];
-    if (!child || !parent || child === parent || authorities[child].historyOf) continue;
-    authorities[child].historyOf = parent;
-    authorities[child].name ??= reading.name ?? authorities[parent].name;
-  }
-  const sourceOccurrences = originParts.flatMap(({ index, reference: { start, end } }) => {
-    const authorityId = sourceGroups.get(index);
-    return authorityId ? [{ start, end, core: { start, end }, authorityId,
-      citation: authorities[authorityId].citation, kind: authorities[authorityId].kind }] : [];
-  });
-  const reviewItems = [
-    ...result.citations.map((citation) => ({ start: citation.span.start, citation, source: null })),
-    ...sourceOccurrences.map((source) => ({ start: source.start, citation: null, source })),
-  ].sort((left, right) => left.start - right.start);
-  let cursor = 0;
-  // Each citation's occurrence, and where each occurrence starts in the text.
-  const occurrenceOf = new Map<number, string>(), startOf = new Map<string, number>();
-  const reviewUnits = ranges.map(({ unit, start, end }) => {
-    const occurrenceIds: string[] = [];
-    const sourceTextSha256 = sha256(unit.text);
-    while (cursor < reviewItems.length && reviewItems[cursor].start < start) cursor++;
-    while (cursor < reviewItems.length && reviewItems[cursor].start < end) {
-      const { citation, source } = reviewItems[cursor++];
-      if (source) {
-        const localOrdinal = occurrenceIds.length;
-        const id = `${unit.id}:${localOrdinal}`;
-        const local = (range: Span) => ({ start: range.start - start, end: range.end - start });
-        const full = local(source);
-        occurrenceIds.push(id);
-        startOf.set(id, start + full.start);
-        occurrences[id] = { id, unitId: unit.id, ...full,
-          text: unit.text.slice(full.start, full.end),
-          ...occurrenceSpans(unit.text, full, local(source.core), [], undefined),
-          kind: source.kind, citation: source.citation, authorityId: source.authorityId,
-          reference: null, pinpoints: [], evidenceIds: [], sourceTextSha256, localOrdinal,
-          reviewed: false };
-        continue;
-      }
-      if (!citation) continue;
-      if (citation.form === "unknown") continue;
-      const localOrdinal = occurrenceIds.length;
-      const id = `${unit.id}:${localOrdinal}`;
-      const authorityId = authorityOf.get(citation.index) ?? null;
-      const local = (span: Span) => ({ start: Math.max(start, span.start) - start,
-        end: Math.min(end, span.end) - start });
-      const reference = citation.form !== "full";
-      const pinpoints = (citation.pinpoints ?? []).filter(({ span }) =>
-        start <= span.start && span.end <= end);
-      const marker = citation.fields.inlineReference?.span;
-      const core = local(marker ?? citation.span);
-      const full = local(citation.fullSpan);
-      const styled = { start: citation.style && citation.style.end > start &&
-        citation.style.start <= citation.span.start
-        ? Math.max(full.start, local(citation.style).start) : core.start, end: core.end };
-      occurrenceIds.push(id);
-      occurrenceOf.set(citation.index, id);
-      startOf.set(id, start + full.start);
-      occurrences[id] = { id, unitId: unit.id, ...full,
-        text: unit.text.slice(full.start, full.end),
-        ...occurrenceSpans(unit.text, styled, core, pinpoints.map(({ span }) => local(span)),
-          citation.fields.pinCite ? local(citation.fields.pinCite) : undefined),
-        kind: reference ? "reference" : kindOf(citation.authority), citation: citation.span.text,
-        ...(citation.key ? { key: citation.key } : {}), authorityId,
-        reference: authorityId && (citation.form === "short" || citation.form === "ibid" || citation.form === "supra")
-          ? { kind: citation.form, targetAuthorityId: authorityId } : null,
-        referenceKind: citation.form === "short" || citation.form === "ibid" || citation.form === "supra"
-          ? citation.form : undefined,
-        pinpoints: pinpointValues(pinpoints.map(({ kind, span, first, last }) =>
-          ({ kind, text: span.text, first, last, ...local(span) }))),
-        evidenceIds: [], sourceTextSha256, localOrdinal, reviewed: reference && Boolean(authorityId) };
-    }
-    return { ...unit, occurrenceIds };
-  });
-  // Where the engine resolved each reference, as its citations of the authority: the one its chain ends at (its
-  // origin) and the one it names directly, each the first of the authority's in the part the engine gives.
-  for (const resolution of result.resolutions) {
-    const id = occurrenceOf.get(resolution.index), reference = id ? occurrences[id].reference : null;
-    if (!reference) continue;
-    const inPart = (index: number | null | undefined) => {
-      const part = index == null ? undefined : sourceParts[index];
-      return part && Object.keys(occurrences).filter((other) => other !== id
-        && occurrences[other].authorityId === reference.targetAuthorityId
-        && part.start <= startOf.get(other)! && startOf.get(other)! < part.end)
-        .sort((left, right) => startOf.get(left)! - startOf.get(right)!)[0];
-    };
-    const antecedent = resolution.antecedent == null ? undefined : occurrenceOf.get(resolution.antecedent);
-    const origin = inPart(resolution.sourcePart)
-      ?? (antecedent && occurrences[antecedent].authorityId === reference.targetAuthorityId ? antecedent : undefined);
-    const named = inPart(resolution.targetPart);
-    if (origin) reference.originId = origin;
-    if (named) reference.namedId = named;
-  }
-  // The parser can return overlapping full spans even when their citation cores
-  // are distinct. Keep both editable mentions by trimming only shared context.
-  for (const unit of reviewUnits) {
-    const kept: string[] = [];
-    for (const id of unit.occurrenceIds) {
-      const current = occurrences[id];
-      const previous = kept.length ? occurrences[kept[kept.length - 1]] : null;
-      if (previous && current.start < previous.end) {
-        const previousCoreEnd = Math.max(previous.coreSpan.end,
-          previous.pinpointPhrase?.end ?? previous.pinpointSpan?.end ?? 0);
-        if (previousCoreEnd > current.coreSpan.start) {
-          delete occurrences[id];
-          continue;
-        }
-        const boundary = Math.max(previousCoreEnd, current.start);
-        if (boundary < previous.end) {
-          previous.end = boundary;
-          previous.text = unit.text.slice(previous.start, boundary);
-          if (previous.authoritySpan.end > boundary) {
-            previous.authoritySpan.end = boundary;
-            previous.authoritySpan.text = unit.text.slice(previous.authoritySpan.start, boundary);
-          }
-        }
-        if (current.start < previous.end) {
-          current.start = previous.end;
-          current.text = unit.text.slice(current.start, current.end);
-          if (current.authoritySpan.start < current.start) {
-            current.authoritySpan.start = current.start;
-            current.authoritySpan.text = unit.text.slice(current.start, current.authoritySpan.end);
-          }
-        }
-      }
-      kept.push(id);
-    }
-    unit.occurrenceIds = kept;
-  }
-  return { import: imported, bindings, cover, units: reviewUnits,
-    occurrences, authorities, authorityOrder };
+  // The engine's review is the draft's own units, occurrences and authorities; the draft's decoder checks it on refresh.
+  return { import: imported, bindings, cover, ...native.briefReview(reading, pages) as Omit<AuthoritiesFreshReview, "import" | "bindings" | "cover"> };
 }
 
 function importedCover(units: AuthorityTextUnit[]): AuthoritiesCover {
@@ -475,14 +148,14 @@ async function importAuthoritiesDocument(input: AuthoritiesDocumentImport) {
   const reference = { ...input.reference, sourceSha256, fileType: input.fileType, readBytes: () => input.bytes };
   const readPdf = async () => {
     const read = async (options: Parameters<typeof preparePdf>[0]) => (await preparePdf(options)).document;
-    const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null });
+    const own = await read({ ...reference, bytes: input.bytes, ocrProvider: null, doc: false });
     // A scanned page whose own text layer reads well needs no recognition: only the pages the engine
     // still names as needing it are recognized, and with none the brief is read as it is.
     const summary = native.pdfDocumentSummary(own);
     const scanned = (summary.scannedPages ?? []).filter((index) => summary.pagesNeedingOcr.includes(index));
     if (!scanned.length) return own;
     try {
-      return await read({ ...reference, bytes: input.bytes, ocrProvider: "indra",
+      return await read({ ...reference, bytes: input.bytes, ocrProvider: "indra", doc: false,
         pages: scanned.map((index) => index + 1) });
     } catch { return own; }
   };
@@ -501,9 +174,9 @@ async function documentDraft(
   documents: DocumentStore,
   options: Pick<AuthoritiesDocumentImport, "sourceMode" | "supraLinking"> = {},
 ) {
-  const latest = binding.version === "latest";
+  const { version } = binding, latest = version === "latest";
   const [source, current, history] = await Promise.all([
-    documents.documentSource(scope, binding.documentId, latest ? null : binding.version.versionId),
+    documents.documentSource(scope, binding.documentId, latest ? null : version.versionId),
     latest ? documents.metadata(scope, binding.documentId) : null,
     latest ? null : documents.versions(scope, binding.documentId),
   ]);
@@ -552,26 +225,6 @@ export function createAuthoritiesImporter(documents: DocumentStore) {
   });
 }
 
-const oneLine = (value: string) => value.replace(/\s+/gu, " ").trim();
-
-/** Whether two strings of some length differ by at most two letters added, dropped or changed. */
-function withinTwoEdits(left: string, right: string) {
-  if (Math.min(left.length, right.length) < 12 || Math.abs(left.length - right.length) > 2) return false;
-  let previous = Array.from({ length: right.length + 1 }, (_, at) => at);
-  for (let row = 1; row <= left.length; row++) {
-    const current = [row];
-    for (let column = 1; column <= right.length; column++) current.push(Math.min(previous[column] + 1,
-      current[column - 1] + 1, previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1)));
-    if (Math.min(...current) > 2) return false;
-    previous = current;
-  }
-  return previous[right.length] <= 2;
-}
-
-/** Stateless local-runtime import; the browser remains the draft/file owner. */
-/** A link written without its scheme ("online: <example.org/report>") is the web address it names. */
-export const withScheme = (link: unknown) => typeof link === "string" && /^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#]|$)/iu.test(link)
-  ? `https://${link}` : link;
 
 /** A brief the standalone runtime is handed: the page keeps the file, known here by its hash. */
 export async function importStandaloneAuthoritiesFile(input: {

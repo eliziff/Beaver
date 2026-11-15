@@ -3,9 +3,10 @@ import type { QuoteComparison } from "./QuoteComparison";
 import type { QuoteLocation } from "./QuoteLocation";
 
 /**
- * A quotation located in a document, and where it was compared, the grounding errors its words leave (`errors`).
+ * A quotation located in a document, where it was compared the grounding errors its words leave (`errors`), and the
+ * link opening its source at its words.
  */
-export type LocatedQuotation = { errors?: Array<string>, match: QuoteLocation, 
+export type LocatedQuotation = { errors?: Array<string>, link: string | null, match: QuoteLocation, 
 /**
  * None where the caller asked for the location alone.
  */

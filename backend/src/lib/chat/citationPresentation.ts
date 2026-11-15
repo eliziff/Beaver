@@ -1,8 +1,7 @@
-import { a2ajDocumentLink,
-  buildLegalSourcePinpoint, legalSourceLocatorAnchor } from "../legalSourceLinks";
+import { a2ajDocumentLink, buildLegalSourcePinpoint } from "../legalSourceLinks";
+import { structureNative } from "../structureNative";
 import { plainInlineText } from "../legalSourcePresentation";
 import type { RegisteredEvidence } from "./legalEvidence";
-import { structureNative } from "../structureNative";
 
 export type CitationPresentation = {
   authority: string;
@@ -84,7 +83,7 @@ export function presentLegalEvidence(
   // provider document whose text was actually used to verify the fragment.
   const citationUrl =
     (receipt.source_class === "case"
-      ? structureNative().canliiCaseUrl([receipt.citation], receipt.language, receipt.dataset)
+      ? document?.canliiUrl
       : null) ?? retrievedSourceUrl;
   const fragmentSourceUrl = receipt.provider === "a2aj"
     ? retrievedSourceUrl
@@ -108,11 +107,7 @@ export function presentLegalEvidence(
           {
             url: fragmentSourceUrl,
             anchor: a2ajLocator
-              ? legalSourceLocatorAnchor(
-                  fragmentSourceUrl,
-                  a2ajLocator.kind,
-                  a2ajLocator.label,
-                )
+              ? structureNative().sourceAnchor(fragmentSourceUrl, a2ajLocator.kind, [a2ajLocator.label])[0] ?? undefined
               : undefined,
             blockText,
             documentText: source,

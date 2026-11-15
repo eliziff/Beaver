@@ -235,6 +235,8 @@ struct Features {
     markers_kind: Vec<(String, Option<Point>, Segments)>,
     /// A transcript's printed line numbers: a line_label line, or the number printed on the line it numbers.
     line_numbers: Vec<Segments>,
+    /// The page numbers the pages print: each page_label unit's text.
+    page_numbers: Vec<Segments>,
     /// The labels that open a speaker's turn ("Q.", "MR. SMITH:").
     speakers: Vec<Segments>,
 }
@@ -406,6 +408,9 @@ fn features<'a>(
         let own_number = (role(g) == "line_label").then(|| spans(&g.spans));
         if let Some(number) = &own_number {
             result.line_numbers.push(number.clone());
+        }
+        if role(g) == "page_label" {
+            result.page_numbers.push(spans(&g.spans));
         }
         for s in &g.line_number {
             let number = spans(std::slice::from_ref(s));
@@ -724,6 +729,7 @@ pub fn explain(
         cell.as_ref()
             .map_or("merged".into(), |s| render.segments(s))
     ));
+    layer!(page_numbers, |s: &Segments| render.segments(s));
     layer!(document, |d: &Document| render.document(d));
     layer!(coverage, |p: &Piece| render.piece(*p));
     layer!(order, |(a, b): &(Piece, Piece)| format!("{} ⇒ {}", render.piece(*a), render.piece(*b)));
@@ -766,7 +772,7 @@ pub fn compare(reference: &Side, predicted: &Side) -> Result<Score, String> {
     compare_as(reference, predicted, false)
 }
 
-/// `compare`, for a gold that may leave things unsaid. `unmarked`: a machine-aligned gold (`gold_labels.LEVELLESS`) leaves a
+/// `compare`, for a gold that may leave things unsaid. `unmarked`: a machine-aligned gold (label source a2aj-align) leaves a
 /// quotation or a list item set in its body unmarked and gives no levels, so neither side's text, quotations and list items
 /// are told apart, only the units' extents scored, and the layers that read roles or levels are not scored at all.
 pub fn compare_as(reference: &Side, predicted: &Side, unmarked: bool) -> Result<Score, String> {
@@ -823,6 +829,7 @@ pub fn compare_as(reference: &Side, predicted: &Side, unmarked: bool) -> Result<
         prf(&wanted.note_references, &got.note_references),
     );
     metrics.insert("line_numbers", prf(&wanted.line_numbers, &got.line_numbers));
+    metrics.insert("page_numbers", prf(&wanted.page_numbers, &got.page_numbers));
     metrics.insert("speakers", prf(&wanted.speakers, &got.speakers));
     metrics.insert("document", prf(&wanted.document, &got.document));
     metrics.insert("document_parts", prf(&wanted.document_parts, &got.document_parts));

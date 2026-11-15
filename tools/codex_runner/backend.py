@@ -121,15 +121,89 @@ def respond(*, instructions, content, schema, model, effort, cache_key, timeout_
     raise RuntimeError("backend gave no answer after 5 tries")
 
 
+# A model named "opencode-go/<id>" is OpenCode Go's (the opencode CLI's subscription): its OpenAI-compatible chat
+# completions endpoint, with the key `opencode auth login` stored (or OPENCODE_API_KEY).
+GO_PREFIX = "opencode-go/"
+GO_URL = "https://opencode.ai/zen/go/v1/chat/completions"
+
+
+_go_key = []
+
+
+def go_key():
+    """The OpenCode Go key: OPENCODE_API_KEY, else the one `opencode auth login` keeps (read with `opencode auth
+    export`: a list of credentials, each with its integrationID and value.key)."""
+    if os.environ.get("OPENCODE_API_KEY", "").strip():
+        return os.environ["OPENCODE_API_KEY"].strip()
+    if not _go_key:
+        import shutil, subprocess
+        cli = shutil.which("opencode") or shutil.which("opencode.cmd")
+        exported = subprocess.run([cli, "auth", "export"], capture_output=True, text=True, timeout=60).stdout if cli else "[]"
+        for credential in json.loads(exported or "[]"):
+            if credential.get("integrationID") in ("opencode-go", "opencode") and (credential.get("value") or {}).get("key"):
+                _go_key.append(credential["value"]["key"]); break
+    if not _go_key:
+        raise RuntimeError("no OpenCode Go key in OPENCODE_API_KEY or opencode's sign-in: run opencode auth login")
+    return _go_key[0]
+
+
+def go_usage(response):
+    """A chat completion's token counts under the names `codex exec` reports."""
+    u = response.get("usage") or {}
+    counts = {"input_tokens": u.get("prompt_tokens", 0), "cached_input_tokens": (u.get("prompt_tokens_details") or {}).get("cached_tokens", 0),
+              "output_tokens": u.get("completion_tokens", 0),
+              "reasoning_output_tokens": (u.get("completion_tokens_details") or {}).get("reasoning_tokens", 0)}
+    counts["total_tokens"] = counts["input_tokens"] + counts["output_tokens"]
+    return counts
+
+
+def go_respond(*, instructions, content, schema, model, timeout_seconds, log, session):
+    """One structured answer from OpenCode Go: the same parts as respond() sends, in chat form."""
+    parts = [{"type": "image_url", "image_url": {"url": part["image_url"]}} if part["type"] == "input_image"
+             else {"type": "text", "text": part["text"]} for part in content]
+    body = {"model": model[len(GO_PREFIX):], "stream": False,
+            "messages": [*([{"role": "system", "content": instructions}] if instructions else []), {"role": "user", "content": parts}],
+            "response_format": {"type": "json_schema", "json_schema": {"name": "answer", "strict": True, "schema": schema}}}
+    for attempt in range(5):
+        if attempt:
+            time.sleep(min(60, 5 * 2 ** attempt))
+        try:
+            # OpenCode Go routes a request by its session (x-opencode-session): the call's cache key, as Codex's session_id.
+            response = httpx.post(GO_URL, headers={"Authorization": "Bearer " + go_key(), "x-opencode-session": session}, json=body,
+                                  timeout=httpx.Timeout(timeout_seconds, connect=30))
+        except httpx.TransportError as exc:
+            log.write(json.dumps({"type": "transport.retry", "error": str(exc)[:500]}) + "\n")
+            continue
+        if response.status_code in TRANSIENT:
+            log.write(json.dumps({"type": "http.retry", "status": response.status_code}) + "\n")
+            continue
+        if response.status_code != 200:
+            raise RuntimeError(f"OpenCode Go answered {response.status_code}: {response.text[:2000]}")
+        completed = response.json()
+        log.write(json.dumps({"type": "turn.completed", "usage": go_usage(completed), "response_id": completed.get("id"),
+                              "served_model": completed.get("model")}) + "\n")
+        choice = (completed.get("choices") or [{}])[0]
+        if choice.get("finish_reason") == "length":
+            raise ValueError("the answer was cut off (length)")
+        return (choice.get("message") or {}).get("content") or ""
+    raise RuntimeError("OpenCode Go gave no answer after 5 tries")
+
+
 def invoke(*, prompt, schema_path, image_paths, model, effort, work_dir, timeout_seconds, extra_args=(), instructions="", cache_key=None):
     """The `codex_runner.transport.invoke` contract over the direct backend: the images, then the
     prompt, as `codex exec` sends them; the answer parsed, the last message and the events (with the
-    usage `calls.event_usage` reads) in work_dir. extra_args (codex exec's flags) have no meaning here."""
+    usage `calls.event_usage` reads) in work_dir. extra_args (codex exec's flags) have no meaning here.
+    A model named opencode-go/<id> is answered by OpenCode Go (its effort has no meaning there)."""
     content = [*(image(p) for p in image_paths), text(prompt)]
     work_dir = Path(work_dir)
+    schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
     with open(work_dir / "events.jsonl", "w", encoding="utf-8") as log:
-        answer = respond(instructions=instructions, content=content, schema=json.loads(Path(schema_path).read_text(encoding="utf-8")),
-                         model=model, effort=effort, cache_key=cache_key or str(uuid.uuid4()), timeout_seconds=timeout_seconds, log=log)
+        if model.startswith(GO_PREFIX):
+            answer = go_respond(instructions=instructions, content=content, schema=schema, model=model, timeout_seconds=timeout_seconds, log=log,
+                                session=cache_key or str(uuid.uuid4()))
+        else:
+            answer = respond(instructions=instructions, content=content, schema=schema,
+                             model=model, effort=effort, cache_key=cache_key or str(uuid.uuid4()), timeout_seconds=timeout_seconds, log=log)
     (work_dir / "last-message.json").write_text(answer, encoding="utf-8")
     try:
         return json.loads(answer)

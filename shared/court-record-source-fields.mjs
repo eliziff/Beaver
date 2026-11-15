@@ -16,16 +16,17 @@ function sourceDocumentFields(pages) {
   const openingLines = lines(available.slice(0, 3).join("\n"));
   const endingLines = lines(available.slice(-3).join("\n"));
   const openingFlat = openingLines.join(" "), endingFlat = endingLines.join(" ");
-  const labelled = (aliases, source = openingLines, exact = false) => {
-    for (let index = 0; index < source.length; index += 1) {
-      const divided = source[index].match(/^(.{2,45}?)(?:\s*[:|]\s*|\s+[\u2013\u2014-]\s+)(.+)$/u);
-      if (divided && aliases.some((alias) => sameLabel(divided[1], alias))) {
-        return exact ? cleanText(divided[2]) : readable(divided[2]);
-      }
-      if (aliases.some((alias) => sameLabel(source[index], alias)) && source[index + 1] &&
-        !fieldOrSectionLabel(source[index + 1])) {
-        return exact ? cleanText(source[index + 1]) : readable(source[index + 1]);
-      }
+  // Each line of a source split at a label's colon or dash and read as a label, once for every field's lookup.
+  const read = new Map();
+  const labelled = (aliases, source = openingLines) => {
+    const wanted = aliases.map(labelKey);
+    if (!read.has(source)) read.set(source, source.map((line) => {
+      const divided = line.match(/^(.{2,45}?)(?:\s*[:|]\s*|\s+[\u2013\u2014-]\s+)(.+)$/u);
+      return [divided && labelKey(divided[1]), labelKey(line), divided?.[2]];
+    }));
+    for (const [index, [label, key, value]] of read.get(source).entries()) {
+      if (label !== null && wanted.includes(label)) return cleanText(value);
+      if (wanted.includes(key) && source[index + 1] && !fieldOrSectionLabel(source[index + 1])) return cleanText(source[index + 1]);
     }
     return "";
   };
@@ -67,28 +68,25 @@ function sourceDocumentFields(pages) {
   const officialDate = (verb) => {
     const match = openingFlat.match(new RegExp(
       `\\b${verb}\\s+the\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s+day\\s+of\\s+(${MONTHS})\\s*,?\\s*(\\d{2})\\s*(\\d{2})\\b`, "iu"));
-    return match && `${readable(match[2])} ${Number(match[1])}, ${match[3]}${match[4]}`;
+    return match && `${cleanText(match[2])} ${Number(match[1])}, ${match[3]}${match[4]}`;
   };
   const cover = compact({
-    courtName: readable(court),
+    courtName: cleanText(court),
     courtFileNumber: openingFlat.match(/\bNo\.\s*([A-Z0-9]+-[A-Z0-9./-]{1,30})\b/iu)?.[1]
       || openingFlat.match(/\b(?:Court of Appeal )?File\s+(?:No\.?|Number)\s*:?\s*([A-Z0-9][A-Z0-9./-]{1,30})\b/iu)?.[1]
       || labelled(["court of appeal file number", "court file no", "court file number"]),
-    lowerCourtFileNumber: labelled(["trial court file number", "lower court file number"],
-      openingLines, true),
+    lowerCourtFileNumber: labelled(["trial court file number", "lower court file number"]),
     registry: labelled(["registry office", "court registry", "registry", "judicial centre"])
-      || readable(openingLines.map((line) => line.match(/^([\p{L}][\p{L} .'-]{1,49})\s+(?:Registry|Judicial Centre)$/iu)?.[1]).find(Boolean) || ""),
+      || cleanText(openingLines.map((line) => line.match(/^([\p{L}][\p{L} .'-]{1,49})\s+(?:Registry|Judicial Centre)$/iu)?.[1]).find(Boolean) || ""),
     decisionMaker: labelled(["appeal from the decision of", "decision maker appealed from", "decision maker",
-      "judge appealed from"], openingLines, true),
-    decisionDate: labelled(["decision date", "date of decision", "date of judgment"],
-      openingLines, true) || officialDate("Dated"),
-    decisionFileDate: labelled(["decision filing date", "date decision filed",
-      "date judgment filed"], openingLines, true) || officialDate("Filed"),
+      "judge appealed from"]),
+    decisionDate: labelled(["decision date", "date of decision", "date of judgment"]) || officialDate("Dated"),
+    decisionFileDate: labelled(["decision filing date", "date decision filed", "date judgment filed"]) || officialDate("Filed"),
     affidavitNumber: number,
     deponent,
-    swornDate: date ? `${readable(date[2])} ${Number(date[1])}, ${date[3]}`
+    swornDate: date ? `${cleanText(date[2])} ${Number(date[1])}, ${date[3]}`
       : labelled(["sworn date", "date sworn", "affirmed date"], endingLines),
-    swornPlace: placeName([jurat?.[1], jurat?.[2]].map(readable).filter(Boolean).join(", ")
+    swornPlace: placeName([jurat?.[1], jurat?.[2]].map(cleanText).filter(Boolean).join(", ")
       || labelled(["sworn at", "affirmed at"], endingLines)),
     recordTitle: labelled(["record title", "document title"]),
     counselName: labelled(["counsel", "lawyer", "lawyer or filing person"]),
@@ -96,9 +94,9 @@ function sourceDocumentFields(pages) {
     counselPhone: labelled(["telephone", "phone", "counsel phone"]),
     counselFax: labelled(["fax", "counsel fax"]),
     counselEmail: labelled(["email", "counsel email"]),
-    applicationUnder: readable(openingLines.map((line) =>
+    applicationUnder: cleanText(openingLines.map((line) =>
       line.match(/^APPLICATION UNDER\s+(.+)$/iu)?.[1]).find(Boolean) ||
-      labelled(["application under"], openingLines, true)),
+      labelled(["application under"])),
   });
   const swornDate = cover.swornDate, readableDeponent = cover.deponent;
   const dateText = `${openingFlat} ${endingFlat}`;
@@ -108,8 +106,8 @@ function sourceDocumentFields(pages) {
       `\\b(?:date|dated|filed|issued|made)\\s*:?\\s*(${MONTHS})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s*,?\\s*(\\d{4})\\b`, "iu")));
   const entryDate = swornDate || cover.decisionDate || cover.decisionFileDate || (dated &&
     (/^\d/u.test(dated[1])
-      ? `${readable(dated[2])} ${Number(dated[1])}, ${dated[3]}`
-      : `${readable(dated[1])} ${Number(dated[2])}, ${dated[3]}`));
+      ? `${cleanText(dated[2])} ${Number(dated[1])}, ${dated[3]}`
+      : `${cleanText(dated[1])} ${Number(dated[2])}, ${dated[3]}`));
   return {
     cover,
     exhibitLabels: exhibits,
@@ -123,8 +121,7 @@ function sourceDocumentFields(pages) {
 }
 
 
-const sameLabel = (left, right) => left.toLowerCase().replace(/[^a-z0-9]+/gu, "") ===
-  right.toLowerCase().replace(/[^a-z0-9]+/gu, "");
+const labelKey = (value) => value.toLowerCase().replace(/[^a-z0-9]+/gu, "");
 function sameRole(left, right) {
   const clean = (value) => value.toLowerCase().replace(/[^a-z]+/gu, "").replace(/s$/u, "");
   return clean(left) === clean(right);
@@ -153,7 +150,6 @@ const placeName = (value) => {
 };
 const cleanText = (value = "") => value.replace(/\s+/gu, " ").trim()
   .replace(/^[,;:\s]+|[,;:\s]+$/gu, "");
-const readable = cleanText;
 const compact = (value) => Object.fromEntries(Object.entries(value).filter(([, item]) => item));
 
 export { sourceDocumentFields };

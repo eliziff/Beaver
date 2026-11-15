@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { publisherPdfCandidate, rankedPublisherPdfLinks, verifiedDecisiaPdf } from "../legalSourcePresentation";
+import { publisherPdfCandidate, rankedPublisherPdfLinks } from "../legalSourcePresentation";
+import { structureNative } from "../structureNative";
 
 describe("verified Decisia PDF evidence", () => {
   it("derives only supported Alberta and federal legislation candidates", () => {
@@ -39,21 +40,21 @@ describe("verified Decisia PDF evidence", () => {
     "https://decisia.lexum.com/nsc/nssc/en/item/42/index.do",
   ])("derives a download candidate without claiming representation evidence: %s", (url) => {
     expect(publisherPdfCandidate(url)).toBe(url.replace(/\/item\/(\d+)\/index.do$/, "/$1/1/document.do"));
-    expect(verifiedDecisiaPdf("", url)).toBeNull();
+    expect(structureNative().decisiaMarkupPdf("", url)).toBeNull();
   });
   it("accepts the PDF anchor in the Decisia documents control", () => {
     const canonical =
       "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/530291/index.do";
     const markup = `<li class="documents"><a
       href="/fc-cf/decisions/en/530291/1/document.do">PDF</a></li>`;
-    expect(verifiedDecisiaPdf(markup, canonical)).toEqual({
+    expect(structureNative().decisiaMarkupPdf(markup, canonical)).toEqual({
       url: "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/530291/1/document.do",
       pdfOnly: false,
     });
   });
   it("reads current div documents controls without following judgment-body citations", () => {
     const url = "https://decisions.courts.ns.ca/nsc/nssc/en/item/42/index.do";
-    expect(verifiedDecisiaPdf('<div class="documents"><a href="/nsc/nssc/en/42/1/document.do">PDF</a></div>', url))
+    expect(structureNative().decisiaMarkupPdf('<div class="documents"><a href="/nsc/nssc/en/42/1/document.do">PDF</a></div>', url))
       .toEqual({ url: "https://decisions.courts.ns.ca/nsc/nssc/en/42/1/document.do", pdfOnly: false });
   });
 
@@ -65,7 +66,7 @@ describe("verified Decisia PDF evidence", () => {
       <li class="documents"><a href="${pdf}">PDF</a></li>
       <div id="decisia-decision-pdf-only"><a href="${pdf}">Download</a></div>`;
 
-    expect(verifiedDecisiaPdf(markup, canonical)).toEqual({
+    expect(structureNative().decisiaMarkupPdf(markup, canonical)).toEqual({
       url: "https://decisions.ct-tc.gc.ca/ct-tc/cdo/en/464621/1/document.do",
       pdfOnly: true,
     });
@@ -75,7 +76,7 @@ describe("verified Decisia PDF evidence", () => {
     const canonical =
       "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/40083/index.do";
     const markup = '<li class="documents">\n</li>';
-    expect(verifiedDecisiaPdf(markup, canonical)).toBeNull();
+    expect(structureNative().decisiaMarkupPdf(markup, canonical)).toBeNull();
   });
 
   it("rejects document links outside Decisia representation controls", () => {
@@ -83,7 +84,7 @@ describe("verified Decisia PDF evidence", () => {
       "https://decisions.fct-cf.gc.ca/fc-cf/decisions/en/item/40083/index.do";
     const markup = `<article><a href="/fc-cf/decisions/en/530291/1/document.do">
       cited judgment</a></article>`;
-    expect(verifiedDecisiaPdf(markup, canonical)).toBeNull();
+    expect(structureNative().decisiaMarkupPdf(markup, canonical)).toBeNull();
   });
 
   it("follows the same-origin Decisia decision frame to its PDF control", () => {
@@ -102,7 +103,7 @@ it.each(['decisions.scc-csc.ca', 'decisions.fct-cf.gc.ca', 'decisions.courts.ns.
   'accepts current div representation controls at %s', host => {
     const index = `https://${host}/court/cases/en/item/123/index.do`;
     const pdf = '/court/cases/en/123/1/document.do';
-    expect(verifiedDecisiaPdf(`<div class="documents"><a href="${pdf}">PDF</a></div>`, index))
+    expect(structureNative().decisiaMarkupPdf(`<div class="documents"><a href="${pdf}">PDF</a></div>`, index))
       .toEqual({ url: `https://${host}${pdf}`, pdfOnly: false });
-    expect(verifiedDecisiaPdf(`<div class="judgment"><a href="${pdf}">Citation</a></div>`, index)).toBeNull();
+    expect(structureNative().decisiaMarkupPdf(`<div class="judgment"><a href="${pdf}">Citation</a></div>`, index)).toBeNull();
   });

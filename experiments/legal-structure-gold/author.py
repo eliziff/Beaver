@@ -27,7 +27,7 @@ import argparse
 from contextlib import contextmanager
 import json
 import os
-import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -39,10 +39,9 @@ from types import SimpleNamespace
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path[:0] = [str(HERE), str(ROOT / "tools"), str(ROOT / "experiments" / "legal_pdf_corpus")]
-from codex_runner.artifacts import atomic_json as write_json, digest, fingerprint, read_json  # noqa: E402
+from codex_runner.artifacts import atomic_json as write_json, digest, read_json  # noqa: E402
 from codex_runner import backend  # noqa: E402
 from codex_runner.calls import CallPolicy, call  # noqa: E402
-from codex_runner.transport import terminate  # noqa: E402
 import blocks  # noqa: E402
 import gold  # noqa: E402
 import gold_store  # noqa: E402
@@ -59,6 +58,11 @@ CONFIG = {"project_doc_max_bytes": 0, "skills.include_instructions": False,
           "web_search": "disabled"}
 # The structure parser's note pairer over pages of lines (native/legal-structure-node/src/bin/note_pairs.rs).
 NOTE_PAIRS = Path(os.environ.get("NOTE_PAIRS", ROOT / "native/legal-structure-node/target/release/note_pairs.exe"))
+# The engine's page renderer (native/structure-tools/src/bin/page_images.rs).
+PAGE_IMAGES = Path(os.environ.get("PAGE_IMAGES", ROOT / "native/legal-structure-node/target/release/page_images.exe"))
+# A PDF's lines from the one extraction cache the grader and the training read (native/structure-tools gold_lines).
+GOLD_LINES = Path(os.environ.get("GOLD_LINES", ROOT / "native/legal-structure-node/target/release/gold_lines.exe"))
+INPUTS = Path(os.environ.get("STRUCTURE_GOLD_INPUTS", gold_store.WORK.parent / "gold-inputs"))
 # The pairer's names for the regions it reads: notes, page numbers, running heads, tables.
 PAIRER_REGION = {"note": "footnote", "note_quote": "footnote", "page_label": "page_number", "line_label": "number", "furniture": "header", "table": "table"}
 
@@ -80,6 +84,20 @@ POLICY = CallPolicy(INSTRUCTIONS, CONFIG, lambda prompt, error, previous: prompt
 SOL = ("gpt-6.1-sol", "low")
 TERRA = ("gpt-6.1-terra", "medium")
 
+
+class Uncached(RuntimeError):
+    """A call --cached-only refused: no answer to it in the work folder's call cache."""
+
+
+def dispatch(args):
+    """The model behind every call: the backend, or with --cached-only a refusal, so a gold is put together from
+    answers already cached (a trial authored elsewhere put in the store) and never asks a model anything."""
+    if not getattr(args, "cached_only", False):
+        return backend.invoke
+
+    def refuse(**request):
+        raise Uncached(f"--cached-only: {request.get('model')} was never answered this call here")
+    return refuse
 
 def route(mode, layout, args):
     """(model, effort) for a document: a born-digital one in one language (source.json's
@@ -114,55 +132,46 @@ def exclusive(path, wait=3600):
     write the same document's cache files at once."""
     path.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.time() + wait
+    # The system's lock on the file, not the file's being there: a process that dies, or is stopped, lets go of it.
+    handle = os.open(path, os.O_CREAT | os.O_WRONLY)
+    if os.name == "nt":
+        import msvcrt
+        take, give = (lambda: msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)), (lambda: msvcrt.locking(handle, msvcrt.LK_UNLCK, 1))
+    else:
+        import fcntl
+        take, give = (lambda: fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)), (lambda: fcntl.flock(handle, fcntl.LOCK_UN))
     while True:
         try:
-            handle = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            take()
             break
-        except FileExistsError:
-            if time.time() > deadline: raise TimeoutError(f"{path} stayed locked")
+        except OSError:
+            if time.time() > deadline:
+                os.close(handle)
+                raise TimeoutError(f"{path} stayed locked")
             time.sleep(2)
     try:
         yield
     finally:
+        give()
         os.close(handle)
         os.remove(path)
 
 
-def extract(pdf, mode, out, timeout, witness=None):
-    """The installed parser's extracted lines, page by page in reading order: each line's id, page,
-    text and box, and the spans its text layer sets as superscript; and each page's size. Or a
-    separately recorded, source-bound extraction's lines, which carry no boxes."""
+def extract(pdf, source, timeout, witness=None, page_count=None):
+    """The PDF's lines as the grader and the training read them (`gold_lines`, from the one extraction cache: the PDF
+    extracted only where it is not kept), in reading order: each line's id, page, text and box, and the spans its text
+    layer sets as superscript; each page's size; and the extraction's identity. Or a separately recorded, source-bound
+    extraction's lines, which carry no boxes."""
     if witness is not None:
-        import fitz
         value = read_json(witness)
-        with fitz.open(pdf) as document:
-            lines = witnessed_lines(value, digest(pdf), len(document))
-        return lines, {}, {'binary_sha256': None, 'extraction_sha256': digest(witness),
-                           'extraction_method': value['method'], 'source_sha256': value['source_sha256']}
-    with exclusive(out / "parsed" / f"{Path(pdf).stem}.{mode}.lock"):
-        return extract_unlocked(pdf, mode, out, timeout)
-
-
-def extract_unlocked(pdf, mode, out, timeout):
-    process = subprocess.Popen(["node", str(HERE / "extract.mjs"), str(pdf), str(out / "parsed"), mode],
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
-                               creationflags=subprocess.IDLE_PRIORITY_CLASS if os.name == "nt" else 0)
-    try: stdout, stderr = process.communicate(timeout=timeout)
-    except BaseException:
-        terminate(process); raise
-    gold.require(process.returncode == 0, "Parser export failed: " + stderr[-2000:])
-    exported = read_json(Path(stdout.strip().splitlines()[-1]))
-    document = exported.get("document", exported)
-    structure = document.get("structure_graph", document.get("structure", document))
-    # Every extracted line with its own text, in reading order: what the page's text layer or OCR
-    # gives, never the parser's structure over it (its joins, restored labels), which the gold grades.
-    pages = document.get("extraction", document)["pages"]
-    lines = [{"id": line["id"], "page": page_index + 1, "text": line.get("text", "".join(s["text"] for s in line.get("spans", []))),
-              "bbox": line.get("bbox", [0, 0, 0, 0]),
-              "superscripts": [[s["start"], s["end"]] for s in line.get("spans", []) if s.get("superscript") and "start" in s]}
-             for page_index, page in enumerate(pages) for line in sorted(page["lines"], key=lambda l: l.get("reading_order", 0))]
-    sizes = {page_index + 1: (page.get("width") or 0, page.get("height") or 0) for page_index, page in enumerate(pages)}
-    return lines, sizes, {"binary_sha256": exported.get("parser", {}).get("binary_sha256"), "structure_sha256": fingerprint(structure)}
+        lines = witnessed_lines(value, digest(pdf), page_count)
+        return lines, {}, {'extraction_sha256': digest(witness), 'extraction_method': value['method'], 'source_sha256': value['source_sha256']}
+    with exclusive(INPUTS / "locks" / f"{source}.lock"):
+        result = subprocess.run([str(GOLD_LINES), str(pdf), source, str(INPUTS)], capture_output=True, text=True, encoding="utf-8", timeout=timeout,
+                                creationflags=subprocess.IDLE_PRIORITY_CLASS if os.name == "nt" else 0)
+    gold.require(result.returncode == 0, "Extraction failed: " + result.stderr[-2000:])
+    read = json.loads(result.stdout.strip().splitlines()[-1])
+    return read["lines"], {int(page): tuple(size) for page, size in read["sizes"].items()}, {"extraction": read["extraction"]}
 
 
 # The model receives an image scaled to fit 2,048 pixels on its long side (measured on gpt-6.1-sol:
@@ -171,18 +180,13 @@ def extract_unlocked(pdf, mode, out, timeout):
 LONG_SIDE = 2048
 
 
-def render(pdf, pages, directory, dpi_cap):
-    """Each page's image, rendered so its long side is LONG_SIDE pixels (at most dpi_cap)."""
-    import fitz
-    directory.mkdir(parents=True, exist_ok=True)
-    paths = {}
-    with fitz.open(pdf) as document:
-        for page in pages:
-            rect = document[page - 1].rect
-            dpi = min(dpi_cap, int(LONG_SIDE * 72 / max(rect.width, rect.height, 1)))
-            paths[page] = directory / f"page-{page:06}-{dpi}.png"
-            if not paths[page].is_file(): document[page - 1].get_pixmap(dpi=dpi, alpha=False).save(paths[page])
-    return paths
+def render(pdf, directory, dpi_cap):
+    """Each page's image as our engine draws it (PAGE_IMAGES), its long side LONG_SIDE pixels (at most
+    dpi_cap dpi), by page number: the pages the lines beside it were extracted from."""
+    result = subprocess.run([str(PAGE_IMAGES), str(pdf), str(directory), str(LONG_SIDE), str(dpi_cap)],
+                            capture_output=True, text=True, encoding="utf-8")
+    gold.require(result.returncode == 0, "Page images failed: " + result.stderr[-2000:])
+    return {page: Path(file) for page, file in enumerate(json.loads(result.stdout.strip().splitlines()[-1]), 1)}
 
 
 SCHEMAS = threading.Lock()
@@ -228,7 +232,7 @@ def author_lines(lines, pages, images, job, args, count=None, shared=()):
         response = call(prompts.lines_prompt(numbered, page, count or len(pages), prior, later, page in shared),
                         schema_file(job, f"lines-{page:06}", prompts.lines_schema(list(numbered), [page])), pictures,
                         job / "calls" / f"lines-{page:06}", args, lambda r: (check(r), blocks.read(numbered, [page], r))[0],
-                        backend.invoke, policy=POLICY, cache_key=job.name)
+                        dispatch(args), policy=POLICY, cache_key=job.name)
         done[page] = blocks.read(numbered, [page], response)
     return [done[page] for page in pages]
 
@@ -313,7 +317,7 @@ def author_hierarchy(typed, groups, texts, indents, images, job, args):
         schema = schema_file(job, f"hierarchy-{shown[0]:05}", prompts.hierarchy_schema(hierarchy.answered(shown, rows), counts, args.hierarchy,
                                                                                         [n + 1 for n in shown if rows[n][1] == "provision"]))
         return call(prompts.hierarchy_prompt(rows, shown, pages, args.hierarchy), schema, [images[p] for p in pages],
-                    job / "calls" / f"hierarchy-{shown[0]:05}", args, lambda response: response, backend.invoke,
+                    job / "calls" / f"hierarchy-{shown[0]:05}", args, lambda response: response, dispatch(args),
                     policy=POLICY, cache_key=job.name)
     levels, depths, kind = hierarchy.decide(rows, ask, {p: image_tokens(path) for p, path in images.items()})
     units, changes = [{"lines": members, "starts_document": False} for members in groups], []
@@ -410,15 +414,14 @@ def author(pdf, mode, args, extraction=None):
     job.mkdir(parents=True, exist_ok=True)
     started = time.time()
     receipt = {"source_sha256": source, "mode": mode, "model": args.model, "effort": args.effort, "status": "running",
-               "started_at": started, "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py", HERE / "postcorrect.py")}}
+               "started_at": started, **({"purpose": args.purpose} if args.purpose else {}), "code": {p.name: digest(p) for p in (Path(__file__), HERE / "prompts.py", HERE / "blocks.py", HERE / "hierarchy.py", HERE / "postcorrect.py")}}
     write_json(job / "receipt.json", receipt)
     try:
-        lines, sizes, parser = extract(pdf, mode, args.work, args.timeout, extraction)
+        images = render(pdf, job / "images", args.dpi)
+        pages = sorted(images)
+        lines, sizes, parser = extract(pdf, source, args.timeout, extraction, len(pages))
         if extraction is not None:
             receipt['extraction_witness_sha256'] = parser['extraction_sha256']
-        import fitz
-        with fitz.open(pdf) as document: pages = list(range(1, len(document) + 1))
-        images = render(pdf, pages, job / "images", args.dpi)
         # The file is authored a document at a time, each in its own folder of calls.
         parts = [author_document(own, lines, sizes, mode, images, job / f"document-{k + 1:03}", args)
                  for k, own in enumerate(split(lines, starts))]
@@ -434,6 +437,8 @@ def author(pdf, mode, args, extraction=None):
         receipt.update(status="complete", gold_sha256=digest(run / "gold.json.gz"), pages=len(pages), units=len(units),
                        typed_lines=len(typed), notes=len(notes),
                        report={key: len(item) if isinstance(item, list) else item for key, item in report.items()})
+        # The page images go with the run's end: the engine draws them the same again where a call is made anew.
+        shutil.rmtree(job / "images", ignore_errors=True)
         return run
     except BaseException as exc:
         receipt.update(status="failed", error=str(exc)[-1000:]); raise
@@ -454,6 +459,8 @@ def main():
     p.add_argument("--root", type=Path, help="Base for manifest paths")
     p.add_argument("--batch", required=True, help="The authoring batch's name: the store's run folder is structure/<batch>-<run>")
     p.add_argument("--run", default=gold_store.CURRENT_RUN, help="The run's letter: a is the source's current gold, others trials")
+    p.add_argument("--cached-only", action="store_true", help="Answer every call from the call cache; a call it holds no answer to fails the document")
+    p.add_argument("--purpose", help="What a trial run (any --run but a) is for, kept in its receipts and the store's RUNS.md")
     p.add_argument("--work", type=Path, default=gold_store.WORK, help="This machine's working folder: page images, calls, extraction caches")
     p.add_argument("--limit", type=int, default=1, help="0 selects every manifest row")
     p.add_argument("--shard", default="0/1", help="k/n: every n-th manifest row from the k-th")
@@ -466,9 +473,11 @@ def main():
     p.add_argument("--hierarchy", choices=("two", "one"), default="two",
                    help="Document pass form under trial: a heading level or depths per row, or one depth per row")
     a = p.parse_args()
+    gold.require(a.run == gold_store.CURRENT_RUN or a.purpose, "a trial run (--run other than a) needs --purpose")
     gold.low_priority()
     args = SimpleNamespace(model=a.model, effort=a.effort, attempts=a.attempts, max_calls=None, timeout=a.timeout,
-                           dpi=a.dpi, batch=a.batch, run=a.run, work=a.work.resolve(), again=a.again, hierarchy=a.hierarchy)
+                           dpi=a.dpi, batch=a.batch, run=a.run, work=a.work.resolve(), again=a.again, hierarchy=a.hierarchy,
+                           purpose=a.purpose, cached_only=a.cached_only)
     if a.pdf:
         gold.require(a.mode, "--pdf needs --mode")
         print(author(a.pdf, a.mode, args, a.extraction)); return

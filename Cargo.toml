@@ -7,6 +7,7 @@
 resolver = "2"
 members = [
     "native/legal-structure-node",
+    "native/alr-verifier",
     "native/structure-tools",
     "native/a2aj-gold",
     "native/page-truth",
@@ -36,9 +37,18 @@ opt-level = 3
 [profile.dev.package.hayro]
 opt-level = 3
 
+# Built for speed: what ships (the addon, the page's engine) is optimized across crates, as one unit.
 [profile.release]
 debug = 0
 strip = true
+lto = "fat"
+codegen-units = 1
+
+# Built to rebuild: an edit's build in under a minute, its code slower than release's (no cross-crate optimization).
+[profile.iterate]
+inherits = "release"
+lto = false
+codegen-units = 256
 incremental = true
 
 [profile.profiling]

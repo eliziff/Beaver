@@ -4,7 +4,9 @@ import type { Citation } from "./Citation";
 import type { NoteRange } from "./NoteRange";
 import type { ReferencePart } from "./ReferencePart";
 import type { SourceAliasGroup } from "./SourceAliasGroup";
+import type { SourceFields } from "./SourceFields";
 import type { SourcePart } from "./SourcePart";
+import type { StatuteCandidate } from "./StatuteCandidate";
 
 /**
  * A brief's citations as its book of authorities reads them, before the statutes it names are looked up: its text and
@@ -13,4 +15,12 @@ import type { SourcePart } from "./SourcePart";
  * cites; its units as joined (`join_bodies`, a PDF's), where each starts and its citations in reading order; and each
  * cited case's aliases.
  */
-export type BriefReading = { text: string, notes: Array<NoteRange>, citations: Array<Citation>, sourceParts: Array<SourcePart>, references: Array<ReferencePart>, units: Array<AuthorityTextUnit>, starts: Array<number>, order: Array<number>, aliasGroups: Array<SourceAliasGroup>, };
+export type BriefReading = { text: string, notes: Array<NoteRange>, citations: Array<Citation>, sourceParts: Array<SourcePart>, 
+/**
+ * Each source part's fields, as the note splitter reads them (`source_parts` in order).
+ */
+sourceFields: Array<SourceFields>, references: Array<ReferencePart>, units: Array<AuthorityTextUnit>, starts: Array<number>, order: Array<number>, aliasGroups: Array<SourceAliasGroup>, 
+/**
+ * The note parts (by their place in `references`) whose one statute's CanLII page is to be checked against A2AJ.
+ */
+statutes: Array<StatuteCandidate>, };

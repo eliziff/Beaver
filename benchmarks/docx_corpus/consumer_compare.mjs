@@ -15,10 +15,8 @@ const hash = path => createHash('sha256').update(fs.readFileSync(path)).digest('
 const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 function execute(addon, request) {
   try {
-    const extracted = addon.citationEngineCall('extract', {
-      text: request.text, offsetUnit: 'char', options: { resolve: false, notes: request.notes },
-    }).citations;
-    const resolved = addon.citationEngineCall('resolve', { citations: extracted, notes: request.notes });
+    const extracted = addon.citationExtract(request.text, { resolve: false, notes: request.notes }, 'char').citations;
+    const resolved = addon.citationExtract(request.text, { resolve: true, notes: request.notes }, 'char');
     return { status: 'ok', extracted, resolved };
   } catch (error) {
     return { status: 'error', error: String(error.stack || error) };

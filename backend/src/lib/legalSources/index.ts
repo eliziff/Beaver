@@ -1,8 +1,10 @@
+import type { RemoteOutcome } from "mike/shared/engine-types/RemoteOutcome";
 import { type LegalSourceSearchHit } from "mike/shared/runtime/clientContracts.mjs";
 import { safeErrorLog } from "../safeError";
 import { ApplicationError } from "../applicationError";
 import { searchMatcher } from "../searchQuery";
-import type { NativeDocument } from "../structureNative";
+import { structureNative, type NativeDocument } from "../structureNative";
+import type { ProviderCitationMatch } from "mike/shared/engine-types/ProviderCitationMatch";
 import type { Passage } from "mike/shared/engine-types/Passage";
 
 export type LegalSourceKind = "case" | "legislation" | "journal" | "hansard";
@@ -74,6 +76,14 @@ export const reachForeignCaseHosts = (value: boolean) => { foreignCaseHosts = va
 export const lookupsLeaveComputer = (provider?: string) =>
   !local && (foreignCaseHosts || !FOREIGN_CASE_PROVIDERS.has(provider ?? ""));
 
+/** A provider lookup's value, or why `label` did not answer it, in the words providerFailure reads. */
+export function answered<T>(outcome: RemoteOutcome<T>, label: string): T {
+  if (outcome.status === "done") return outcome.value;
+  throw new Error(outcome.reason === "rate-limited" ? `${label} rate limit exceeded.`
+    : outcome.reason === "timeout" ? `${label} timed out.` : outcome.reason === "unreachable" ? `${label} cannot be reached.`
+    : outcome.message ?? `${label} answered with an error.`);
+}
+
 /** The providers of US and UK decisions, which a draft can leave out (its foreignCaseLookup setting). */
 export const FOREIGN_CASE_PROVIDERS: ReadonlySet<string> = new Set(["courtlistener", "tna", "govuk-et", "govinfo"]);
 
@@ -117,9 +127,11 @@ export type LegalSourceReadResult<Native = unknown> =
 
 export type LegalSourceProvider<Native = unknown> = {
   id: string;
-  canResolve?: (request: LegalSourceResolveRequest) => boolean;
+  /** `citations`: the request's text as the engine reads it for providers, read once for every provider asked and
+   *  given to each one's resolve. */
+  canResolve?: (request: LegalSourceResolveRequest, citations: readonly ProviderCitationMatch[]) => boolean;
   resolve?: (
-    request: LegalSourceResolveRequest,
+    request: LegalSourceResolveRequest, citations: readonly ProviderCitationMatch[],
   ) => Promise<readonly LegalSourceReference[]>;
   canSearch?: (request: LegalSourceSearchRequest) => boolean;
   /** null means the optional corpus is not installed; [] means no matches. */
@@ -207,15 +219,16 @@ export function createLegalSourceRegistry<Native = unknown>(
       request: LegalSourceResolveRequest,
     ): Promise<LegalSourceMatchResult<LegalSourceReference>> {
       request.signal?.throwIfAborted();
+      const citations = structureNative().providerCitationsInText(request.text);
       const selected = providers.filter(
         (provider) =>
-          provider.resolve && (provider.canResolve?.(request) ?? true) &&
+          provider.resolve && (provider.canResolve?.(request, citations) ?? true) &&
           (!request.providers || request.providers.includes(provider.id)),
       );
       if (!selected.length) return { status: "unsupported", providers: [] };
       const matches = (
         await Promise.all(selected.map(async (provider) => {
-          const matches = await provider.resolve!(request);
+          const matches = await provider.resolve!(request, citations);
           request.signal?.throwIfAborted();
           return matches;
         }))

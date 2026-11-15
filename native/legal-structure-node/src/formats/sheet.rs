@@ -242,11 +242,33 @@ fn implicit_format(id: u32) -> Option<&'static str> {
     })
 }
 
+/// The compound file with the FAT entries past its last sector free. SheetJS pads its last FAT sector with ENDOFCHAIN
+/// where the format says FREESECT (MS-CFB 2.3); cfb strips only free and zero entries past the end, so it refuses
+/// every workbook SheetJS writes. An entry past the end names no sector, so freeing it changes nothing read.
+fn beyond_end_free(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    let u32_at = |at: usize| bytes.get(at..at + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
+    let shift = bytes.get(30..32).map_or(9, |b| u16::from_le_bytes([b[0], b[1]]));
+    let Some(size) = 1usize.checked_shl(u32::from(shift)).filter(|size| (512..=4096).contains(size)) else { return bytes.into() };
+    let sectors = bytes.len().saturating_sub(size.max(512)).div_ceil(size);
+    let fat = u32_at(44).unwrap_or(0).min(109) as usize;
+    let mut fixed: Option<Vec<u8>> = None;
+    for (index, sector) in (0..fat).filter_map(|n| u32_at(76 + 4 * n)).enumerate() {
+        let start = (sector as usize + 1) * size;
+        for entry in 0..size / 4 {
+            let at = start + 4 * entry;
+            if index * (size / 4) + entry >= sectors && u32_at(at) == Some(0xFFFF_FFFE) {
+                fixed.get_or_insert_with(|| bytes.to_vec())[at..at + 4].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
+            }
+        }
+    }
+    fixed.map_or(bytes.into(), Into::into)
+}
+
 /// Each sheet's number formats by cell, in the workbook's order of sheets, read from its BIFF records: each cell's XF
 /// names a format, the workbook's own code for it (FORMAT) or a built-in one. calamine reads the values but keeps
 /// no XLS format.
 fn xls_formats(bytes: &[u8]) -> Result<Vec<HashMap<(u32, u32), Option<String>>>, std::io::Error> {
-    let (mut stream, mut file) = (Vec::new(), cfb::CompoundFile::open(Cursor::new(bytes))?);
+    let (mut stream, mut file) = (Vec::new(), cfb::CompoundFile::open(Cursor::new(beyond_end_free(bytes)))?);
     file.open_stream(if file.exists("/Workbook") { "/Workbook" } else { "/Book" })?.read_to_end(&mut stream)?;
     let stream = &stream;
     let records = |from: usize| {

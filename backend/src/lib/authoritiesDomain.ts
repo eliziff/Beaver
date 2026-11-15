@@ -2,7 +2,7 @@ import type {
   AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
   AuthoritiesBuildSettings, AuthoritiesSettings, AuthoritiesDocumentSnapshot, AuthoritiesImport,
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
-  AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
+  AuthorityIdentity, AuthoritiesReviewUnit, AuthorityNotePart, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
   AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure, AuthorityCitedCase, AuthoritiesDiscrepancyCorrectionRecord,
 } from "mike/shared/authorities-contract.d.ts";
@@ -10,7 +10,7 @@ export type {
   AuthorityKind, AuthoritiesOutputMode, AuthoritiesSourceMode, AuthoritiesProfileId, AuthoritiesBookRole,
   AuthoritiesBuildSettings, AuthoritiesSettings, AuthoritiesDocumentSnapshot, AuthoritiesImport,
   AuthoritiesCover, AuthoritySourceIdentity, AuthorityHighlightExclusion, AuthoritiesProfile,
-  AuthorityIdentity, AuthoritiesReviewUnit, AuthorityTextSpan, AuthorityCitationLedger,
+  AuthorityIdentity, AuthoritiesReviewUnit, AuthorityNotePart, AuthorityTextSpan, AuthorityCitationLedger,
   AuthorityOccurrence, AuthoritiesDiscrepancyAction, AuthoritiesDraft, AuthoritySeed,
   AuthoritiesLedgerOccurrence, AuthoritiesDismissedOccurrence, AuthoritySourceLookupFailure, AuthorityCitedCase, AuthoritiesDiscrepancyCorrectionRecord,
 };
@@ -220,7 +220,7 @@ const importedDocument = tagged<AuthoritiesImport>({ manual: {},
 
 const sourceIdentity = closed<AuthoritySourceIdentity>({ provider: text, stableSourceId: text,
   sourceSha256: sourceHash, version: nullable(text), externalUrl: nullable(text),
-  citationForms: maybe(list(50, nonempty(2000))) });
+  citationForms: maybe(list(50, nonempty(2000))), canliiUrl: maybe(nullable(text)) });
 const attachedSource = closed<AttachedAuthoritySource>({ bindingRole: text, filename: text,
   sourceSha256: text, sourceUrl: nullable(text),
   origin: oneOf(["manual", "original", "reconstructed"]),
@@ -242,7 +242,7 @@ const sourceDecision: Check = (value) => {
 const seed = closed<AuthoritySeed>({ key: text, kind: authorityKind, provider: text,
   citationForms: maybe(list(50, nonempty(2000))),
   stableSourceId: text, sourceSha256: text, citation: text, name: nullable(text),
-  version: nullable(text), externalUrl: nullable(text), evidenceIds: strings,
+  version: nullable(text), externalUrl: nullable(text), canliiUrl: maybe(nullable(text)), evidenceIds: strings,
   locators: list(50_000, locator) });
 const webAddress = (value: unknown, protocols: string[]): value is string => {
   if (typeof value !== "string" || value.length > 8192) return false;
@@ -266,7 +266,7 @@ const authorityShape = closed<AuthorityIdentity>({ id: text, key: text, kind: au
   locators: list(50_000, locator), sourceIdentity: nullable(sourceIdentity), excluded: flag,
   source: sourceDecision, highlightExclusions: maybe(list(500, locator)),
   annotations: maybe(isJsonRecord), excerpt: maybe(flag), userAdded: maybe(literal(true)),
-  scanOnly: maybe(literal(true)), historyOf: maybe(text) });
+  scanOnly: maybe(literal(true)), historyOf: maybe(text), canlii: maybe(list(500, isJsonRecord)) });
 /** Import provenance and hand entry are exclusive: one authority is only ever one of them. */
 const authority: Check = (value) =>
   authorityShape(value) && !(value.scanOnly && value.userAdded);
@@ -284,8 +284,14 @@ const unitFields = { source: maybe(unitSource), id: text, kind: oneOf(["body", "
   restartSequence: maybe(integer), path: maybe(list(1_000, integer)),
   links: maybe(list(50_000, linkSpan)), footnoteRefs: list(50_000, pair),
   pageNumbers: list(50_000, integer), text,
-} satisfies FieldTable<Omit<AuthoritiesReviewUnit, "occurrenceIds">>;
-const reviewUnit = closed<AuthoritiesReviewUnit>({ ...unitFields, occurrenceIds: strings });
+} satisfies FieldTable<Omit<AuthoritiesReviewUnit, "occurrenceIds" | "parts">>;
+const notePart = closed<AuthorityNotePart>({ start: integer, end: integer, text, reference: text, firstPage: maybe(text),
+  anchors: maybe(strings), resolvedUrl: maybe(text), jurisdictionPriority: maybe(strings),
+  anchorSpans: maybe(list(1_000, pair)),
+  fields: closed<AuthorityNotePart["fields"]>({ status: maybe(text), corrected: text, kind: text, link_candidate: maybe(text),
+    pinpoint_fragments: strings, page_pinpoints: strings, bare_citation: text, citation_with_style: text, short_form: text,
+    reasons: maybe(strings) }) });
+const reviewUnit = closed<AuthoritiesReviewUnit>({ ...unitFields, occurrenceIds: strings, parts: maybe(list(50_000, notePart)) });
 const reference = closed<NonNullable<AuthorityOccurrence["reference"]>>({
   kind: oneOf(AUTHORITIES_ACTION_CHOICES.reference), targetAuthorityId: text, originId: maybe(text),
   namedId: maybe(text) });
@@ -406,21 +412,40 @@ function requireRecord<T>(record: Record<string, T>, id: string, label: string):
  * never take this authority for the other and merge the two. A citation the brief broke across
  * lines is the same citation on one line, and is looked up as one. */
 export function authorityCitationForms(draft: AuthoritiesDraft, authorityId: string): string[] {
-  const canonical = requireRecord(draft.authorities, authorityId, "authority").citation;
-  const forms = new Set([canonical, ...(draft.authorities[authorityId].sourceIdentity?.citationForms ?? [])]
-    .map(normalizeWhitespace));
-  const others = new Set(Object.values(draft.authorities).flatMap(({ id, citation, sourceIdentity }) =>
-    id === authorityId ? [] : [citation, ...(sourceIdentity?.citationForms ?? [])]).map(normalizeWhitespace));
+  return citationForms(draft)(authorityId);
+}
+/** The CanLII page of an authority's decision in language (English by default): the first its citations name, as the
+ *  import read them, else its source's. */
+export const canliiCasePage = (authority: AuthorityIdentity, language = "en") =>
+  authority.canlii?.find((page) => !page.legislation && page[language === "fr" ? "fr" : "en"])?.[language === "fr" ? "fr" : "en"]
+    ?? authority.sourceIdentity?.canliiUrl ?? null;
+/** authorityCitationForms of each of the draft's authorities, as it stands, from one reading of the draft. */
+export function citationForms(draft: AuthoritiesDraft) {
+  // The authorities answering to each form: their citations and their sources' forms.
+  const owners = new Map<string, Set<string>>();
+  for (const { id, citation, sourceIdentity } of Object.values(draft.authorities))
+    for (const form of [citation, ...(sourceIdentity?.citationForms ?? [])].map(normalizeWhitespace))
+      (owners.get(form) ?? owners.set(form, new Set()).get(form)!).add(id);
+  // Each authority's citations, in filing order.
+  const cited = new Map<string, AuthorityOccurrence[]>();
   for (const unit of draft.units) for (const occurrenceId of unit.occurrenceIds) {
     const occurrence = draft.occurrences[occurrenceId];
-    if (occurrence?.authorityId === authorityId && occurrence.kind !== "reference" &&
-        !others.has(normalizeWhitespace(occurrence.citation))) {
+    if (!occurrence?.authorityId || occurrence.kind === "reference") continue;
+    (cited.get(occurrence.authorityId) ?? cited.set(occurrence.authorityId, []).get(occurrence.authorityId)!).push(occurrence);
+  }
+  return (authorityId: string) => {
+    const canonical = requireRecord(draft.authorities, authorityId, "authority").citation;
+    const forms = new Set([canonical, ...(draft.authorities[authorityId].sourceIdentity?.citationForms ?? [])]
+      .map(normalizeWhitespace));
+    const another = (form: string) => [...owners.get(form) ?? []].some((id) => id !== authorityId);
+    for (const occurrence of cited.get(authorityId) ?? []) {
+      if (another(normalizeWhitespace(occurrence.citation))) continue;
       forms.add(normalizeWhitespace(occurrence.citation));
       forms.add(normalizeWhitespace(occurrence.authoritySpan.text));
     }
-  }
-  forms.delete("");
-  return [...forms];
+    forms.delete("");
+    return [...forms];
+  };
 }
 
 function ingestLedger(draft: AuthoritiesDraft, ledger: AuthorityCitationLedger) {

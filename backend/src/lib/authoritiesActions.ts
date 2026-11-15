@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { ApplicationError } from "./applicationError";
-import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForms, reduceAuthoritiesDraft, authoritiesDraftEditor,
+import { AuthoritiesDomainError, attachedAuthoritySources, authorityCitationForms, canliiCasePage, reduceAuthoritiesDraft, authoritiesDraftEditor,
   authoritiesProfile, unusedScanOnlyAuthority, type AuthoritiesAction, type AuthoritiesBuildSettings,
   type AuthoritiesDraft, type AuthoritiesFreshReview, type AuthorityIdentity,
   type AuthorityKind, type AuthorityOccurrence, type AuthoritySourceLanguage, type AuthorityCitedCase,
   type AuthoritiesOutputMode, type AuthoritiesProfileId } from "./authoritiesDomain";
-import { nativeOccurrenceSpans, nativeReferenceSpans, pinpointValues } from "./authoritiesImport";
 import { authorityPdfReading } from "./authorityPdfText";
 import { a2ajStorePath } from "./legalDataPath";
 import { canonicalJsonSha256, sha256 } from "./hash";
@@ -19,8 +18,8 @@ import { headerIdentities, matchFolderPdf, verifyIdentity } from "mike/shared/fo
 
 export const authorityCitationServices = {
   key: (value: string) => structureNative().citationLookupKeys([value])[0],
-  occurrences: (value: string) => structureNative().citationOccurrencesInText(value),
-  references: (value: string) => structureNative().authorityReferencesInText(value),
+  occurrences: (value: string, offset?: number) => structureNative().citationOccurrencesInText(value, offset),
+  references: (value: string, offset?: number) => structureNative().authorityReferencesInText(value, offset),
 };
 type CitationServices = typeof authorityCitationServices;
 
@@ -167,7 +166,8 @@ function openingOtherCase(draft: AuthoritiesDraft, authority: AuthorityIdentity,
   try { verifyIdentity(opening, { citation: authority.citation, aliases: authorityCitationForms(draft, authority.id) }, native); }
   catch {
     const own = identities.find(({ family }) => family === "neutral") ?? identities[0];
-    const name = captionStyleOfCause(pages[0] ?? "", [own.key]);
+    // A citation the engine reads no lookup key of (its key is null) names no case to match the caption against.
+    const name = captionStyleOfCause(pages[0] ?? "", own.key ? [own.key] : []);
     if (authority.source.kind === "pending-canlii" || authority.sourceVerificationUrl)
       return { citation: own.text, name: name ?? own.text };
     return name && caseNameMismatch(authority, { citation: own.text, name, searchText: () => pages.join("\n") })
@@ -238,7 +238,7 @@ const lookupKey = (sources: CitationServices, text: string) => {
  */
 const citationKey = (sources: CitationServices, citation: string) => {
   const matches = sources.occurrences(citation);
-  return lookupKey(sources, matches.length === 1 ? matches[0].coreCitation.text : citation);
+  return lookupKey(sources, matches.length === 1 ? matches[0].spans.coreSpan.text : citation);
 };
 /** The authority a citation key already names, whatever citation form listed it. */
 const knownAuthority = (draft: AuthoritiesDraft, key: string, sources: CitationServices) => {
@@ -257,7 +257,7 @@ const textAuthority = (citation: string): AuthorityIdentity => ({
 const styledName = (match: CitationOccurrence) =>
   match.reasons.includes("same_text_style") ? match.shortForm?.trim() || null : null;
 const parsedAuthority = (match: CitationOccurrence, key: string): AuthorityIdentity => ({
-  id: key, key, kind: parsedKind(match), citation: match.coreCitation.text,
+  id: key, key, kind: parsedKind(match), citation: match.spans.coreSpan.text,
   ...(["database", "docket"].includes(match.format ?? "")
     ? { citationFormat: match.format as "database" | "docket" } : {}),
   name: styledName(match), displayName: null, excluded: false, evidenceIds: [], locators: [],
@@ -272,40 +272,37 @@ function manualOccurrence(draft: AuthoritiesDraft, unit: AuthoritiesDraft["units
   if (start >= end) throw new ApplicationError(400,
     "The edit must leave citation text on both sides");
   const text = unit.text.slice(start, end);
-  const matches = sources.occurrences(text), match = matches.length === 1 ? matches[0] : null;
-  const key = match ? lookupKey(sources, match.coreCitation.text) : "";
+  const matches = sources.occurrences(text, start), match = matches.length === 1 ? matches[0] : null;
+  const key = match ? lookupKey(sources, match.spans.coreSpan.text) : "";
   const authority = knownAuthority(draft, key, sources);
   const donorIds = donors.map(({ authorityId }) => authorityId);
-  const parsed = sources.references(text);
+  const parsed = sources.references(text, start);
   const selectedReference = !matches.length && parsed.length === 1 ? parsed[0] : null;
   const donorReferences = donors.map(({ reference }) => reference);
   const reference = selectedReference && sameValue(donorReferences) && donorReferences[0] &&
     donors.every((donor) => {
-      const prior = sources.references(donor.text);
-      return donor.authorityId === donor.reference?.targetAuthorityId && prior.length === 1 &&
-        donor.start + prior[0].token.start === start + selectedReference.token.start &&
-        prior[0].kind === selectedReference.kind && prior[0].token.text === selectedReference.token.text &&
-        prior[0].noteNumber === selectedReference.noteNumber;
+      const [prior, ...more] = sources.references(donor.text, donor.start);
+      return donor.authorityId === donor.reference?.targetAuthorityId && prior && !more.length &&
+        prior.spans.coreSpan.start === selectedReference.spans.coreSpan.start &&
+        prior.kind === selectedReference.kind && prior.spans.coreSpan.text === selectedReference.spans.coreSpan.text &&
+        prior.noteNumber === selectedReference.noteNumber;
     }) ? structuredClone(donorReferences[0]) : null;
   // A supra, ibid or short form keeps only the target its donors resolved for it: split out of
   // another citation, it does not inherit that citation's authority.
   const authorityId = match ? authority?.id ?? (sameValue(donorIds) &&
-      donors.every(({ citation }) => citation === match.coreCitation.text) ? donorIds[0] : null)
+      donors.every(({ citation }) => citation === match.spans.coreSpan.text) ? donorIds[0] : null)
     : selectedReference || donors.some(({ kind }) => kind === "reference") ? reference?.targetAuthorityId ?? null
     : sameValue(donorIds) ? donorIds[0] : null;
+  const read = match ?? selectedReference;
   const occurrence: AuthorityOccurrence = {
     id: `${unit.id}:manual:${start}:${end}`, unitId: unit.id, start, end, text,
-    ...(match ? nativeOccurrenceSpans(match, unit.text, start) : selectedReference
-      ? nativeReferenceSpans(selectedReference, unit.text, start) : {
-      authoritySpan: { start, end, text }, coreSpan: { start, end, text },
-      pinpointSpan: null,
-    }),
+    ...read?.spans ?? { authoritySpan: { start, end, text }, coreSpan: { start, end, text }, pinpointSpan: null },
     kind: selectedReference ? "reference" : match ? parsedKind(match)
       : sameValue(donors.map(({ kind }) => kind)) ? donors[0].kind : "other",
-    citation: match?.coreCitation.text ?? selectedReference?.token.text ??
+    citation: read?.spans.coreSpan.text ??
       (sameValue(donors.map(({ citation }) => citation)) ? donors[0].citation : text.trim()),
     authorityId, reference, referenceKind: selectedReference?.kind,
-    pinpoints: pinpointValues(match?.pinpoints ?? selectedReference?.pinpoints ?? [], start),
+    pinpoints: read?.pinpoints ?? [],
     evidenceIds: [...new Set(donors.flatMap(({ evidenceIds }) => evidenceIds))].sort(),
     // A unit's own text hash, except where donors carry the hash the import recorded.
     sourceTextSha256: donors[0]?.sourceTextSha256 ?? unit.occurrenceIds
@@ -396,13 +393,13 @@ function chosenAuthorityMatch(matches: CitationOccurrence[], occurrence: Authori
   if (matches.length === 1) return matches[0];
   if (!matches.length) return null;
   const current = draft.authorities[occurrence.authorityId ?? ""];
-  const matching = matches.filter((match) => match.coreCitation.text === occurrence.citation ||
-    !!current && lookupKey(sources, match.coreCitation.text) === current.key);
-  const keys = new Set(matches.map((match) => lookupKey(sources, match.coreCitation.text))
+  const matching = matches.filter((match) => match.spans.coreSpan.text === occurrence.citation ||
+    !!current && lookupKey(sources, match.spans.coreSpan.text) === current.key);
+  const keys = new Set(matches.map((match) => lookupKey(sources, match.spans.coreSpan.text))
     .filter(Boolean));
   if (matching.length === 1) return matching[0];
   if (keys.size === 1) return matches.find((match) =>
-    lookupKey(sources, match.coreCitation.text) === [...keys][0])!;
+    lookupKey(sources, match.spans.coreSpan.text) === [...keys][0])!;
   throw new ApplicationError(400, "Select one complete authority citation");
 }
 
@@ -428,12 +425,12 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
       throw new ApplicationError(400, "Select the pinpoint without the authority");
     const from = Math.min(occurrence.authoritySpan.start, selected.start);
     const stretch = selected.unit.text.slice(from, Math.max(occurrence.authoritySpan.end, selected.end));
-    const match = sources.occurrences(stretch).find((item) => lookupKey(sources, item.coreCitation.text) ===
+    const match = sources.occurrences(stretch, from).find((item) => lookupKey(sources, item.spans.coreSpan.text) ===
       draft.authorities[occurrence.authorityId ?? ""]?.key);
-    const chosen = (item: { start: number; end: number }) => from + item.end > selected.start && from + item.start < selected.end;
-    const owner = (match ? [match] : occurrence.kind === "reference" ? sources.references(stretch) : [])
+    const chosen = (item: { start: number; end: number }) => item.end > selected.start && item.start < selected.end;
+    const owner = (match ? [match] : occurrence.kind === "reference" ? sources.references(stretch, from) : [])
       .find((item) => item.pinpoints.some(chosen));
-    const pinpoints = owner ? pinpointValues(owner.pinpoints.filter(chosen), from)
+    const pinpoints = owner ? owner.pinpoints.filter(chosen)
       : pinpointsAt(selected.unit.text, selected.start, selected.end, true);
     if (!pinpoints.length) throw new ApplicationError(400, "Select a complete pinpoint for this authority");
     return placePinpoints(draft, occurrence, selected.unit, pinpoints);
@@ -448,9 +445,9 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
     "Select the authority without its pinpoint");
   const previousPinpoint = occurrence.pinpointSpan ? { span: occurrence.pinpointSpan,
     values: occurrence.pinpoints, phrase: occurrence.pinpointPhrase } : null;
-  const match = chosenAuthorityMatch(sources.occurrences(selected.text), occurrence,
+  const match = chosenAuthorityMatch(sources.occurrences(selected.text, selected.start), occurrence,
     draft, sources);
-  const key = match ? lookupKey(sources, match.coreCitation.text) : "";
+  const key = match ? lookupKey(sources, match.spans.coreSpan.text) : "";
   let changed = draft;
   // The span the occurrence extends from: the selection itself for a parsed match,
   // but manualOccurrence's whitespace-trimmed bounds on the manual path.
@@ -463,8 +460,8 @@ function correctOccurrenceSpan(draft: AuthoritiesDraft,
     const selectedName = styledName(match);
     if (known && selectedName && !known.name && !known.displayName) changed = updateAuthoritiesDraft(changed,
       { type: "rename-authority", authorityId: known.id, displayName: selectedName });
-    Object.assign(occurrence, nativeOccurrenceSpans(match, selected.unit.text, selected.start), {
-      kind: parsedKind(match), citation: match.coreCitation.text,
+    Object.assign(occurrence, match.spans, {
+      kind: parsedKind(match), citation: match.spans.coreSpan.text,
       authorityId: discovered.id, reference: null, pinpoints: [], reviewed: true });
   } else {
     const manual = manualOccurrence(draft, selected.unit, selected.start,
@@ -638,25 +635,21 @@ function followingPinpoints(draft: AuthoritiesDraft, unit: AuthoritiesDraft["uni
   occurrence: AuthorityOccurrence, sources: CitationServices) {
   const next = Math.min(unit.text.length, ...unit.occurrenceIds.map((id) => draft.occurrences[id]?.start ?? Infinity)
     .filter((start) => start >= occurrence.end));
-  const stretch = unit.text.slice(occurrence.start, next), selected = occurrence.end - occurrence.start;
-  const owner = [...sources.occurrences(stretch), ...sources.references(stretch)]
-    .filter((item) => item.start < selected && item.pinpoints.length && item.pinpoints.every((pin) => pin.start >= selected))
+  const stretch = unit.text.slice(occurrence.start, next);
+  const owner = [...sources.occurrences(stretch, occurrence.start), ...sources.references(stretch, occurrence.start)]
+    .filter((item) => item.start < occurrence.end && item.pinpoints.length && item.pinpoints.every((pin) => pin.start >= occurrence.end))
     .sort((left, right) => left.start - right.start)[0];
   if (!owner) return {};
-  const pinpoints = pinpointValues(owner.pinpoints, occurrence.start);
-  const span = { start: pinpoints[0].start, end: pinpoints.at(-1)!.end };
-  const phrase = owner.pinpointPhrase && { start: occurrence.start + owner.pinpointPhrase.start,
-    end: occurrence.start + owner.pinpointPhrase.end };
-  return { pinpoints, pinpointSpan: { ...span, text: unit.text.slice(span.start, span.end) },
-    ...(phrase && { pinpointPhrase: { ...phrase, text: unit.text.slice(phrase.start, phrase.end) } }) };
+  const { pinpointSpan, pinpointPhrase } = owner.spans;
+  return { pinpoints: owner.pinpoints, pinpointSpan, ...(pinpointPhrase && { pinpointPhrase }) };
 }
 
 /** The one citation, or failing that the one supra, ibid or short form, detected in a stretch of text. */
 function detectedSpan(text: string, start: number, end: number, sources: CitationServices) {
-  const stretch = text.slice(start, end), citations = sources.occurrences(stretch);
-  const references = citations.length ? [] : sources.references(stretch);
+  const stretch = text.slice(start, end), citations = sources.occurrences(stretch, start);
+  const references = citations.length ? [] : sources.references(stretch, start);
   const [only] = citations.length === 1 ? citations : references.length === 1 ? references : [];
-  return only && { start: start + only.start, end: start + only.end };
+  return only && { start: only.start, end: only.end };
 }
 
 function editOccurrences(draft: AuthoritiesDraft,
@@ -716,7 +709,7 @@ export function applyAuthoritiesUserAction(
   }
   if (action.type === "begin-canlii-handoff") {
     const authority = draft.authorities[action.authorityId];
-    const pageUrl = authority && structureNative().canliiCaseUrl(authorityCitationForms(draft, authority.id), "en", null);
+    const pageUrl = authority && canliiCasePage(authority);
     if (!authority || !pageUrl) throw new ApplicationError(409,
       "A canonical CanLII link is not available for this authority");
     return updateAuthoritiesDraft(draft, { ...action, pageUrl });

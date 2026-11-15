@@ -1,436 +1,32 @@
 import crypto from "node:crypto";
-import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { inSqliteRun, legalDataHome, legalProviderDatabase, onSqliteRunEnd, storeExists, storeStat } from "../legalDataPath";
-import { positiveInteger as integer } from "../value";
-import { sqliteText as string } from "../sqliteSearch";
-import { searchFts5, searchTerms } from "../searchQuery";
-import { nativeDocumentLive, structureNative, type NativeDocument } from "../structureNative";
+import { legalProviderDatabase, storeExists } from "../legalDataPath";
+import { structureNative } from "../structureNative";
 import { isUnitedStatesSearch } from ".";
 import type { LegalSourceProvider, LegalSourceSearchRequest, LegalSourceReference } from ".";
 import { nativeDocumentPassages } from "./nativeDocumentPassages";
-import { sourceUrl } from "../legalSourceLinks";
-import type { JournalPageLabel } from "mike/shared/engine-types/JournalPageLabel";
+import type { JournalDocument } from "mike/shared/engine-types/JournalDocument";
 
-type Row = Record<string, unknown>;
-type FinalContractPages = { filename: string; signature: string };
+export type JournalArticleDocument = JournalDocument;
 
-export type JournalArticleSearchResult = {
-  provider: "journal";
-  hitId: string; articleId: number; dataset: string;
-  citation: string; name: string; date: string | null; url: string | null;
-  snippet: string | null; journalName: string | null; authors: string | null;
+// Where the journal files are, as this host's settings place them; the engine reads them.
+export const journalStores = () => {
+  const configured = (name: string) => process.env[name]?.trim() ? path.resolve(process.env[name]!.trim()) : null;
+  return {
+    configured: configured("MIKE_PUBLIC_ENDPOINT_DB"),
+    shared: legalProviderDatabase("journals", "public_endpoint.db"),
+    search: configured("MIKE_PUBLIC_ENDPOINT_FTS_DB") ?? legalProviderDatabase("journals", "public_endpoint-search.sqlite"),
+    contracts: configured("MIKE_JOURNAL_FINAL_CONTRACT_DB") ?? legalProviderDatabase("journals", "journals.db"),
+  };
 };
 
-export type JournalArticleDocument = {
-  provider: "journal";
-  identity: string; articleId: number; dataset: string;
-  citation: string; title: string; date: string | null; url: string;
-  native: NativeDocument;
-  upstreamLicense: string | null; journalName: string | null; authors: string | null;
-  language: "en";
-};
+/** `names` searches only what a citation names an article by, in the index's small table of those. */
+const findArticles = (query: string, size?: number, options: Pick<LegalSourceSearchRequest,
+  "author" | "journal" | "dateFrom" | "dateTo" | "sort"> & { names?: boolean } = {}) =>
+  structureNative().journalSearch(journalStores(), { query, size, author: options.author, journal: options.journal,
+    dateFrom: options.dateFrom, dateTo: options.dateTo, sort: options.sort, names: options.names });
 
-const documents = new Map<string, JournalArticleDocument>();
-/** The articles each identifier names or cites exactly, per database snapshot: Sources and the quote check ask alike. */
-const namedArticles = new Map<string, number[]>();
-const MAX_DOCUMENT_CACHE = 16;
-
-/** Each database family retains its own snapshot key and invalidation policy. */
-function databaseCache(invalidate?: (filename: string) => void) {
-  const entries = new Map<string, { connection: DatabaseSync; signature: string }>();
-  return {
-    open(filename: string, signature: string, validate: (connection: DatabaseSync) => boolean) {
-      const cached = entries.get(filename);
-      if (cached?.signature === signature) return cached.connection;
-      if (cached) {
-        cached.connection.close();
-        entries.delete(filename);
-        invalidate?.(filename);
-      }
-      const connection = new DatabaseSync(filename, { readOnly: true });
-      // Searches read many pages: they come from a mapping of the file, not a call each.
-      connection.exec("PRAGMA mmap_size=2147418112");
-      let retained = false;
-      try {
-        if (!validate(connection)) return null;
-        entries.set(filename, { connection, signature });
-        retained = true;
-        return connection;
-      } finally {
-        if (!retained) connection.close();
-      }
-    },
-    close() {
-      for (const { connection } of entries.values()) connection.close();
-      entries.clear();
-    },
-  };
-}
-
-const databases = databaseCache((filename) => {
-  for (const key of documents.keys()) {
-    if (key.startsWith(`${filename}:`)) documents.delete(key);
-  }
-});
-const searchDatabases = databaseCache();
-const finalContractDatabases = databaseCache(() => documents.clear());
-
-function closeDatabases() {
-  for (const cache of [databases, searchDatabases, finalContractDatabases]) cache.close();
-  validated = {};
-  documents.clear();
-  namedArticles.clear();
-  named.clear();
-}
-
-function snapshotSignature(filename: string, source = storeStat(filename) ?? statSync(filename)) {
-  return `${path.resolve(filename)}:${source.size}:${Math.trunc(source.mtimeMs)}`;
-}
-
-function metadata(connection: DatabaseSync, table: "meta" | "export_metadata") {
-  const values = connection.prepare(`SELECT key, value FROM ${table}`).all() as Array<{
-    key: string; value: string;
-  }>;
-  return Object.fromEntries(values.map(({ key, value }) => [key, value]));
-}
-
-function trustedUrl(value: string | null) {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null;
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-// The journals database's path, found once while it stays where it was found and its settings stand: finding it opens
-// the search index to read where it was built from.
-let foundPath: { settings: string; path: string } | null = null;
-function journalDatabasePath() {
-  const settings = `${process.env.MIKE_PUBLIC_ENDPOINT_DB ?? ""}\n${process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB ?? ""}\n${legalDataHome()}`;
-  if (foundPath?.settings === settings && storeExists(foundPath.path)) return foundPath.path;
-  foundPath = { settings, path: locateJournalDatabase() };
-  return foundPath.path;
-}
-
-function locateJournalDatabase() {
-  const configured = process.env.MIKE_PUBLIC_ENDPOINT_DB?.trim();
-  if (configured) return path.resolve(configured);
-  const shared = legalProviderDatabase("journals", "public_endpoint.db");
-  if (existsSync(shared)) return shared;
-  const search = journalSearchDatabasePath();
-  if (!existsSync(search)) return shared;
-  const connection = new DatabaseSync(search, { readOnly: true });
-  try {
-    const row = connection
-      .prepare("SELECT value FROM meta WHERE key='source_path'")
-      .get() as { value?: unknown } | undefined;
-    const indexed = typeof row?.value === "string" ? row.value : "";
-    return indexed && existsSync(indexed) ? path.resolve(indexed) : shared;
-  } finally {
-    connection.close();
-  }
-}
-
-function journalSearchDatabasePath() {
-  const configured = process.env.MIKE_PUBLIC_ENDPOINT_FTS_DB?.trim();
-  return configured
-    ? path.resolve(configured)
-    : legalProviderDatabase("journals", "public_endpoint-search.sqlite");
-}
-
-// The connections an operation validated, used as they are while it runs: its lookups ask for them hundreds of times.
-let validated: { database?: DatabaseSync; search?: DatabaseSync | null } = {};
-onSqliteRunEnd(() => { validated = {}; });
-
-function database() {
-  if (inSqliteRun()) return validated.database ??= openDatabase();
-  return openDatabase();
-}
-
-function openDatabase() {
-  const filename = journalDatabasePath();
-  if (!existsSync(filename)) {
-    throw new Error(
-      `Journal article database not found: ${filename}. Set MIKE_PUBLIC_ENDPOINT_DB or place public_endpoint.db in the shared journals provider directory.`,
-    );
-  }
-  return databases.open(filename, snapshotSignature(filename), (connection) => {
-    if (!connection.prepare(
-      "SELECT 1 FROM sqlite_master WHERE type='table' AND name='articles'",
-    ).get()) throw new Error("Unsupported public_endpoint.db schema");
-    return true;
-  })!;
-}
-
-function searchDatabase() {
-  if (!inSqliteRun()) return openSearchDatabase();
-  if (!("search" in validated)) validated.search = openSearchDatabase();
-  return validated.search!;
-}
-
-function openSearchDatabase() {
-  const filename = journalSearchDatabasePath();
-  if (!existsSync(filename)) return null;
-  const sourcePath = path.resolve(journalDatabasePath());
-  let source: ReturnType<typeof statSync>;
-  try {
-    source = storeStat(sourcePath) ?? statSync(sourcePath);
-  } catch {
-    return null;
-  }
-  return searchDatabases.open(filename, snapshotSignature(sourcePath, source), (connection) => {
-    try {
-      const indexed = metadata(connection, "meta");
-      const sourceMetadata = metadata(database(), "export_metadata");
-      const expectedSource = path.resolve(indexed.source_path ?? "");
-      const matchesSource = process.platform === "win32"
-        ? expectedSource.toLocaleLowerCase() === sourcePath.toLocaleLowerCase()
-        : expectedSource === sourcePath;
-      return indexed.schema_version === "3" &&
-        indexed.source_size === String(source.size) &&
-        indexed.source_mtime_ms === String(Math.trunc(source.mtimeMs)) && matchesSource &&
-        indexed.source_schema_version === (sourceMetadata.schema_version ?? "") &&
-        indexed.source_created_at === (sourceMetadata.created_at ?? "");
-    } catch {
-      return false;
-    }
-  });
-}
-
-function finalContractDatabase() {
-  const configured = process.env.MIKE_JOURNAL_FINAL_CONTRACT_DB?.trim();
-  const filename = configured ? path.resolve(configured)
-    : legalProviderDatabase("journals", "journals.db");
-  if (!existsSync(filename)) return null;
-  const connection = finalContractDatabases.open(filename, snapshotSignature(filename), (db) =>
-    !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='article_final_contracts'").get());
-  return connection ? { connection, filename } : null;
-}
-
-/** McGill's form of an article row: byline, title, year, volume and issue, journal, first page. */
-const displayCitation = (row: Row) => structureNative().formatArticle({
-  authors: (string(row, "authors") ?? "").split(/\s*;\s*/u).filter(Boolean), title: string(row, "name_en") ?? "",
-  year: string(row, "document_date_en"), volume: string(row, "volume"), issue: string(row, "issue"),
-  journal: string(row, "journal_abbrev"), firstPage: string(row, "first_page") });
-
-function result(row: Row, query: string): JournalArticleSearchResult {
-  const articleId = integer(row.article_id)!;
-  const abstract = string(row, "abstract");
-  const folded = abstract?.toLocaleLowerCase() ?? "";
-  const position = searchTerms(query)
-    .map((term) => folded.indexOf(term.toLocaleLowerCase()))
-    .find((index) => index >= 0);
-  return {
-    provider: "journal",
-    hitId: `journal:${articleId}`,
-    articleId,
-    dataset: string(row, "dataset") ?? "",
-    citation: displayCitation(row),
-    name: string(row, "name_en") ?? `Article ${articleId}`,
-    date: string(row, "document_date_en"),
-    url: trustedUrl(string(row, "galley_url") ?? string(row, "url_en")),
-    snippet: abstract
-      ? abstract.slice(Math.max(0, (position ?? 0) - 120), (position ?? 0) + 880)
-      : null,
-    journalName: string(row, "journal_name"),
-    authors: string(row, "authors"),
-  };
-}
-
-const SEARCH_COLUMNS = `article_id, dataset, citation_en, name_en, authors,
-  document_date_en, volume, issue, first_page, journal_name,
-  journal_abbrev, galley_url, url_en, abstract`;
-
-/** `names` searches only what a citation names an article by (its name, authors, journal, year, volume, issue
- *  and first page), in the index's small table of those, not the articles' text. */
-function findArticles(
-  query: string,
-  size = 10,
-  options: Pick<LegalSourceSearchRequest, "author" | "journal" | "dateFrom" | "dateTo" | "sort">
-    & { names?: boolean } = {},
-): JournalArticleSearchResult[] {
-  query = query.trim();
-  if (!query) throw new Error("query is required");
-  const directId = query.match(/^(?:journal:)?(\d+)$/iu)?.[1];
-  if (directId) {
-    const row = database()
-      .prepare(
-        `SELECT ${SEARCH_COLUMNS} FROM articles
-         WHERE article_id = ? AND text IS NOT NULL AND length(text) > 0`,
-      )
-      .get(Number(directId)) as Row | undefined;
-    return row ? [result(row, query)] : [];
-  }
-
-  if (!/[\p{L}\p{N}]/u.test(query)) return [];
-  const wanted = Math.min(Math.max(Math.trunc(size), 1), 25);
-  const select = (predicate: string, values: SQLInputValue[],
-    suffix = "", trailing: SQLInputValue[] = []) => {
-    const filters: Array<[string, string]> = [];
-    if (options.author) filters.push(["LOWER(authors) LIKE ?", `%${options.author.toLocaleLowerCase()}%`]);
-    if (options.journal) filters.push([
-      "LOWER(COALESCE(journal_name, '') || ' ' || COALESCE(journal_abbrev, '')) LIKE ?",
-      `%${options.journal.toLocaleLowerCase()}%`,
-    ]);
-    if (options.dateFrom) filters.push(["document_date_en >= ?", options.dateFrom]);
-    if (options.dateTo) filters.push(["document_date_en <= ?", options.dateTo]);
-    return database().prepare(`SELECT ${SEARCH_COLUMNS} FROM articles WHERE ${predicate}
-      ${filters.map(([condition]) => `AND ${condition}`).join(" ")} ${suffix}`)
-      .all(...values, ...filters.map(([, value]) => value), ...trailing) as Row[];
-  };
-  const search = searchDatabase();
-  if (!search) throw new Error("Journal search requires the journal FTS index");
-  const candidateLimit =
-    options.author || options.journal || options.dateFrom || options.dateTo
-      ? Math.min(250, wanted * 10)
-      : wanted;
-  const ids = (search.prepare(options.names
-    ? "SELECT rowid AS article_id FROM article_metadata WHERE article_metadata MATCH ? ORDER BY bm25(article_metadata) LIMIT ?"
-    : `SELECT rowid AS article_id
-     FROM article_search
-     WHERE article_search MATCH ?
-     ORDER BY bm25(article_search, 4.0, 1.0)
-     LIMIT ?`,
-  ).all(searchFts5(query), candidateLimit) as Array<{ article_id: number }>).map(({ article_id }) => article_id);
-  if (!ids.length) return [];
-  const rows = select(`article_id IN (${ids.map(() => "?").join(",")})`, ids);
-  const byId = new Map(rows.map((row) => [integer(row.article_id), row]));
-  const found = ids.flatMap((id) => {
-    const row = byId.get(id);
-    return row ? [result(row, query)] : [];
-  });
-  if (options.sort === undefined || options.sort === "newest" || options.sort === "oldest") {
-    found.sort((left, right) => {
-      const missing = "\uffff";
-      if (options.sort === "newest") {
-        return (right.date ?? "").localeCompare(left.date ?? "");
-      }
-      return (left.date ?? missing).localeCompare(right.date ?? missing);
-    });
-  }
-  return found.slice(0, wanted);
-}
-
-function inside(base: string, candidate: string) {
-  const relative = path.relative(base, candidate);
-  return relative === "" ||
-    (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
-}
-
-function registeredPages(filename: string, sourceDir: string) {
-  if (!sourceDir || path.isAbsolute(sourceDir) || /^[A-Za-z]:[\\/]/u.test(sourceDir)) return null;
-  const relative = sourceDir.replace(/[\\/]+/gu, path.sep);
-  const databaseDirectory = path.dirname(filename);
-  for (const base of [databaseDirectory, path.dirname(databaseDirectory)]) {
-    const candidate = path.resolve(base, relative, "pages.jsonl");
-    if (!inside(base, candidate) || !existsSync(candidate)) continue;
-    try {
-      const realBase = realpathSync(base);
-      const realCandidate = realpathSync(candidate);
-      if (inside(realBase, realCandidate) && statSync(realCandidate).isFile()) return realCandidate;
-    } catch {
-      // An unreadable registration is equivalent to no canonical package.
-    }
-  }
-  return null;
-}
-
-function finalContractPages(articleId: number): FinalContractPages | null {
-  const registered = finalContractDatabase();
-  if (!registered) return null;
-  const row = registered.connection
-    .prepare("SELECT source_dir FROM article_final_contracts WHERE article_id = ?")
-    .get(articleId) as Row | undefined;
-  if (!row) return null;
-  const sourceDir = string(row, "source_dir");
-  const filename = sourceDir ? registeredPages(registered.filename, sourceDir) : null;
-  return filename ? { filename, signature: snapshotSignature(filename) } : null;
-}
-
-// Whole words of an identifier that the search index reads as whole tokens too: ASCII letters and digits set off
-// by spaces or punctuation (an index token can run on into a neighbouring non-ASCII letter or symbol).
-const INDEX_WORD = /(?<=^|[\s!"#%&'()*,\-./:;?@[\\\]_{}])[A-Za-z0-9]+(?=$|[\s!"#%&'()*,\-./:;?@[\\\]_{}])/gu;
-
-/** False when no article with text is named or cited exactly as `identifier`, from the search index: every such
- *  article's name and citation are in its metadata table, so one that matched would hold all of its whole words. */
-function mayName(identifier: string) {
-  const search = searchDatabase();
-  const words = [...new Set(identifier.match(INDEX_WORD) ?? [])];
-  if (!search || !words.length) return true;
-  const ids = (search.prepare("SELECT rowid AS article_id FROM article_metadata WHERE article_metadata MATCH ?")
-    .all(words.map((word) => `"${word}"`).join(" AND ")) as Row[]).map((row) => Number(row.article_id));
-  if (ids.length > 30000) return true;
-  return ids.length > 0 && !!database().prepare(`SELECT 1 FROM articles WHERE article_id IN (${ids.map(() => "?").join(",")})
-     AND (LOWER(citation_en) = LOWER(?) OR LOWER(name_en) = LOWER(?)) LIMIT 1`).get(...ids, identifier, identifier);
-}
-
-function articleRow(identifier: string) {
-  const articleId = identifier.match(/^(?:journal:)?(\d+)$/iu)?.[1];
-  // Only articles with text are returned, so an identifier the index shows no such article answers to finds
-  // nothing without scanning every article; one that some article answers to is matched exactly below.
-  if (!articleId && !mayName(identifier)) return null;
-  const key = `${snapshotSignature(journalDatabasePath())}\n${identifier}`;
-  const ids = articleId ? [Number(articleId)] : namedArticles.get(key) ?? (database()
-    .prepare(`SELECT article_id FROM articles
-       WHERE (LOWER(citation_en) = LOWER(?) OR LOWER(name_en) = LOWER(?)) ORDER BY article_id LIMIT 8`)
-    .all(identifier, identifier) as Row[]).map((row) => Number(row.article_id));
-  if (!articleId) namedArticles.set(key, ids);
-  const withText = database().prepare(
-    "SELECT * FROM articles WHERE article_id = ? AND text IS NOT NULL AND length(text) > 0");
-  const rows = ids.map((id) => withText.get(id) as Row | undefined).filter((row): row is Row => !!row).slice(0, 2);
-  return rows.length === 1 ? rows[0] : null;
-}
-
-async function document(identifier: string): Promise<JournalArticleDocument | null> {
-  identifier = identifier.trim();
-  if (!identifier) throw new Error("identifier is required");
-  database();
-  const row = articleRow(identifier);
-  if (!row) return null;
-  const articleId = integer(row.article_id)!;
-  const publicText = string(row, "text");
-  const url = trustedUrl(string(row, "galley_url") ?? string(row, "url_en"));
-  if (!publicText || !url) return null;
-  const registered = finalContractPages(articleId);
-  const cacheKey = `${journalDatabasePath()}:${articleId}:${registered?.signature ?? "public"}`;
-  const cached = documents.get(cacheKey);
-  if (cached && nativeDocumentLive(cached.native)) return cached;
-  const pageRows = database()
-    .prepare(
-      `SELECT CAST(page_label AS TEXT) AS page_label,
-              CAST(pdf_page AS INTEGER) AS pdf_page FROM article_pages
-       WHERE article_id = ? ORDER BY page_order`,
-    )
-    .all(articleId) as JournalPageLabel[];
-  const native = await structureNative().deriveDocumentStructure({
-    kind: "journal", article_id: articleId, url, page_rows: pageRows,
-    ...(registered ? { filename: registered.filename } : { text: publicText }),
-  });
-  const document: JournalArticleDocument = {
-    provider: "journal",
-    identity: String(articleId),
-    articleId,
-    dataset: string(row, "dataset") ?? "",
-    citation: displayCitation(row),
-    title: string(row, "name_en") ?? `Article ${articleId}`,
-    date: string(row, "document_date_en"),
-    url,
-    native,
-    upstreamLicense: string(row, "upstream_license"),
-    journalName: string(row, "journal_name"),
-    authors: string(row, "authors"),
-    language: "en",
-  };
-  if (documents.size >= MAX_DOCUMENT_CACHE) documents.delete(documents.keys().next().value!);
-  documents.set(cacheKey, document);
-  return document;
-}
+const document = (identifier: string) => structureNative().journalDocument(journalStores(), identifier);
 
 async function viewer(identifier: string) {
   const article = await document(identifier);
@@ -474,87 +70,12 @@ function journalReference(document: JournalArticleDocument) {
   } satisfies LegalSourceReference;
 }
 
-// The article each citation names in a journals database, as its documents are kept: finding sources and checking
-// quotations read the same citations.
-const named = new Map<string, number | null>();
-
-/** The article a citation names: one whose citation or name it is, else the one its words find whose citation or
- *  name it is, else the one its title finds (titledArticle). */
-async function namedArticle(candidates: string[]) {
-  for (const candidate of candidates) {
-    const article = await document(candidate);
-    if (article) return article.articleId;
-  }
-  // A citation is matched by its words, each taken literally, not read as a search expression.
-  const words = candidates[0].normalize("NFKC").match(/[\p{L}\p{N}]+/gu)
-    ?.filter((word) => word.length > 1).slice(0, 8).map((word) => `"${word}"`).join(" ") ?? "";
-  const matches = !words ? [] : findArticles(words, 10, { names: true }).filter((match) =>
-    candidates.some((candidate) =>
-      exactJournalIdentity(candidate) === exactJournalIdentity(match.citation) ||
-      exactJournalIdentity(candidate) === exactJournalIdentity(match.name)));
-  const titled = matches.length ? null : titledArticle(candidates[0]);
-  return matches.length === 1 ? matches[0].articleId : titled;
-}
-
-/** The article a citation names by the title it quotes: the closest title the search finds for it,
- *  when close enough. After ALR-Quote-Verifier journal_search.py search_by_title (difflib ratio of at least
- *  0.7 between normalized titles, among articles of the cited year or the years beside it), with candidates
- *  from this database's index of names: of those years, the names sharing the most of the title's words, the
- *  cited journal, volume and first page, so a word spelled or inflected otherwise does not lose the article.
- *  A citation without a year takes only names holding every word of the title. */
-function titledArticle(citation: string) {
-  // The engine says what to search for and which found name is the title's; the index is searched here.
-  const engine = structureNative();
-  return engine.journalTitleChoice(engine.journalTitleSearches(citation).flatMap(({ title, query }) =>
-    articleNames(query, 5).map(({ name, articleId }) => ({ title, name, articleId }))));
-}
-
-/** The names of the `size` articles whose names match an FTS query best, oldest first, as findArticles gives them:
- *  only the name and date are read, not the row (its abstract lies past the article's text). */
-function articleNames(query: string, size: number) {
-  const search = searchDatabase();
-  if (!search) throw new Error("Boolean search requires the journal FTS index");
-  const ids = (search.prepare("SELECT rowid AS article_id FROM article_metadata WHERE article_metadata MATCH ? ORDER BY bm25(article_metadata) LIMIT ?")
-    .all(query, size) as Array<{ article_id: number }>).map(({ article_id }) => article_id);
-  if (!ids.length) return [];
-  const rows = new Map((database().prepare(`SELECT article_id, name_en, document_date_en FROM articles
-    WHERE article_id IN (${ids.map(() => "?").join(",")})`).all(...ids) as Row[]).map((row) => [integer(row.article_id), row]));
-  return ids.flatMap((id) => {
-    const row = rows.get(id);
-    return row ? [{ articleId: id, name: string(row, "name_en") ?? `Article ${id}`, date: string(row, "document_date_en") }] : [];
-  }).sort((left, right) => (left.date ?? "￿").localeCompare(right.date ?? "￿"));
-}
-
-/** An article's PDF opened at a printed page: the database's page map gives the PDF page, which
- *  counts cover and front pages the printed numbers skip. Null when the map lacks the page. */
-function pageLink(identity: string, printedPage: string) {
-  const row = articleRow(identity), url = row && trustedUrl(string(row, "galley_url") ?? string(row, "url_en"));
-  if (!row || !url) return null;
-  const page = database().prepare(`SELECT CAST(pdf_page AS INTEGER) AS pdf_page FROM article_pages
-    WHERE article_id = ? AND CAST(page_label AS TEXT) = ? ORDER BY page_order LIMIT 1`)
-    .get(integer(row.article_id)!, printedPage.trim()) as { pdf_page?: number } | undefined;
-  return page?.pdf_page ? sourceUrl(url, `page=${page.pdf_page}`) : null;
-}
-
-function exactJournalIdentity(value: string) {
-  return value.trim().normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-}
-
 const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
   id: "journal",
   // An article is looked for only where the journals database is on this computer.
-  canResolve: ({ kind }) => kind === "journal" && storeExists(journalDatabasePath()),
+  canResolve: ({ kind }) => kind === "journal" && storeExists(structureNative().journalPath(journalStores())),
   async resolve(request) {
-    const candidates = [request.text, ...(request.alternateTexts ?? [])]
-      .map((value) => value.trim().replace(/\s+/gu, " "))
-      .filter(Boolean);
-    if (!candidates.length) return [];
-    const key = `${journalDatabasePath()}:${candidates.join("\n")}`;
-    let articleId = named.get(key);
-    if (articleId === undefined) {
-      named.set(key, articleId = await namedArticle(candidates));
-      if (named.size > 4096) named.delete(named.keys().next().value!);
-    }
+    const articleId = structureNative().journalNamed(journalStores(), [request.text, ...(request.alternateTexts ?? [])]);
     const article = articleId === null ? null : await document(String(articleId));
     return article ? [journalReference(article)] : [];
   },
@@ -591,9 +112,10 @@ const provider: LegalSourceProvider<{ document: JournalArticleDocument }> = {
 };
 
 export const journalLegalSourceProvider = Object.assign(provider, {
-  closeDatabases,
+  closeDatabases: () => structureNative().journalForget(),
   find: findArticles,
-  pageLink,
+  /** An article's PDF opened at a printed page; null when its page map lacks the page. */
+  pageLink: (identity: string, printedPage: string) => structureNative().journalPageLink(journalStores(), identity, printedPage),
   document,
   lookup(article: JournalArticleDocument, kind: "page" | "paragraph" | "section" | "footnote", value: string) {
     const block = structureNative()

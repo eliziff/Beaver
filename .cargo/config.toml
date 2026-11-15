@@ -6,8 +6,5 @@ target-dir = "native/legal-structure-node/target"
 [profile.dev]
 debug = 0
 
-[profile.release]
-incremental = true
-
 [env]
 RAYON_NUM_THREADS = { value = "1", force = false }

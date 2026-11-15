@@ -9,7 +9,7 @@ import type { DatabaseReference } from "./DatabaseReference";
  */
 export type BookSource = { parts: Array<BookPart>, 
 /**
- * The pages kept, of its parts joined.
+ * The pages kept, of its parts joined; none listed, all of them.
  */
 pageIndices: Array<number>, ocrTextByPage?: Array<string> | null, header?: string | null, link?: string | null, databaseReference?: DatabaseReference | null, bookmarks?: Array<BookMark>, 
 /**

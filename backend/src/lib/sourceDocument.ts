@@ -23,8 +23,9 @@ export type PdfPreparationProgress = {
   pages: number[];
 } | { phase: "recognizing"; recognized: number; total: number };
 
-/** The reading a PDF's pages are numbered from: its own text layer, neither recognized nor laid out by a model. */
-export const PLAIN_PDF = { ocrProvider: null, layout: false } as const;
+/** The reading a PDF's pages are numbered from: its own text layer, neither recognized nor laid out by a model, nor
+ *  read by DOC. */
+export const PLAIN_PDF = { ocrProvider: null, layout: false, doc: false } as const;
 
 /** A source as the engine reads it: whose version it is, the hash its bytes must have, its bytes, the PDF reading
  *  prepared of it, and, for a repository's source, how to recheck it is still the version asked for. */
@@ -37,9 +38,21 @@ type OpenOptions = {
   pages?: number[];
   ocrProvider?: LegalPdfOcrProvider | null;
   layout?: boolean | null;
+  /** DOC (the structure stage's tier 1) asked for or not (`profileFor`); undefined, the server's own. */
+  doc?: boolean | null;
+  /** The PDF is an instrument (`asRead`). */
+  instrument?: boolean;
   signal?: AbortSignal;
   progress?: (value: PdfPreparationProgress) => void | Promise<void>;
 };
+
+/** A PDF's profile as it is read: as an instrument where its reader knows it for one (a legislation authority's PDF,
+ *  `instrumentReading`), whatever else the profile asks. A prepared reading's cache key names its own profile's reading
+ *  only: it is asked for where the reading is of the same kind, and read afresh, recognition kept, where it is not. */
+const asRead = (profile: LegalPdfProfile, instrument?: boolean): LegalPdfProfile =>
+  instrument && profile.profile !== "instrument" ? { ...profile, profile: "instrument" } : profile;
+const keyFor = (selection: PdfProfileSelection | undefined, profile: LegalPdfProfile) =>
+  selection && selection.profile.profile === profile.profile ? selection.cacheKey : undefined;
 
 /** A Word or PowerPoint binary, which the engine reads as the PDF converted from it. */
 const converted = (fileType: string) => fileType === "doc" || fileType === "ppt";
@@ -88,11 +101,12 @@ export async function openDocument(source: Source, options: OpenOptions = {}): P
   options.signal?.throwIfAborted();
   const fileType = source.fileType ?? "pdf";
   const pdf = fileType === "pdf" || converted(fileType);
-  const overridden = options.ocrProvider !== undefined || options.layout !== undefined;
-  const cacheKey = fileType === "pdf" ? source.pdfProfile?.cacheKey : undefined;
+  const overridden = options.ocrProvider !== undefined || options.layout !== undefined || options.doc !== undefined;
+  const profile = asRead(overridden || !source.pdfProfile ? profileFor(options.ocrProvider, options.layout, options.doc)
+    : source.pdfProfile.profile, options.instrument);
+  const cacheKey = fileType === "pdf" ? keyFor(source.pdfProfile, profile) : undefined;
   const pages = !cacheKey && options.pages?.length ? options.pages : undefined;
-  const request = sourceRequest(source, fileType, options.mode, pdf ? pdfRequest(overridden || !source.pdfProfile
-    ? profileFor(options.ocrProvider, options.layout) : source.pdfProfile.profile, pages, cacheKey) : undefined);
+  const request = sourceRequest(source, fileType, options.mode, pdf ? pdfRequest(profile, pages, cacheKey) : undefined);
   return (await read(source, request, { convert: converted(fileType), signal: options.signal,
     extracting: () => pdf && options.progress?.({ phase: "extracting", pages: pages ?? [] }) }))!;
 }
@@ -110,7 +124,7 @@ export async function sourceText(source: Source & { fileType: string }, options:
   options.signal?.throwIfAborted();
   const { fileType } = source;
   if (fileType === "pdf" || converted(fileType)) {
-    const document = await openDocument(source, { signal: options.signal });
+    const document = await openDocument(source, { signal: options.signal, doc: false });
     return structureNative().documentText(document, options.limit);
   }
   const pending = (async () => {
@@ -133,7 +147,10 @@ type PdfPrepareInput = {
   pages?: number[];
   ocrProvider?: LegalPdfOcrProvider | null;
   layout?: boolean | null;
+  doc?: boolean | null;
   pdfProfile?: PdfProfileSelection;
+  /** The PDF is an instrument (`asRead`). */
+  instrument?: boolean;
   signal?: AbortSignal;
   progress?: (value: PdfPreparationProgress) => void | Promise<void>;
 };
@@ -143,13 +160,13 @@ type PdfPrepareInput = {
  *  one. Whoever holds the result holds the document, so reopening it by its cache key reads it from memory. */
 export async function preparePdf(input: PdfPrepareInput) {
   input.signal?.throwIfAborted();
-  const profile: LegalPdfProfile = input.pdfProfile?.profile ?? profileFor(input.ocrProvider, input.layout);
+  const profile = asRead(input.pdfProfile?.profile ?? profileFor(input.ocrProvider, input.layout, input.doc), input.instrument);
   const pages = input.pages?.length ? input.pages : undefined;
   await input.progress?.({ phase: "extracting", pages: pages ?? [] });
   const source = { ...input, sourceSha256: input.sourceSha256 ?? sha256(input.bytes), readBytes: () => input.bytes };
   // A prepared reading no longer kept is made again, as it was first made.
   const document = await read(source, sourceRequest(source, "pdf", "text",
-    pdfRequest(profile, pages, !pages ? input.pdfProfile?.cacheKey : undefined)), { recognize: !!profile.ocr, signal: input.signal,
+    pdfRequest(profile, pages, !pages ? keyFor(input.pdfProfile, profile) : undefined)), { recognize: !!profile.ocr, signal: input.signal,
     progress: input.progress && ((recognized, total) => void input.progress?.({ phase: "recognizing", recognized, total })) });
   return { ...structureNative().pdfDocumentSummary(document!), profile, document: document! };
 }

@@ -11,10 +11,9 @@ import {
   withStoreLock,
 } from "./contentStore";
 import { boundRemoteResponse, guardedRemoteFetch, normalizeRemoteHttpsUrl } from "./remoteUrlSafety";
-import { decisiaIndexUrl, publisherChallengeUrl, publisherPdfCandidate,
-  rankedPublisherPdfLinks, verifiedDecisiaPdf } from "./legalSourcePresentation";
+import { publisherChallengeUrl, publisherPdfCandidate, rankedPublisherPdfLinks } from "./legalSourcePresentation";
 import { sha256 } from "./hash";
-import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
+import type { RemoteLegalSourceDocument } from "./legalSources/foreign";
 import { legalSourceReferenceSchema, type LegalSourceReference } from "./legalSources";
 import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { structureNative } from "./structureNative";
@@ -247,14 +246,13 @@ async function inspectPublisherSource(request: SafeRequest, signal?: AbortSignal
         throw new Error(`Source PDF request failed (${response.status})`);
       }
       if (allowHtml && markup !== undefined) {
-        const index = decisiaIndexUrl(url);
-        const representation = index && verifiedDecisiaPdf(markup, url);
+        const index = structureNative().decisiaIndex(url.toString());
+        const representation = index && structureNative().decisiaMarkupPdf(markup, index);
         const links = rankedPublisherPdfLinks(markup, url);
         return { path: null, digest: null, url: url.toString(),
           links: index ? representation ? [representation.url] : links.filter((link) => {
             const frame = new URL(link);
-            return frame.origin === index.origin && frame.pathname === index.pathname &&
-              frame.searchParams.get("iframe") === "true";
+            return `${frame.origin}${frame.pathname}` === index && frame.searchParams.get("iframe") === "true";
           }) : links };
       }
       if (!pdf) { pdf = true; await writeRecord(request, { phase: "queued" }); }

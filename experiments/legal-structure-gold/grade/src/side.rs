@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// A place in a side's source: a line (its index among the side's lines) and a character offset in it.
 pub type At = (usize, usize);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct Span {
     pub line: usize,
     pub start: usize,
@@ -22,6 +22,7 @@ impl Span {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Line {
     pub id: String,
     pub page: usize,
@@ -34,7 +35,7 @@ pub struct Line {
 /// A unit's text on one page, unbroken: its kind and region, where it hangs (a parse's nearest enclosing block), the
 /// level a heading or the depth a body unit is given at, and the spans its printed marker, line number and speaker's
 /// label take.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Block {
     pub kind: String,
     pub region: Option<String>,
@@ -56,7 +57,7 @@ impl Block {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Note {
     pub spans: Vec<Span>,
     pub label: Vec<Span>,
@@ -64,7 +65,7 @@ pub struct Note {
 }
 
 /// A table's grid on one page: each cell's spans, none where a merged cell covers it.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Table {
     pub spans: Vec<Span>,
     pub rows: Vec<Vec<Option<Vec<Span>>>>,
@@ -72,6 +73,7 @@ pub struct Table {
 
 /// A document the source holds: the line it opens on, where in it, and its kind. The first opened is the source's own
 /// (the root); every other is a constituent under it.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Document {
     pub line: usize,
     pub opening: At,
@@ -82,6 +84,7 @@ pub struct Document {
 /// Each kind of continuation ("paragraph", "heading", "note", "table", "list", ...) from a place to the place it goes on.
 pub type Links = BTreeMap<String, BTreeMap<At, At>>;
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Side {
     pub lines: Vec<Line>,
     pub index: HashMap<String, usize>,
@@ -466,12 +469,17 @@ impl Side {
         let nodes: HashMap<_, _> = structure.nodes.iter().map(|node| (node.id.as_str(), node)).collect();
         let membership = |node: &StructureNode| if node.ranges.is_empty() { vec![node.range] } else { node.ranges.clone() };
         // A note as its page prints it, one unit: its label (its marker range), what stands between the label and its
-        // body, and its body (its ranges).
+        // body on the label's line, and its body (its ranges).
         let note_extent = |node: &StructureNode| {
             let mut ranges = membership(node);
             if let Some(label) = node.marker_range {
-                // The body opens at the first range after the label; the PDF's note holds its label as a range of its own.
-                let opening = ranges.iter().map(|range| range.start).filter(|start| *start >= label.end).min().unwrap_or(label.end);
+                // The body opens at the first range after the label on the label's line; the PDF's note holds its label as
+                // a range of its own. A label alone on its line ("4", its body lines further down) stands by itself: the
+                // text between it and its body's next line is the page's, not the note's.
+                let line_end = ordered.iter().find(|(_, extent, _)| extent.start <= label.start && label.start < extent.end)
+                    .map_or(label.end, |(_, extent, _)| extent.end);
+                let opening = ranges.iter().map(|range| range.start).filter(|start| *start >= label.end && *start < line_end)
+                    .min().unwrap_or(label.end);
                 ranges.push(ScalarRange { start: label.start, end: label.end.max(opening) });
             }
             ScalarRange::normalize_union(&mut ranges);

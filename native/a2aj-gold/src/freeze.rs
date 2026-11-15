@@ -374,6 +374,7 @@ enum Flow {
 /// (`parallel`) a column is a page's half; a number printed in the margin beside both columns opens each column's
 /// paragraph, and a unit holding it keeps only the column its text opens in.
 fn printings(gold: &Value, lines: &[GoldLine], parallel: bool) -> BTreeMap<usize, Vec<Vec<String>>> {
+    let mut laps = crate::store::Laps::new();
     let by_id: HashMap<&str, &GoldLine> = lines.iter().map(|line| (line.id.as_str(), line)).collect();
     let typed = items(&gold["typed"]);
     // A running head: words printed alike at the top or foot of three pages or more, a fifth of the pages.
@@ -411,11 +412,20 @@ fn printings(gold: &Value, lines: &[GoldLine], parallel: bool) -> BTreeMap<usize
     // (A reader may give a line no height: level within two points.)
     let side_by_side = |list: &[&GoldLine], (left_edge, right_edge): (f64, f64)| {
         let middle = (left_edge + right_edge) / 2.0;
-        let level = |a: &GoldLine, b: &GoldLine| {
-            let centre = (a.bbox[1] + a.bbox[3]) / 2.0;
-            b.bbox[1] - 2.0 <= centre && centre <= b.bbox[3] + 2.0
+        // A left line is level with a right one where its centre falls within the right one's box, two points either way:
+        // the right lines by their tops, each with the lowest bottom of those up to it, answer that for each left line.
+        let mut rights: Vec<(f64, f64)> = list.iter().filter(|right| right.bbox[0] >= middle - 8.0).map(|right| (right.bbox[1], right.bbox[3])).collect();
+        rights.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut lowest = Vec::with_capacity(rights.len());
+        for &(_, bottom) in &rights {
+            lowest.push(lowest.last().map_or(bottom, |&low: &f64| low.max(bottom)));
+        }
+        let level = |left: &GoldLine| {
+            let centre = (left.bbox[1] + left.bbox[3]) / 2.0;
+            let reach = rights.partition_point(|&(top, _)| top - 2.0 <= centre);
+            reach > 0 && centre <= lowest[reach - 1] + 2.0
         };
-        list.iter().filter(|left| left.bbox[2] <= middle + 8.0 && list.iter().any(|right| right.bbox[0] >= middle - 8.0 && level(left, right))).count() * 4 >= list.len()
+        list.iter().filter(|left| left.bbox[2] <= middle + 8.0 && level(left)).count() * 4 >= list.len()
     };
     // (A running head's box may run past the columns and move a page's middle: then the page's width is its body's.)
     let mut body = HashMap::<u64, (f64, f64)>::new();
@@ -433,6 +443,7 @@ fn printings(gold: &Value, lines: &[GoldLine], parallel: bool) -> BTreeMap<usize
     }).collect();
     // (A report in two columns is in them throughout: a few such pages are an enactment's, in a report of one language after the other.)
     let columned = if columned.len() * 2 < paged.len() { HashSet::new() } else { columned };
+    laps.lap("p.columns");
     // A line stands in the column its centre falls in; one wider than a column, a fragment of the other run onto its
     // end, in the column it starts in.
     let side = |line: &GoldLine| parallel && columned.contains(&line.page) && {
@@ -441,14 +452,24 @@ fn printings(gold: &Value, lines: &[GoldLine], parallel: bool) -> BTreeMap<usize
         let centre = if line.bbox[2] - line.bbox[0] > column { line.bbox[0] + column / 2.0 } else { (line.bbox[0] + line.bbox[2]) / 2.0 };
         centre < middle
     };
-    let held = |unit: &Value| -> Vec<usize> { items(&unit["lines"]).iter().filter_map(Value::as_u64).map(|t| t as usize).filter(|&t| t < typed.len()).collect() };
-    let units: Vec<&Value> = items(&gold["units"]).iter().filter(|unit| !held(unit).is_empty()).collect();
-    let region = |unit: &Value| typed[held(unit)[0]]["region"].as_str().unwrap_or_default().to_owned();
-    let marker = |unit: &Value| -> Option<(usize, char)> {
+    let held_of = |unit: &Value| -> Vec<usize> { items(&unit["lines"]).iter().filter_map(Value::as_u64).map(|t| t as usize).filter(|&t| t < typed.len()).collect() };
+    let units: Vec<&Value> = items(&gold["units"]).iter().filter(|unit| !held_of(unit).is_empty()).collect();
+    // Each unit's typed lines, region and printed number, read once (by the unit's place in the gold): the walk below asks
+    // them of a unit again and again.
+    let marker_of = |held: &[usize]| -> Option<(usize, char)> {
         // (A line may print a heading's number and a paragraph's: "3. Step Two: ... [96] Even if ...".)
-        let marks: Vec<(usize, char)> = items(&typed[held(unit)[0]]["markers"]).iter().filter_map(|mark| marker_number(&printed_marker(mark, &by_id)?)).collect();
+        let marks: Vec<(usize, char)> = items(&typed[held[0]]["markers"]).iter().filter_map(|mark| marker_number(&printed_marker(mark, &by_id)?)).collect();
         marks.iter().find(|(_, style)| *style == '[').or(marks.first()).copied()
     };
+    let known: HashMap<*const Value, (Vec<usize>, String, Option<(usize, char)>)> = units.iter().map(|&unit| {
+        let held = held_of(unit);
+        let region = typed[held[0]]["region"].as_str().unwrap_or_default().to_owned();
+        let marker = marker_of(&held);
+        (unit as *const Value, (held, region, marker))
+    }).collect();
+    let held = |unit: &Value| -> Vec<usize> { known.get(&(unit as *const Value)).map_or_else(|| held_of(unit), |known| known.0.clone()) };
+    let region = |unit: &Value| known.get(&(unit as *const Value)).map_or_else(|| typed[held_of(unit)[0]]["region"].as_str().unwrap_or_default().to_owned(), |known| known.1.clone());
+    let marker = |unit: &Value| -> Option<(usize, char)> { known.get(&(unit as *const Value)).map_or_else(|| marker_of(&held_of(unit)), |known| known.2) };
     // The judgment numbers its paragraphs in one style: its other numbers ("(1)" of a quoted enactment under
     // "[14]") are content.
     let style_of = |region_name: &str| {
@@ -465,6 +486,7 @@ fn printings(gold: &Value, lines: &[GoldLine], parallel: bool) -> BTreeMap<usize
     };
     // A gold that types the numbered paragraphs as items numbers them in its items' style.
     let own_style = style_of("text").or_else(|| style_of("list_item"));
+    laps.lap("p.style");
     let order: HashMap<&str, usize> = lines.iter().enumerate().map(|(at, line)| (line.id.as_str(), at)).collect();
     let ids_of = |unit: &Value| -> Vec<&str> {
         held(unit).into_iter().flat_map(|t| items(&typed[t]["spans"])).filter(|span| span["start"] != span["end"]).filter_map(|span| span["line_id"].as_str()).filter(|id| by_id.contains_key(id)).collect()
@@ -493,6 +515,7 @@ fn printings(gold: &Value, lines: &[GoldLine], parallel: bool) -> BTreeMap<usize
         }
     }
     let own_place = places.iter().max_by_key(|(_, count)| **count).map(|(place, _)| *place as f64 * 3.0);
+    laps.lap("p.places");
     // (But for the count's next number where nothing at that place prints it: a judgment may set its concurring reasons'
     // numbers elsewhere, and a page's margin is no surer than its lines.)
     let mut own_numbers: HashSet<usize> = units.iter().filter(|unit| region(unit) == "text").filter_map(|unit| {
@@ -842,10 +865,14 @@ fn printings(gold: &Value, lines: &[GoldLine], parallel: bool) -> BTreeMap<usize
 /// The key a gold's own lines and types give, `count` null where the judgment numbers no paragraphs.
 pub fn answer(gold: &Value, parallel: bool) -> Value {
     let unnumbered = json!({"count": null, "printings": {}, "speaks_for": []});
+    let mut laps = crate::store::Laps::new();
     let lines = gold_lines(gold);
+    laps.lap("key lines");
     let by_id: HashMap<&str, &GoldLine> = lines.iter().map(|line| (line.id.as_str(), line)).collect();
     let Some(count) = gold_count(gold, &by_id, parallel).filter(|&count| !list_in_reasons(gold, &by_id, count)) else { return unnumbered };
+    laps.lap("key count");
     let sets = printings(gold, &lines, parallel);
+    laps.lap("printings");
     let regions: HashMap<&str, &str> = items(&gold["typed"]).iter()
         .flat_map(|typed| items(&typed["spans"]).iter().filter(|span| span["start"] != span["end"]).filter_map(move |span| Some((span["line_id"].as_str()?, typed["region"].as_str()?))))
         .collect();

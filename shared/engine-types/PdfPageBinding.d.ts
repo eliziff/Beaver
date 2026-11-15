@@ -8,7 +8,7 @@ export type PdfPageBinding = {
 /**
  * The PDF page, from 1.
  */
-pdfPage: number, label: string | null,
+pdfPage: number, label: string | null, 
 /**
  * "detected" (what the page prints), "sequence" (its place in the folio sequence), "embedded" (the PDF's own
  * label), "reporter" (a citation's first page at its distance); none where the page has no number.

@@ -1,0 +1,233 @@
+[
+  {
+    "id": "commercial-landlord",
+    "seed": "abkb-cwb-stark",
+    "size": 50,
+    "focus": "Review for the company owning the office building in Canadian Western Bank v. 2004639 Alberta Ltd. Identify evidence of tenant occupancy, rent actually collected or unpaid, building operating costs, loan payments and the proposed receiver's control of those receipts. Separate the landlord's rental operations from unrelated borrowing or other properties. Include adverse records.",
+    "authoring_context": {
+      "representation": "Small property-owning company with an external property solicitor",
+      "writers": [
+        "owner-manager",
+        "bookkeeper",
+        "tenant",
+        "maintenance contractor",
+        "lender",
+        "receiver"
+      ],
+      "record_types": [
+        "rent ledger",
+        "tenant texts",
+        "repair invoice",
+        "site photos",
+        "loan correspondence"
+      ]
+    }
+  },
+  {
+    "id": "homeowner-roof",
+    "seed": "us-vid-friedberg-daybreak",
+    "size": 75,
+    "focus": "Review for the homeowners in Friedberg and Bunge v. Daybreak. Identify the agreed roofing work, changes to that work, installation and inspection evidence, reported defects, repair efforts and amounts claimed for the roof. Distinguish storm damage and unrelated work from evidence about the contractor's performance. Photographs and informal household communications can be material.",
+    "authoring_context": {
+      "representation": "Individual homeowners with a jointly retained external solicitor",
+      "writers": [
+        "homeowner",
+        "other household member",
+        "roofer",
+        "independent inspector",
+        "insurance adjuster"
+      ],
+      "record_types": [
+        "estimates",
+        "handwritten measurements",
+        "roof photos",
+        "texts",
+        "repair receipts"
+      ]
+    }
+  },
+  {
+    "id": "vehicle-purchase",
+    "seed": "us-gamd-gordon-wellsfargo",
+    "size": 100,
+    "focus": "Review for the individual vehicle purchaser in Gordon v. Wells Fargo Bank and others. Identify the dealer's offer, the vehicle and financing terms actually agreed, the purchaser's deposit and payments, delivery or possession of the vehicle, and repossession communications. General bank publicity or an unrelated vehicle transaction is outside scope.",
+    "authoring_context": {
+      "representation": "Individual buyer with a separately retained external consumer lawyer",
+      "writers": [
+        "buyer",
+        "dealer salesperson",
+        "finance clerk",
+        "repossession agent",
+        "lender"
+      ],
+      "record_types": [
+        "dealer messages",
+        "bank receipt",
+        "delivery photo",
+        "finance forms",
+        "personal notes"
+      ]
+    }
+  },
+  {
+    "id": "contractor-holdback",
+    "seed": "mbkb-bokhari-sandhu",
+    "size": 125,
+    "focus": "Review for the general contractor claiming the lien holdback on the Tahir Residences project in Knight v. Bokhari Development. Identify progress draws, invoices, payments actually made, holdbacks, incomplete or disputed work and the proposed payment of funds into court. Distinguish the contractor, developer, trade suppliers and their separately retained lawyers. Other projects and personal purchases are outside scope unless they explain a transaction in issue.",
+    "authoring_context": {
+      "representation": "Small contractor with an external construction lawyer",
+      "writers": [
+        "site supervisor",
+        "owner",
+        "developer representative",
+        "trade supplier",
+        "bookkeeper"
+      ],
+      "record_types": [
+        "progress claims",
+        "site diary",
+        "change orders",
+        "delivery slips",
+        "holdback ledger"
+      ]
+    }
+  },
+  {
+    "id": "bicycle-shop-proposal",
+    "seed": "bcsc-bicicletta-fox",
+    "size": 150,
+    "focus": "Review for La Bicicletta Bicycles in its proposal proceeding. Identify the purchaser's offer and changes to it, the inventory or other assets covered, secured-creditor priorities and consents, and practical arrangements for completing the sale. Ordinary bicycle sales, repair jobs and staff communications are relevant only if they bear on those issues.",
+    "authoring_context": {
+      "representation": "Owner-operated retailer with external restructuring counsel and a separate proposal trustee",
+      "writers": [
+        "shop owner",
+        "mechanic",
+        "sales assistant",
+        "inventory purchaser",
+        "secured supplier"
+      ],
+      "record_types": [
+        "stock count",
+        "repair tickets",
+        "supplier credits",
+        "sale offer",
+        "staff texts"
+      ]
+    }
+  },
+  {
+    "id": "transport-company-receiver",
+    "seed": "mbkb-customtransport-ahmad",
+    "size": 200,
+    "focus": "Review for Custom Transport in the bank's receivership application. Identify the requested financial reporting, reporting supplied or missing, payment defaults, demands, access to trucks or business records and proposed control of operations by the receiver. Routine trips, fuel purchases and maintenance records are relevant only where they establish a disputed asset, payment, reporting issue or interruption to operations. Drivers, dispatch staff, the bank, the proposed receiver and external counsel are separate participants.",
+    "authoring_context": {
+      "representation": "Small or medium transport operator with external insolvency counsel",
+      "writers": [
+        "owner-dispatcher",
+        "driver",
+        "garage operator",
+        "bank account manager",
+        "proposed receiver"
+      ],
+      "record_types": [
+        "trip sheet",
+        "fuel receipt",
+        "maintenance note",
+        "bank reporting email",
+        "truck photos"
+      ]
+    }
+  },
+  {
+    "id": "estate-property",
+    "seed": "bcsc-origin-derekwong",
+    "size": 250,
+    "focus": "Review for the executors of Wai Hung Wong's estate in the dispute with Siu Mui Wong and others. Identify who holds or claims the property, the deceased's interest, the executors' authority, transfers or dealings affecting that interest, and communications bearing on possession or administration. Separate estate assets and estate advice from a beneficiary's personal property, business and separate legal advice. Family relationships alone do not establish relevance or shared legal representation.",
+    "authoring_context": {
+      "representation": "Individual executors with estate counsel; beneficiaries may have separate counsel",
+      "writers": [
+        "executor",
+        "beneficiary",
+        "former property manager",
+        "relative",
+        "conveyancing clerk"
+      ],
+      "record_types": [
+        "property papers",
+        "household messages",
+        "key handover note",
+        "bank entries",
+        "estate correspondence"
+      ]
+    }
+  },
+  {
+    "id": "individual-employment",
+    "seed": "us-mtd-jackson-stvincent",
+    "size": 300,
+    "focus": "Review for the individual employee in Jackson v. St. Vincent Healthcare. Identify job duties, accommodation requests and responses, relevant work restrictions, attendance or performance records relied on by either side, and the sequence of the challenged employment decisions. Unrelated patient records, general health information and other workers' matters are outside scope unless they supply a material comparison.",
+    "authoring_context": {
+      "representation": "Individual worker with external employment counsel",
+      "writers": [
+        "worker",
+        "line supervisor",
+        "coworker",
+        "health professional",
+        "HR administrator"
+      ],
+      "record_types": [
+        "shift rota",
+        "accommodation messages",
+        "appointment note",
+        "work restrictions",
+        "personal calendar"
+      ]
+    }
+  },
+  {
+    "id": "consumer-marketing-text",
+    "seed": "us-cod-connor-servicequik",
+    "size": 400,
+    "focus": "Review for the recipient of the marketing text in Connor v. Servicequik. Identify the actual message and sender, the number receiving it, any consent or opt-out, how the number entered the marketing system, and the evidence of any later contact. Separate the recipient's other messages and purchases from this contact. A screenshot, handset record or short informal exchange may matter more than a formal letter.",
+    "authoring_context": {
+      "representation": "Individual consumer with external counsel for this dispute",
+      "writers": [
+        "recipient",
+        "another household member",
+        "marketing operator",
+        "customer-service agent"
+      ],
+      "record_types": [
+        "handset screenshots",
+        "call log",
+        "opt-out exchange",
+        "purchase receipt",
+        "account settings"
+      ]
+    }
+  },
+  {
+    "id": "fuel-stop-insolvency",
+    "seed": "skkb-singh-apr2026",
+    "size": 500,
+    "focus": "Review for the operator of the gas-station, convenience-store, restaurant and car-wash assets in the Tisdale receivership application. Identify the secured assets, defaults, payments and forbearance discussions, ownership of stock or equipment, site access and proposals to continue or take control of operations. Separate the operator, any landlord, fuel supplier, equipment lessor, lender, proposed receiver and their external lawyers. Routine till records, deliveries, photographs and repairs matter only where they bear on an issue in this review.",
+    "authoring_context": {
+      "representation": "Independent operating business with external insolvency counsel; lender, landlord and lessor may retain different firms",
+      "writers": [
+        "owner-operator",
+        "shift cashier",
+        "fuel driver",
+        "landlord",
+        "equipment lessor",
+        "receiver"
+      ],
+      "record_types": [
+        "till close",
+        "tank readings",
+        "fuel delivery slip",
+        "car-wash repair note",
+        "equipment photos"
+      ]
+    }
+  }
+]

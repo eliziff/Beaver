@@ -1,0 +1,26 @@
+[package]
+name = "alr-verifier"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# The ALR Quote Verifier's own reading of a checked draft: its workbook's rows, read once from the draft, the quote check
+# and the sources the host reads for it, and the workbook written from them. The engine (native/legal-structure-node)
+# serves it; what any legal program needs stays in the crates below.
+[features]
+binding-types = ["dep:ts-rs", "legal-structure/binding-types", "legal-structure-features/binding-types", "legal-structure-model/binding-types"]
+
+[dependencies]
+legal-structure = { path = "../../legal-structure", features = ["citator", "document-query"] }
+legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "journal-store", "quote-verification"] }
+legal-structure-model = { path = "../../legal-structure/model" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
+indexmap = { version = "2", features = ["serde"] }
+regex = "1.13"
+sha2 = "0.11"
+ryu-js = "1.0.3"
+ts-rs = { version = "12", optional = true, features = ["serde-json-impl"] }
+# The workbook (src/workbook.rs): its strings shared, its package compressed; its identifier written into the package.
+rust_xlsxwriter = { version = "0.102", default-features = false }
+zip = { version = "9", default-features = false }

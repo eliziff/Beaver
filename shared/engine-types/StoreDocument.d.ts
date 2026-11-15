@@ -6,4 +6,8 @@ import type { NativeDocument } from "./NativeDocument";
  * An A2AJ document as JavaScript is given it: its metadata, and each of its readings, its full text's being its
  * provisions' where it has none of its own.
  */
-export type StoreDocument = { id?: number, native: NativeDocument, searchNative: NativeDocument, docType: "cases" | "laws", dataset: string, citation: string, alternateCitation: string | null, name: string | null, date: string | null, url: string | null, publisherUrl: string | null, language: Language, upstreamLicense: string | null, };
+export type StoreDocument = { id?: number, 
+/**
+ * The document's CanLII page, as its metadata read it.
+ */
+canliiUrl: string | null, native: NativeDocument, searchNative: NativeDocument, docType: "cases" | "laws", dataset: string, citation: string, alternateCitation: string | null, name: string | null, date: string | null, url: string | null, publisherUrl: string | null, language: Language, upstreamLicense: string | null, };

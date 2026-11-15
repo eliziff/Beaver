@@ -6,7 +6,7 @@
 #[cfg(feature = "legalpdf")]
 use crate::engine::NativeProduct;
 use crate::dispatch::Progress;
-use crate::engine::{Failure, NativeDocument};
+use crate::engine::{CoreResult, Failure, NativeDocument};
 use crate::formats;
 use legal_structure::{analyze_instrument, utf16_prefix_ceil, DocumentStructure};
 use serde::Deserialize;
@@ -310,6 +310,13 @@ impl Drop for Reading<'_> {
         *self.pending.opened.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(opened);
         self.pending.done.notify_all();
     }
+}
+
+/// The document `key` names (a publisher's decision by its id), derived once while a reader holds it: a source resolved
+/// and then read is one document.
+pub(crate) fn derived_once(key: &str, derive: impl FnOnce() -> CoreResult<NativeDocument>) -> CoreResult<Arc<NativeDocument>> {
+    read_once(key, || Ok(Some(Read { document: Arc::new(derive()?), keys: Vec::new(), keep: true })))
+        .map_err(|failure| failure.message)?.ok_or_else(|| "a derived document".to_owned())
 }
 
 /// The document kept by `key`, the one being read by it once that reading ends, or `read`'s, kept by `key` and the

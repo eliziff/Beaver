@@ -103,7 +103,9 @@ The app, the Authorities launcher and bulk scripts load the optimized (release) 
 a development loop pins the build it is testing with `LEGAL_STRUCTURE_NATIVE`. Unpinned,
 a debug build newer than release stops the load; a failed load is never retried with other code.
 For native PDF phase timings, run any build with `LEGALPDF_PHASE_TIMING=1`: each measured phase
-writes `phase<TAB>name<TAB>microseconds` to stderr.
+is summed over its calls and written once per parse, `phase<TAB>name<TAB>microseconds<TAB>own microseconds` on stderr
+(its own: less the timed phases inside it), each parse first `document<TAB>pages<TAB>lines`. The citation finder times
+its own stages apart, with `LEGAL_CITATIONS_PHASE_TIMING=1`.
 The helper uses four Cargo jobs and remaps source paths in both profiles.
 
 The citation workspace defaults to its grammar and core crates, keeping bindings

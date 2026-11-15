@@ -7,7 +7,7 @@ tools never rebuilds the stack. Behaviour does not change: every step lands with
 ## What is wrong today (measured 2026-11-07)
 
 - `legal-pdf-parser/legal-pdf-structure` is one crate of 74 files, 22,064 lines: `structure/decide` 6,739,
-  `structure/transition` 6,249, `structure/notes` 1,888, `layout` 1,178, `structure/graph` 1,146, `structure/headings`
+  `structure/doc` 6,249, `structure/notes` 1,888, `layout` 1,178, `structure/graph` 1,146, `structure/headings`
   855, `structure/furniture` 846, `paragraphs` 590, `contents_lists` 482, `constituents` 394, `diagnostics` 346,
   `note_context` 271, `heading_ladder` 248, `joining` 171, `text` 141, `note_pairing` 134, `captions` 113, `structure.rs` 269.
   An edit anywhere recompiles all 22,000 lines in release, then everything above it (the parser crate, the node engine,
@@ -19,8 +19,8 @@ tools never rebuilds the stack. Behaviour does not change: every step lands with
   - `constituents -> graph::PdfTextIndex`
   - `decide -> graph::{grammar_rank, split_line_numbers}`
   - `decide -> {captions, constituents, contents_lists, furniture, heading_ladder, headings, notes, paragraphs}`
-  - `transition -> {constituents, contents_lists, decide, graph, headings, joining, note_pairing, notes}`
-  - `structure.rs -> {decide, graph, layout, notes, transition}`
+  - `doc -> {constituents, contents_lists, decide, graph, headings, joining, note_pairing, notes}`
+  - `structure.rs -> {decide, graph, layout, notes, doc}`
   So the only cycles (`headings <-> decide`, and `decide -> graph -> ... -> decide`) come from three small items in the
   wrong place.
 - The stage outputs are cached to disk as one struct (`Measured { evidence, fences, runs }`, written with
@@ -37,7 +37,7 @@ tools never rebuilds the stack. Behaviour does not change: every step lands with
 
 ## The architecture
 
-Hub and spoke, not a chain. A chain (readers -> decide -> transition -> top) still rebuilds everything above an edit.
+Hub and spoke, not a chain. A chain (readers -> decide -> doc -> top) still rebuilds everything above an edit.
 Instead every stage depends only on a small, stable contract crate, and one thin orchestrator depends on the stages:
 
 ```
@@ -56,7 +56,7 @@ legal-pdf-structure-model            <- the contracts: data only, no logic
       +-- legal-pdf-headings    headings, heading ladder, captions, contents lists
       +-- legal-pdf-runs        numbering runs, paragraphs, joining, text
       +-- legal-pdf-decide      the decision (reads the stages' outputs, writes Decision)
-      +-- legal-pdf-transition  the transition parser (reads Decision and the outputs, writes Moves)
+      +-- legal-pdf-doc  DOC, tier 1 (reads Decision and the outputs, writes Moves)
       +-- legal-pdf-graph       the structure graph and diagnostics (reads everything, writes DocumentStructure)
       |
 legal-pdf-structure                   <- the orchestrator: ~300 lines, calls each stage in order, owns the cache
@@ -98,7 +98,7 @@ Rules that make it hold:
    the per-stage outputs).
 5. **Lift the stages out one at a time,** smallest and most stable first: `legal-pdf-pages` (page numbering is the
    change that started this), then furniture, notes, headings/contents/captions, runs/paragraphs/joining/text, graph,
-   decide, transition. After each, the orchestrator calls the new crate and the yardstick below must be identical.
+   decide, doc. After each, the orchestrator calls the new crate and the yardstick below must be identical.
 6. **Version the cache** per stage (rule 5) and drop the single `Measured` blob.
 7. **Split the node crate's harness bins** into harness crates (rule 6), as `native/a2aj-gold` was split.
 8. **Workspace-hack** with `cargo-hakari` across the root workspace, and remove the hand-added `syn` line (rule 8).
@@ -120,7 +120,7 @@ behaviour change is its own commit, measured on its own.
 
 ## Constraints
 
-- Other sessions edit `structure/transition` and `structure/decide` in this tree. Coordinate (`ListAgents`) before
+- Other sessions edit `structure/doc` and `structure/decide` in this tree. Coordinate (`ListAgents`) before
   moving their files, and land the moves of a stage in one commit so no one edits a file that has moved.
 - Builds go through `scripts/cargo.mjs` (one target folder, `native/legal-structure-node/target`). Run long builds
   detached (`Start-Process cmd /c ... > log`), not in a session shell, so the memory reaper cannot kill one halfway and

@@ -27,8 +27,7 @@ function engineReads(runMode: AlrRunMode, note: AlrModelNote, previous?: AlrMode
   if (runMode !== "ultra_economy") return false;
   const split = native.splitSources(note.text, false, "utf16");
   if (split.status !== "deterministic_complete") return false;
-  const fields = split.parts.map((part) => native.sourceFields(part));
-  return fields.every((field) => field.status === "complete") && note.parts.every((part) => !part.reference)
+  return split.parts.every((part) => part.fields.status === "complete") && note.parts.every((part) => !part.reference)
     && note.parts.every((part) => !["case", "unreported", "statute"].includes(part.kind) || !!part.link);
 }
 
@@ -56,7 +55,7 @@ export function alrModel(llm: StructuredLlm, runMode: AlrRunMode, progress: (mes
       stats.requests += requests;
       return new Map(read.flatMap((note) => {
         const placed = parts.get(String(note.index));
-        return placed ? [[note.index, placed.map(({ start, end, fields }) => ({ start, end, fields }))] as const] : [];
+        return placed ? [[note.index, placed] as const] : [];
       }));
     },
     async choose(references, signal) {

@@ -76,9 +76,8 @@ fn evidence(pdf: &PathBuf, cache: &PathBuf, index: &Index, ocr: Option<&mut lega
     let base: Vec<legalpdf::PageEvidence> = match fs::read(&base_path).ok().and_then(|cached| serde_json::from_slice(&cached).ok()) {
         Some(base) => base,
         None => {
-            let pdf_bytes = load(&mut bytes)?;
-            let extracted = legalpdf::gold_structure_inputs(&pdf_bytes, &home).map_err(|e| e.to_string())?;
-            let document = legalpdf::gold_structure_document(extracted, &sha).map_err(|e| e.to_string())?;
+            let extracted = legalpdf::gold_structure_inputs(pdf, &sha, &a2aj_gold::store::readings_root()).map_err(|e| e.to_string())?;
+            let document = legalpdf::gold_structure_document(extracted, &sha, None).map_err(|e| e.to_string())?;
             let base = legalpdf::page_evidence(&document);
             let _ = fs::create_dir_all(&home);
             let _ = fs::write(&base_path, serde_json::to_vec(&base).unwrap_or_default());

@@ -11,8 +11,10 @@ import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction,
   type AuthoritiesInitialSettings, type AuthoritiesUserAction } from "./authoritiesActions";
 import { authorityPassageTargets, buildAuthorities,
   type AuthoritiesBuildResult, type BuildSourceText } from "./authoritiesBuild";
-import { attachAuthorityFile, correctedAuthoritiesDraft, gatherAuthoritySources, refreshedAuthoritiesDraft,
+import { attachAuthorityFile, correctedAuthoritiesDraft, refreshedAuthoritiesDraft,
   type KeptPdf } from "./authoritiesCore";
+import { authorityStatuteText, bookSourceServices, gatherAuthoritySources, resolveAuthoritiesSources }
+  from "./authoritiesBookSources";
 import { attachBookFile, authorityAnnotations, buildAuthoritiesDraft, type AuthoritiesBuildFile } from "./authoritiesBookCore";
 import { attachedAuthoritySources, decodeAuthoritiesDraft,
   type AuthoritiesAction, type AuthoritiesDraft,
@@ -23,13 +25,13 @@ import { createAuthoritiesImporter, type AuthoritiesImportSource,
 import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { createAuthoritiesPreparation } from "./authoritiesPreparation";
 import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
-import { authorityReferenceText, authorityStatuteText, authoritySourceServices, resolveAuthoritiesSources }
-  from "./authoritiesSourceResolution";
+import { authorityReferenceText } from "./authoritiesSourceResolution";
 import { createdDocumentRollback, createdVersionRollback, rollbackDocuments,
   type DocumentFile, type DocumentRollback, type DocumentStore } from "./documentStore";
 import { canonicalJsonSha256 } from "./hash";
 import { cancelPdfJobs, enqueueAuthorityOcr } from "./pdfJobs";
 import { preparePdf } from "./sourceDocument";
+import { instrumentReading } from "./authorityPdfText";
 import type { ResolvedWorkProductInput, WorkProduct, WorkProductInput, WorkProductState } from "./workProduct";
 import { saveWorkProductBuild, type WorkProductApplication } from "./workProductApplication";
 import type { WorkflowFiles } from "./workflowFiles";
@@ -85,7 +87,7 @@ export function createAuthoritiesWorkspaceApplication(
   files: WorkflowFiles,
 ) {
   // The book stands a PDF typeset from a provider's text in for an original there is none of.
-  const importer = createAuthoritiesImporter(documents), sources = { ...authoritySourceServices,
+  const importer = createAuthoritiesImporter(documents), sources = { ...bookSourceServices,
     render: (source: Parameters<ReturnType<typeof structureNative>["renderSourcePdf"]>[0]) => structureNative().renderSourcePdf(source) };
   async function open(scope: ApplicationScope, id: string) {
     const found = await workProducts.get(scope, id);
@@ -477,7 +479,7 @@ export function createAuthoritiesWorkspaceApplication(
           // An explicit recognition request also repairs missing retained artifacts;
           // an OCR profile alone is not proof that its selectable text still exists.
           const bytes = await resolved.readBytes();
-          const prepared = await preparePdf({ ...reference, bytes, ocrProvider: null });
+          const prepared = await preparePdf({ ...reference, bytes, ocrProvider: null, doc: false, instrument: instrumentReading(authority) });
           if (pages?.some((page) => page > prepared.pageCount)) throw new ApplicationError(400,
             `Choose page numbers within the PDF for ${source.filename}.`);
           const citations = authorityCitationForms(draft, authority.id);

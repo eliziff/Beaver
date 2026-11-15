@@ -41,22 +41,23 @@ python experiments/footnote-gold/import_olj.py --pdfs <directory of DATASET_ARTI
 
 ## Score
 
+The structure grader scores it (`experiments/legal-structure-gold/grade`, `footnotes.rs`):
+
 ```powershell
-python experiments/footnote-gold/score.py [--addon <built addon>] [--save NAME] [--against <summary>] [--show]
+structure-gold footnotes benchmarks/local-data/olj-footnote-gold/gold OUT.json [--against EARLIER.json] [--show]
 ```
 
-Each PDF is parsed with the app's own PDF profile through
-`experiments/legal-structure-gold/extract.mjs`, one document at a time. `--addon`
-loads one built addon instead of the most recent build, so concurrent builds cannot
-change the binary mid-run. Recognition is cached per OCR code and carried to the
-next binary. Layers, micro-averaged:
+Each article's inputs are made once into the build's inputs folder (recognition cached in the data home's
+`gold-parsed/<sha>`), as the grader's `inputs` makes the structure store's, and parsed by the build's structure
+stage. Layers, micro-averaged:
 
 - `notes`: note label value on the label's page;
 - `references`: a reference to the note value on its page (the note it belongs to, so a misread marker glyph still counts);
 - `positions`: references whose one of two preceding words matches the gold line;
 - `pairs`: reference page and value with the label page and value.
 
-Matched notes also report whether the body start agrees with the gold label line.
-Summaries go to `benchmarks/local-data/olj-footnote-gold/score/`; `--against` prints
-precision/recall deltas over the documents both runs scored and how many read the
-same recognized lines.
+Matched notes also report whether the body start agrees with the gold label line. `--against` prints precision,
+recall and F1 deltas over the articles both summaries scored; `--show` lists each article's false and missed notes.
+
+This slice is 100 scanned articles. Footnote changes are judged first on the structure gold store's note layers
+(`structure-gold grade STORE --split all --against ...`: `note`, `note_references`, `units_note`).

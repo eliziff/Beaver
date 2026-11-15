@@ -1,5 +1,4 @@
 import { MAX_READ_PATTERNS, readPatterns } from "../resourceTools";
-import { a2ajLegalSourceProvider } from "../../legalSources/a2aj";
 import { parseResourceReference } from "mike/shared/runtime/resourceReferences.mjs";
 import { isEvidenceId, type LegalEvidenceReceipt } from "../legalEvidence";
 import { trimmedText } from "../../value";
@@ -178,12 +177,8 @@ export function assistantToolActivityLabel(
         ? "US"
         : rawJurisdiction;
     const collection = activityText(args.collection, 40)?.toUpperCase();
-    const suffix = collection?.match(/-([A-Z]{2,3})$/u)?.[1];
-    const province = suffix === "YK" ? "YT" : suffix;
     // A court's collection is named by its code (NSPC): two courts of one province must not read as one search.
-    const place = province && province in a2ajLegalSourceProvider.jurisdictions
-      ? a2ajLegalSourceProvider.jurisdictions[province as keyof typeof a2ajLegalSourceProvider.jurisdictions]
-      : collection ?? jurisdiction;
+    const place = (collection && structureNative().a2ajCollectionJurisdiction(collection)) || (collection ?? jurisdiction);
     // Searches split by date read alike unless the label names the range.
     const day = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/u.test(String(value ?? "")) ? String(value) : undefined;
     const from = day(args.date_from), to = day(args.date_to);

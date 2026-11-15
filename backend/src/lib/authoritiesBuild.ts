@@ -1,6 +1,4 @@
 import { footnotePropositions, markedQuotations, singleSourceFootnote } from "./authoritiesQuotations";
-import { legalSourceLocatorAnchor, sourceUrl as legalSourceUrl } from "./legalSourceLinks";
-import type { A2AJLocatorKind } from "./legalSources/a2aj";
 import type { AuthoritiesBuildReceipt,
   AuthoritiesOutputRole } from "mike/shared/authorities-contract.d.ts";
 import {
@@ -24,7 +22,9 @@ import type { BookRow } from "mike/shared/engine-types/BookRow";
 import type { PaperCover } from "mike/shared/engine-types/PaperCover";
 import type { PassageGeometry } from "mike/shared/engine-types/PassageGeometry";
 import { canonicalJson, canonicalJsonSha256, sha256 } from "./hash";
-import { applyTableOfAuthorities, entryOrder, type DocxAuthorityMark } from "./docxOperations";
+import type { DocxAuthorityMark } from "mike/shared/engine-types/DocxAuthorityMark";
+/** Word's sort of a table's entries (ICU's root collation, as the engine's table of authorities sorts them). */
+const entryOrder = new Intl.Collator("en", { numeric: false }).compare;
 import { structureNative } from "./structureNative";
 import type { OutlineEntry } from "mike/shared/engine-types/OutlineEntry";
 import type { PassageTarget } from "mike/shared/engine-types/PassageTarget";
@@ -260,9 +260,9 @@ function authoritySourceLink(authority: AuthorityIdentity) {
   const [locator] = authority.locators;
   const only = authority.locators.length === 1 && locator &&
     ["paragraph", "page", "section"].includes(locator.kind)
-    ? legalSourceLocatorAnchor(value, locator.kind as A2AJLocatorKind, locator.label)
+    ? structureNative().sourceAnchor(value, locator.kind, [locator.label])[0] ?? undefined
     : undefined;
-  return legalSourceUrl(value, only);
+  return structureNative().sourceUrl(value, only);
 }
 
 function freePublicDatabaseReference(authority: AuthorityIdentity) {
@@ -410,7 +410,7 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
   const linked = groups.flatMap(({ label: group, entries }) => entries.map(({ authority, name, italic, sourceUrl, tab }) =>
     ({ label: name, italic, url: sourceUrl, authorityId: authority.id, group,
       tab: draft.outputMode === "table" ? undefined : tabNumber(draft.settings, tab) })));
-  const output = await applyTableOfAuthorities(Buffer.from(bytes), draft.units, marks,
+  const { bytes: output } = await structureNative().docxTableOfAuthorities(bytes, draft.units, marks,
     draft.insertIntoDocument ? finalLinks && draft.settings.tableDelivery === "native-append"
       ? "linked-append" : draft.settings.tableDelivery : "native-marks", linked);
   return artifact("annotated-document", filename,
@@ -516,8 +516,10 @@ async function loadAuthorityPdf(
   const loaded = sources.map((source) => allowIncomplete && attached[source.bindingRole]?.bytes === undefined ? null
     : { bytes: boundPdf(source, label.name, attached) });
   // A PDF whose text was not read is counted where the engine joins it.
+  // The engine reads this authority's PDFs here first: one it cannot open is named by its authority.
   const read = editing && await readAuthoritySource(editing.draft, editing.authority, sources, attached,
-    { placeholders: allowIncomplete, extraPages: editing.extraPages, bytes: loaded.map((item) => item?.bytes) });
+    { placeholders: allowIncomplete, extraPages: editing.extraPages, bytes: loaded.map((item) => item?.bytes) })
+    .catch(() => { throw new Error(`Attached PDF could not be opened for ${label.name}.`); });
   const parts = loaded.map((item, index): BookPart => {
     const source = sources[index];
     if (!item) return { kind: "missing", federal: false, ...(sources.length > 1

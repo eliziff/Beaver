@@ -26,6 +26,9 @@ export function cargoEnv(root = checkout, target) {
         .map(([from, to]) => `--remap-path-prefix=${from}=${to}`).join("\x1f");
     // The browser build uses SIMD for memchr and the regex prefilters.
     if (target === "wasm32-wasip1") env.CARGO_ENCODED_RUSTFLAGS += "\x1f-Ctarget-feature=+simd128";
+    // An x86-64 build targets x86-64-v2 (SSE4.2, POPCNT), which every machine Windows 11 runs on has: rounding is an
+    // instruction, not a call into the C runtime.
+    if (target ? target.startsWith("x86_64") : process.arch === "x64") env.CARGO_ENCODED_RUSTFLAGS += "\x1f-Ctarget-cpu=x86-64-v2";
     return env;
 }
 

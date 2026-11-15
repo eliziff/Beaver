@@ -38,4 +38,3 @@ export function searchFilter(haystack: SqlFragment, query: string): SqlFragment 
 }
 
 /** The words a query asks for, for showing where a result holds them. */
-export const searchTerms = (query: string) => searchMatcher(query)?.terms ?? [];

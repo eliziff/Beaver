@@ -24,11 +24,11 @@ a2aj = ["dep:rusqlite", "legal-structure-features/a2aj-store", "legal-structure-
 docx = ["dep:legalpdf"]
 legalpdf = ["docx", "legalpdf/pdf"]
 # The TypeScript declarations of its wire types and the crates' it serves (src/bindings.rs, the export-types bin).
-binding-types = ["dep:ts-rs", "legal-structure/binding-types", "legal-structure-features/binding-types", "legalpdf?/binding-types"]
+binding-types = ["dep:ts-rs", "alr-verifier/binding-types", "legal-structure/binding-types", "legal-structure-features/binding-types", "legalpdf?/binding-types"]
 
 [dependencies]
 legal-structure = { path = "../../legal-structure", features = ["structure-inference", "citator", "journal", "native-markup", "opinion"] }
-legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "document-query", "structure-inference", "quote-verification"] }
+legal-structure-features = { path = "../../legal-structure/features", features = ["canada", "canlii", "citator", "courtlistener", "document-query", "foreign-case", "journal-store", "structure-inference", "quote-verification"] }
 legal-structure-model = { path = "../../legal-structure/model" }
 serde = { version = "1.0", features = ["derive"] }
 # float_roundtrip as the a2aj-gold crate needs it: one serde_json for the workspace, so the stack under it builds once
@@ -54,6 +54,8 @@ quick-xml = "0.42"
 pulldown-cmark = { version = "0.13", default-features = false }
 mail-parser = { version = "1.0.1", features = ["full_encoding"] }
 encoding_rs = "0.8.35"
+# The ALR Quote Verifier's workbook of a checked draft, which the engine serves.
+alr-verifier = { path = "../alr-verifier" }
 
 # The Node addon links native OCR and layout runtimes.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { a2ajLegalSourceProvider } from "../lib/legalSources/a2aj";
+import { structureNative } from "../lib/structureNative";
 import { createLegalSourceApplication } from "../lib/legalSourceApplication";
 import { createLegalLibraryRouter } from "./legalLibrary";
 
@@ -78,22 +79,15 @@ describe("legal Library viewer responses", () => {
 
   it("revalidates with a stable ETag without refetching the source", async () => {
     process.env.AUTH_MODE = "local";
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        results: [
-          {
-            dataset: "SCC",
-            citation_en: "2099 SCC 3",
-            name_en: "ETag v. Repeat Open",
-            unofficial_text_en:
-              "[1] First paragraph with enough legal text.\n[2] Second paragraph with enough legal text.",
-          },
-        ],
-      }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    // The decision as the engine's A2AJ lookup returns one, read from its text.
+    const engine = structureNative();
+    const native = await engine.deriveDocumentStructure({ kind: "provider_text", input: { provider: "a2aj",
+      citation: "2099 SCC 3", source_kind: "cases", dataset: "SCC",
+      text: "[1] First paragraph with enough legal text.\n[2] Second paragraph with enough legal text." } });
+    const fetchMock = vi.spyOn(engine, "a2ajLookup").mockResolvedValue({ status: "done", value: { status: "found", document: {
+      canliiUrl: null, native, searchNative: native, docType: "cases", dataset: "SCC", citation: "2099 SCC 3",
+      alternateCitation: null, name: "ETag v. Repeat Open", date: null, url: null, publisherUrl: null, language: "en",
+      upstreamLicense: null } } });
 
     const first = await request(app)
       .get("/sources/document")

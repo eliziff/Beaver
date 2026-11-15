@@ -1,6 +1,8 @@
 /** Shared Authorities state and public commands; resolved reducer actions remain server-side. */
 import type { AuthoritiesBookParts, AuthoritySourceDecision } from "./authorities-sources.mjs";
 import type { AuthorityTextUnit } from "./engine-types/AuthorityTextUnit";
+import type { CanliiPage } from "./engine-types/CanliiPage";
+import type { QuoteCitationPart } from "./engine-types/QuoteCitationPart";
 import type { PdfAnnotationSet, PdfAnnotationSets } from "./pdf-annotations.mjs";
 import type { WorkProductBuildReceipt, WorkProductInput,
   WorkProductState } from "./work-products.mjs";
@@ -131,6 +133,8 @@ export type AuthoritySourceIdentity = {
   sourceSha256: string;
   version: string | null;
   externalUrl: string | null;
+  /** The source's CanLII page, as the engine read it off the source's citations. */
+  canliiUrl?: string | null;
 };
 
 export type AuthorityHighlightExclusion = { kind: string; label: string };
@@ -196,10 +200,18 @@ export type AuthorityIdentity = {
   /** The authority this one is subsequent history of ("aff'd 2010 ABCA 191"), and the relation as
    *  the brief writes it ("aff'd in"). */
   historyOf?: string;
+  /** The CanLII pages its citations name, as the import read them. */
+  canlii?: CanliiPage[];
 };
 
-/** A unit of the brief as the engine reads it, and the citations found in it. */
-export type AuthoritiesReviewUnit = AuthorityTextUnit & { occurrenceIds: string[] };
+/** A part of a note as the import's citation engine split it (offsets in the note's text): the engine's part, the first
+ *  authority it refers to as written (`reference`, "" where none), and the page its first full citation of a report
+ *  starts at. */
+export type AuthorityNotePart = QuoteCitationPart;
+
+/** A unit of the brief as the engine reads it, the citations found in it and, a note, the parts the import split it
+ *  into. */
+export type AuthoritiesReviewUnit = AuthorityTextUnit & { occurrenceIds: string[]; parts?: AuthorityNotePart[] };
 
 export type AuthorityTextSpan = { start: number; end: number; text: string };
 /** What a pinpoint locates in the cited source, as the citation engine names it. */
@@ -348,7 +360,7 @@ export type AuthoritiesLedgerOccurrence = {
   markerId: string;
   targetId: string;
   authorityKey: string;
-  unit: Omit<AuthoritiesReviewUnit, "occurrenceIds"> & { sourceTextSha256: string };
+  unit: Omit<AuthoritiesReviewUnit, "occurrenceIds" | "parts"> & { sourceTextSha256: string };
   start: number;
   end: number;
   text: string;

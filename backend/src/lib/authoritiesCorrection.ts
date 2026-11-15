@@ -4,7 +4,8 @@ import { updateAuthoritiesDraft } from "./authoritiesActions";
 import type { AuthoritiesDraft } from "./authoritiesDomain";
 import type { AuthoritiesDiscrepancyRequest } from "mike/shared/authorities-contract.d.ts";
 import { authoritiesDiscrepancyCorrection, reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
-import { applyAuthorityDiscrepancyCorrection, rejectAuthorityDiscrepancyCorrection } from "./docxOperations";
+import { structureNative } from "./structureNative";
+import type { BriefCorrection as DocxCorrection } from "mike/shared/engine-types/BriefCorrection";
 
 /** Host callbacks verify exact input bytes; only the host publishes the corrected version. A Word brief's
  *  corrections are tracked changes, whose ids the decision keeps; "reopen" undoes a decision, rejecting
@@ -30,16 +31,16 @@ export async function prepareAuthoritiesCorrection<T extends { bytes: Buffer }>(
     if (!draft.discrepancyDecisions?.[input.id]) reject(409, "This finding has no decision to undo.");
     const revisions = draft.discrepancyCorrections?.[input.id]?.revisions ?? [];
     const reopened = updateAuthoritiesDraft(draft, { type: "reopen-discrepancy", id: input.id });
-    return revisions.length && word ? corrected(reopened, (bytes) => rejectAuthorityDiscrepancyCorrection(bytes, revisions))
+    return revisions.length && word ? corrected(reopened, async (bytes) => (await structureNative().docxResolveTrackedChanges(bytes, revisions.map(String), false))?.bytes ?? bytes)
       : { kind: "ignored" as const, draft: reopened };
   }
   const action = input.action;
   // Writes the corrections as tracked changes and records their ids with the decision.
-  const decide = async (corrections: Parameters<typeof applyAuthorityDiscrepancyCorrection>[2],
+  const decide = async (corrections: DocxCorrection | readonly DocxCorrection[],
     authority?: NonNullable<AuthoritiesDraft["discrepancyCorrections"]>[string]["authority"], then = (value: AuthoritiesDraft) => value) => {
     let revisions: number[] = [];
     const result = await corrected(draft, async (bytes) => {
-      const written = await applyAuthorityDiscrepancyCorrection(bytes, draft.units, corrections);
+      const written = await structureNative().docxApplyCorrections(bytes, draft.units, Array.isArray(corrections) ? corrections : [corrections]);
       revisions = written.revisions;
       return written.bytes;
     });

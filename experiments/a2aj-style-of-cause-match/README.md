@@ -22,7 +22,7 @@ This is an experiment, not wired into the product. Nothing outside this director
 
 Code: `lib.ts` (matcher), `measure.ts` (facts about A2AJ that the rules rely on), `eval.ts`
 (evaluation) and `wrongs.ts` (wrong-match classification). Citations are parsed only by the native
-engine: `citationEngineCall("extract")` for style, court, year and format, and
+engine: `citationExtract` for style, court, year and format, and
 `citationLookupKeys` for direct keys. No TypeScript citation regexes are used. The one pattern here
 splits CanLII *case ids* (`2005scc72`).
 

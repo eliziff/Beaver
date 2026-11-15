@@ -13,7 +13,7 @@ import { reviewAuthoritiesDiscrepancies } from "./authoritiesDiscrepancy";
 import { applyAuthoritiesInitialSettings, applyAuthoritiesUserAction, folderPdfAuthority,
   readPinpoints } from "./authoritiesActions";
 import { authorityReferenceText, authoritySourceServices, resolveAuthoritySources,
-  type PreparedAuthoritySource, type SourceServices } from "./authoritiesSourceResolution";
+  type SourceServices } from "./authoritiesSourceResolution";
 import { prepareAuthoritiesCorrection } from "./authoritiesCorrection";
 import { attachAuthorityFile, correctedAuthoritiesDraft, refreshedAuthoritiesDraft, type KeptPdf } from "./authoritiesCore";
 import { sha256 } from "./hash";
@@ -52,7 +52,6 @@ export const keptByPage = (filename: string, bytes: Uint8Array, sourceSha256: st
 
 export const sourceBytes = (file: AuthoritiesRuntimeFile) => Buffer.from(file.bytes.buffer, file.bytes.byteOffset, file.bytes.byteLength);
 export const value = (data: unknown): AuthoritiesRuntimeResult => ({ data });
-export const draftResult = (data: AuthoritiesDraft, attachments: PreparedAuthoritySource[]): AuthoritiesRuntimeResult => ({ data, attachments });
 export const fileResult = (data: unknown, files: Array<{ role: string; mimeType: string; bytes: Uint8Array; filename?: string }>): AuthoritiesRuntimeResult => ({ data, files });
 /** The authority source a request's PDF is, checked once here, where the page hands the bytes over. */
 export function givenSource(state: AuthoritiesDraft, role: string, bytes: Buffer) {
@@ -89,7 +88,7 @@ export type VerifierModel = (request: unknown, progress: (message: string) => vo
   { model: AlrModel; stats: unknown } | null;
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-/** What a host gives the operations: its source services (`services`, a store of kept originals among them) and how
+/** What a host gives the operations: its source services (`services`; a book's, authoritiesBookSources.ts) and how
  *  a case the source names differently than cited is met (`citedCases`: flagged and checked, or held for the user). */
 export type OperationsOptions = { services?: SourceServices; citedCases?: "resolve" | "warn";
   reviewDiscrepancies?: typeof reviewAuthoritiesDiscrepancies; verifierModel?: VerifierModel };
@@ -187,16 +186,16 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
     "pinpoints": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
       value(readPinpoints(input?.text, input?.start, input?.end)),
     "create": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
-    return draftResult( applyAuthoritiesInitialSettings(
+    return value(applyAuthoritiesInitialSettings(
       createAuthoritiesDraft({ kind: "manual" }), initialSettings(input?.settings),
-    ), []);
+    ));
     },
     "import": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const settings = initialSettings(input?.settings);
     const imported = await importStandaloneAuthoritiesFile({
       ...await standaloneSource(input), sourceMode: settings?.sourceMode, supraLinking: settings?.supraLinking,
     });
-    return draftResult( applyAuthoritiesInitialSettings(imported, settings), []);
+    return value(applyAuthoritiesInitialSettings(imported, settings));
     },
     "refresh": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const source = await standaloneSource(input);
@@ -214,21 +213,21 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
     const freshSource = freshInput?.kind === "local-file" ? freshInput
       : reject(400, "The imported source binding is invalid");
     fresh.bindings.source = { ...freshSource, handleId: currentSource.handleId };
-    return draftResult(await refreshedAuthoritiesDraft(current, fresh, context.signal), []);
+    return value(await refreshedAuthoritiesDraft(current, fresh, context.signal));
     },
     "action": async (input: AuthoritiesOperationInput, _context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
     const current = draft(input?.draft);
     const action = decodeAuthoritiesUserAction(input?.action);
-    return draftResult( applyAuthoritiesUserAction(current, action), []);
+    return value(applyAuthoritiesUserAction(current, action));
     },
     // The authorities looked up, and no PDF fetched or made: a quotation is checked against its provider's text, or a PDF
     // the user attaches. Finding sources is no step the user takes, so the draft stays at its step.
     "sources": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const current = draft(input?.draft);
       const onlyAuthorityId = input?.authorityId === undefined ? undefined : text(input.authorityId, 200);
-      const found = (await resolveAuthoritySources(current, services, context.signal, onlyAuthorityId, context.progress,
-        citedCases)).draft;
-      return draftResult(found.stage === current.stage ? found : { ...found, stage: current.stage }, []);
+      const found = await resolveAuthoritySources(current, services, context.signal, onlyAuthorityId, context.progress,
+        citedCases);
+      return value(found.stage === current.stage ? found : { ...found, stage: current.stage });
     },
     // The other citations of a citation's authority that a link given to it would carry to (authoritiesLinkPropagation.ts).
     "link-propagation": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> =>
@@ -250,7 +249,7 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
       }
       return { ...source, filename: imported.filename };
     }, reviewDiscrepancies, context.signal);
-    if (prepared.kind === "ignored") return draftResult( prepared.draft, []);
+    if (prepared.kind === "ignored") return value(prepared.draft);
     const { bytes, draft: decided } = prepared;
     const filename = prepared.source.filename.replace(/(?: corrected)?\.docx$/iu, " corrected.docx");
     const fresh = await importStandaloneAuthoritiesFile({ filename, fileType: "docx", bytes,

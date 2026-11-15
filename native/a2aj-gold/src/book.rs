@@ -171,9 +171,11 @@ impl Book {
 
     /// Units in the order of their first typed lines, empty ones gone; the document's type stays on its first unit.
     pub fn in_order(&mut self) {
-        let kept: Vec<usize> = (0..self.units.len()).filter(|&u| !self.members(u).is_empty()).collect();
-        let mut order = kept;
-        order.sort_by_key(|&u| self.members(u)[0]);
+        // (Each unit's first typed line read once, not again for every comparison of the sort.)
+        let first = |unit: &Value| unit["lines"].as_array().and_then(|lines| lines.iter().find_map(|line| line.as_u64()));
+        let mut order: Vec<(u64, usize)> = self.units.iter().enumerate().filter_map(|(u, unit)| Some((first(unit)?, u))).collect();
+        order.sort_by_key(|&(first, _)| first);
+        let order: Vec<usize> = order.into_iter().map(|(_, u)| u).collect();
         let kind = self.units.iter().find_map(|unit| unit.get("document_type").cloned());
         self.renumber_units(order);
         if let Some(kind) = kind {

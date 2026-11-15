@@ -1,7 +1,7 @@
 """Deterministic corrections the gold runner applies after the model's passes (author.py, before it
 writes the gold), each a rule the gold's own conventions imply, recorded in the gold file under
-`postcorrections`. The gold so corrected is the representation the tagger trains on and the grader
-scores, as stored: nothing reads it through further rules.
+`postcorrections`. The gold so corrected is the representation the grader scores, as stored: nothing
+reads it through further rules.
 
 Running heads: a page's running head is furniture, never a heading. A one-line heading unit at the
 top or bottom edge of its page is a running head when the same words (a folio number before or

@@ -1,7 +1,6 @@
 import { courtlistenerLegalSourceProvider } from "./legalSources/courtlistener";
 import { resourceReference } from "mike/shared/runtime/resourceReferences.mjs";
-import { jsonRecord as row, nonemptyString as text, positiveInteger as integer } from "./value";
-import type { RemoteLegalSourceDocument } from "./legalSources/remoteProvider";
+import { jsonRecord as row } from "./value";
 import {
   a2ajLegalSourceProvider,
   type A2AJViewerPayload,
@@ -9,9 +8,8 @@ import {
 import { journalLegalSourceProvider } from "./legalSources/journal";
 import { createLegalSourceRegistry } from "./legalSources";
 import { hansardLegalSourceProvider } from "./a2ajHansard";
-import { govUkEmploymentTribunalLegalSourceProvider } from "./legalSources/govUkEmploymentTribunal";
-import { govInfoLegalSourceProvider } from "./legalSources/govInfo";
-import { tnaLegalSourceProvider } from "./legalSources/tna";
+import { foreignCaseProviders, type RemoteLegalSourceDocument } from "./legalSources/foreign";
+import type { CourtListenerCase } from "mike/shared/engine-types/CourtListenerCase";
 import type { LegalSourceReference } from "./legalSources";
 import {
   queueProviderPdfAttachment,
@@ -68,25 +66,16 @@ type ViewerPointer = {
   dataset?: string | null; sourceId?: string | null;
 };
 
-async function courtlistenerPdfRendition(value: object, reference: LegalSourceReference, userId?: string) {
-  const source = value as Record<string, unknown>;
-  const clusterId = integer(source.clusterId) ?? integer(source.id);
-  const opinions = Array.isArray(source.opinions)
-    ? source.opinions.filter((item): item is object => Boolean(row(item))) : [];
-  const pdfUrl = text(source.pdfUrl) ?? text(source.pdf_url);
-  const needsRendition = opinions.some((opinion) =>
-    !courtlistenerLegalSourceProvider.hasNativeOpinionStructure(opinion));
-  if (!clusterId || !userId || !pdfUrl || !needsRendition) return null;
+async function courtlistenerPdfRendition(found: CourtListenerCase, reference: LegalSourceReference, userId?: string) {
+  if (!userId || !found.pdfUrl || found.opinions.every(courtlistenerLegalSourceProvider.hasNativeOpinionStructure)) return null;
   try {
     const queued = await queueProviderPdfAttachment({
       source: reference,
       provider: "courtlistener",
-      identity: String(clusterId),
-      url: pdfUrl,
-      canonicalUrl: text(source.url),
-      title: text(source.caseName) ?? text(source.case_name) ??
-        (Array.isArray(source.citations) ? text(source.citations[0]) : null) ??
-        `CourtListener ${clusterId}`,
+      identity: String(found.id),
+      url: found.pdfUrl,
+      canonicalUrl: found.url,
+      title: found.caseName ?? found.citations[0] ?? `CourtListener ${found.id}`,
     }, userId);
     return queued && {
       ...queued,
@@ -98,8 +87,7 @@ async function courtlistenerPdfRendition(value: object, reference: LegalSourceRe
 }
 
 const providers = createLegalSourceRegistry<unknown>([
-  a2ajLegalSourceProvider, courtlistenerLegalSourceProvider, tnaLegalSourceProvider,
-  govUkEmploymentTribunalLegalSourceProvider, govInfoLegalSourceProvider,
+  a2ajLegalSourceProvider, courtlistenerLegalSourceProvider, ...Object.values(foreignCaseProviders),
   journalLegalSourceProvider, hansardLegalSourceProvider,
 ]);
 
@@ -111,16 +99,15 @@ export const legalSourceOperations = {
     if (read.status !== "found") return read;
     if (!userId) return { ...read, pdfRenditions: [] };
     const remoteSources = new Map<string, { document: RemoteLegalSourceDocument; source: LegalSourceReference }>();
-    const courtCases = new Map<string, { value: Record<string, unknown>; source: LegalSourceReference }>();
+    const courtCases = new Map<string, { value: CourtListenerCase; source: LegalSourceReference }>();
     for (const passage of read.values) {
       const native = row(passage.native);
       if (native && ["tna", "govuk-et", "govinfo"].includes(passage.source.provider)) {
         const document = native as RemoteLegalSourceDocument;
         remoteSources.set(`${document.provider}:${document.identity}`, { document, source: passage.source });
       }
-      const courtCase = row(native?.case);
-      if (courtCase && passage.source.provider === "courtlistener")
-        courtCases.set(passage.source.id, { value: courtCase, source: passage.source });
+      if (native?.case && passage.source.provider === "courtlistener")
+        courtCases.set(passage.source.id, { value: native.case as CourtListenerCase, source: passage.source });
     }
     const pdfRenditions = (await Promise.all([
       ...[...remoteSources.values()].map(({ document, source }) => queueProviderPdfRenditions(document, source, userId)),

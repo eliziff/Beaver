@@ -6,7 +6,6 @@ import {
   type A2AJCompiledDocument,
 } from "../legalSources/a2aj";
 import { structureNative, type NativeDocument } from "../structureNative";
-import { hasCanadianDecisionLink } from "../legalSourceLinks";
 import type { LegalSourcePassage, LegalSourceReference } from "../legalSources";
 import { type Tool } from "../llm";
 import { normalizeWhitespace } from "../text";
@@ -1031,7 +1030,7 @@ export function finalizeLegalEvidence(
   structureNative().markedQuoteSpans(draft).reduceRight((value, { start, end }) =>
     `${value.slice(0, start)} ${value.slice(end)}`, draft));
   const namesAuthority = hasCaseNameInText(advanced);
-  const citesAuthority = structureNative().hasCitationInText(advanced) || hasCanadianDecisionLink(draft);
+  const citesAuthority = structureNative().hasCitationInText(advanced) || structureNative().canadianDecisionLink(draft);
   if (!state.mode && !state.answer && (namesAuthority || citesAuthority))
     state.mode = "citation_structure";
   if (!state.mode) return true;
