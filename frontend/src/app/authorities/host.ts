@@ -53,9 +53,14 @@ export interface AuthoritiesHost {
   /** Reads the draft's document again, keeping what was decided on it; `selected`, where given, is the document as it
    *  is now (Word's open document), in place of the file the draft is bound to. */
   refresh(id: string, revision: number, selected?: AuthoritiesFile): Promise<AuthoritiesProduct>;
-  /** `progress` hears which authority is being looked up or fetched, as it happens. */
+  /** `progress` hears which authority is being looked up or fetched, as it happens. `apply`, where the host can stream
+   *  (`applyGathered`): each of gathering's steps as it is made, which the caller saves as it comes; the product is then
+   *  the last one it saved. */
   prepareSources(product: AuthoritiesProduct, signal?: AbortSignal,
-    authorityId?: string, progress?: (message: string) => void): Promise<AuthoritiesProduct>;
+    authorityId?: string, progress?: (message: string) => void,
+    apply?: (actions: unknown[]) => Promise<AuthoritiesProduct>): Promise<AuthoritiesProduct>;
+  /** Gathering's steps (`prepareSources`' `apply`) applied to the draft as it is now, which keeps its step. */
+  applyGathered?(id: string, revision: number, actions: unknown[]): Promise<AuthoritiesProduct>;
   /** A reopened draft with each decision rebuilt from text, because its publisher blocked the original,
    *  given the original this browser has kept since; only the browser's store is read. */
   keptOriginals?(product: AuthoritiesProduct): Promise<AuthoritiesProduct>;

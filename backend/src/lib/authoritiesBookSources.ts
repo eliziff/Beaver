@@ -3,10 +3,10 @@
  *  the host and attached with its page count and printed page numbers. Only a host that builds a book loads this: a PDF
  *  typeset from a provider's text is never a source anything is checked against. */
 import { ApplicationError } from "./applicationError";
-import { attachAuthorityPdf, editAuthoritiesDraft } from "./authoritiesActions";
+import { attachAuthorityPdf, attachSourceAction, editAuthoritiesDraft, updateAuthoritiesDraft } from "./authoritiesActions";
 import { validateAuthoritiesPdf } from "./authoritiesPdf";
 import { attachedAuthoritySources, authorityCitationForms, authoritiesProfile, authorityBytesRequired,
-  authoritySourceRequirement, bilingualEnactmentRequired, type AuthoritiesDraft,
+  authoritySourceRequirement, bilingualEnactmentRequired, type AuthoritiesAction, type AuthoritiesDraft,
   type AuthorityIdentity } from "./authoritiesDomain";
 import type { KeptPdf } from "./authoritiesCore";
 import { sourcePageLabels, type SourcePdfReference } from "./authoritiesPageLabels";
@@ -93,6 +93,9 @@ async function keptOriginals(initial: AuthoritiesDraft, sources: BookSourceServi
   return { draft: editor.result(), attachments };
 }
 
+/** What gathering decides, step by step (resolveAuthoritiesSources' `report`). */
+export type GatheringReport = (step: { actions: AuthoritiesAction[] } | { attachment: PreparedAuthoritySource }) => void;
+
 /** Resolves canonical identities and prepares source bytes. `warn` flags a different case while retaining
  *  the cited source for quotation checks; `resolve` waits for the user's choice and looks for the named case. */
 export async function resolveAuthoritiesSources(
@@ -102,6 +105,10 @@ export async function resolveAuthoritiesSources(
   progress?: (message: string) => void,
   keptOnly = false,
   citedCases: "resolve" | "warn" = "resolve",
+  // What gathering decides, as it decides it: the lookups' actions once they are done, each source as soon as it is
+  // here (one language of a bilingual pair with the other, at the end, as they become one), then the closing actions.
+  // Applied in order to the draft given, they make the draft returned, its attachments attached.
+  report?: GatheringReport,
 ) {
   if (keptOnly) return keptOriginals(initial, sources);
   if (onlyAuthorityId && !retryableAuthoritySource(initial, onlyAuthorityId))
@@ -120,9 +127,16 @@ export async function resolveAuthoritiesSources(
     progress, citedCases, (draft, authority, id) => (!!onlyAuthorityId || !authority.sourceVerificationUrl) &&
       (!!authoritySourceRequirement(draft, authority, owed) || onlyAuthorityId === id && !!authority.sourceVerificationUrl));
   const textOnly = !!draft.settings.sourceText, lookups = { editor, draft, retrying, resolvedSources };
+  report?.({ actions: editor.taken() });
+  const reported = new Set<PreparedAuthoritySource>();
+  const finish = () => {
+    report?.({ actions: editor.taken() });
+    for (const attachment of attachments) if (!reported.has(attachment)) report?.({ attachment });
+    return { draft: editor.result(), attachments };
+  };
   if (!needsPdf) {
     if (textOnly) canliiHandoffs(lookups, new Set());
-    return { draft: editor.result(), attachments };
+    return finish();
   }
   const unique = new Map<string, { authorityId: string; authority: AuthorityIdentity;
     source: ResolvedSource }>();
@@ -226,28 +240,40 @@ export async function resolveAuthoritiesSources(
     try { if (sourceUrl ?? pdfUrl) key = new URL(sourceUrl ?? pdfUrl!).origin; } catch { /* its own queue */ }
     publishers.set(key, [...publishers.get(key) ?? [], index]);
   });
-  const prepared = new Array<Awaited<ReturnType<typeof prepareSource>>>(languageSources.length);
+  type Prepared = Awaited<ReturnType<typeof prepareSource>>;
+  const prepared = new Array<Prepared>(languageSources.length), early = new Map<Prepared, PreparedAuthoritySource>();
+  const attachmentOf = ({ authorityId, source, paired, original, pageCount }: Prepared, bytes: Buffer,
+    digest: string): PreparedAuthoritySource => ({ authorityId,
+    filename: pdfFilename(`${source.name ?? source.citation}${paired
+      ? ` (${source.language === "en" ? "English" : "French"})` : ""}`), bytes,
+    sourceSha256: digest, sourceUrl: original
+      ? original.url ?? source.verifiedPdf?.url ?? source.publisherUrl ?? source.url
+      : source.publisherUrl ?? source.url ?? null,
+    origin: original ? "original" : "reconstructed", language: source.language, ...(pageCount && { pageCount }) });
   await mapBounded([...publishers.values()], async (indices) => {
-    for (const index of indices) prepared[index] = await prepareSource(languageSources[index]);
+    for (const index of indices) {
+      const item = prepared[index] = await prepareSource(languageSources[index]);
+      if (report && item.bytes && !item.paired) {
+        const attachment = attachmentOf(item, item.bytes, sha256(item.bytes));
+        early.set(item, attachment); reported.add(attachment); report({ attachment });
+      }
+    }
   }, 3);
-  for (const { authorityId, source, paired, original, bytes, pageCount } of prepared) {
+  for (const item of prepared) {
+    const { authorityId, source, paired, original, bytes } = item;
     if (!bytes) continue;
+    const reportedEarly = early.get(item);
+    if (reportedEarly) { attachments.push(reportedEarly); continue; }
     const digest = sha256(bytes);
-    const sameOriginal = original && paired && attachments.find(item =>
-      item.authorityId === authorityId && item.origin === "original" &&
-      item.sourceSha256 === digest && item.language !== source.language);
+    const sameOriginal = original && paired && attachments.find(attached =>
+      attached.authorityId === authorityId && attached.origin === "original" &&
+      attached.sourceSha256 === digest && attached.language !== source.language);
     if (sameOriginal) {
       sameOriginal.language = "bilingual";
       sameOriginal.filename = pdfFilename(source.name ?? source.citation);
       continue;
     }
-    attachments.push({ authorityId,
-      filename: pdfFilename(`${source.name ?? source.citation}${paired
-        ? ` (${source.language === "en" ? "English" : "French"})` : ""}`), bytes,
-      sourceSha256: digest, sourceUrl: original
-        ? original.url ?? source.verifiedPdf?.url ?? source.publisherUrl ?? source.url
-        : source.publisherUrl ?? source.url ?? null,
-      origin: original ? "original" : "reconstructed", language: source.language, ...(pageCount && { pageCount }) });
+    attachments.push(attachmentOf(item, bytes, digest));
   }
   for (const authorityId of new Set(prepared.map(item => item.authorityId))) {
     const stopped = prepared.find(item => item.authorityId === authorityId && item.stopped)?.stopped;
@@ -255,7 +281,7 @@ export async function resolveAuthoritiesSources(
       ...(stopped && stopped.reason !== "blocked" ? { reason: stopped.reason } : {}) });
   }
   canliiHandoffs(lookups, new Set(attachments.map(({ authorityId }) => authorityId)));
-  return { draft: editor.result(), attachments };
+  return finish();
 }
 
 /** What every host keeps with a fetched source as it attaches it: its printed page numbers, and its length, by which a
@@ -263,14 +289,15 @@ export async function resolveAuthoritiesSources(
  *  step says which it is reading. */
 async function preparedSourcePages<T extends PreparedAuthoritySource>(draft: AuthoritiesDraft,
   attachments: readonly T[], progress?: (message: string) => void,
-  reference?: (attachment: T) => SourcePdfReference) {
+  reference?: (attachment: T) => SourcePdfReference, read?: (attachment: T, pageLabels: Array<string | null>) => void) {
   const labels = new Map<T, Array<string | null>>();
-  let read = 0;
+  let done = 0;
   await mapBounded(attachments, async (attachment) => {
-    progress?.(`Reading the page numbers of ${attachment.filename.replace(/\.pdf$/iu, "")} · ${read + 1} of ${attachments.length}`);
-    labels.set(attachment, await sourcePageLabels(draft, attachment.authorityId, attachment, attachment.bytes,
-      reference?.(attachment)));
-    read += 1;
+    progress?.(`Reading the page numbers of ${attachment.filename.replace(/\.pdf$/iu, "")} · ${done + 1} of ${attachments.length}`);
+    const pageLabels = await sourcePageLabels(draft, attachment.authorityId, attachment, attachment.bytes, reference?.(attachment));
+    labels.set(attachment, pageLabels);
+    read?.(attachment, pageLabels);
+    done += 1;
   }, 3);
   return new Map(attachments.map((attachment) => {
     const pageLabels = labels.get(attachment)!;
@@ -282,17 +309,42 @@ async function preparedSourcePages<T extends PreparedAuthoritySource>(draft: Aut
  *  and printed page numbers. Finding sources is no step the user takes: a PDF found, or a case handed to CanLII, would
  *  send a draft past Citations back to Sources as one the user attaches does, so the draft stays at its step. */
 export async function gatherAuthoritySources(current: AuthoritiesDraft, options: {
-  resolve: (draft: AuthoritiesDraft) => Promise<{ draft: AuthoritiesDraft; attachments: PreparedAuthoritySource[] }>;
+  resolve: (draft: AuthoritiesDraft, report?: GatheringReport) =>
+    Promise<{ draft: AuthoritiesDraft; attachments: PreparedAuthoritySource[] }>;
   keep: (attachments: readonly PreparedAuthoritySource[]) => Promise<KeptPdf[]>;
   progress?: (message: string) => void; signal?: AbortSignal;
+  // Each step as it is made, for a host that applies it as it comes: the actions that applied in order to the draft
+  // given make the draft returned, each with the PDF its attaching keeps (the PDF itself, where it attaches one).
+  report?: (actions: AuthoritiesAction[], attachment?: PreparedAuthoritySource) => void;
 }) {
-  const prepared = await options.resolve(current);
+  const { report } = options;
+  let sofar = current, steps = Promise.resolve();
+  const step = (make: () => Promise<{ actions: AuthoritiesAction[]; attachment?: PreparedAuthoritySource }>) => {
+    steps = steps.then(async () => {
+      const { actions, attachment } = await make();
+      sofar = actions.reduce(updateAuthoritiesDraft, sofar);
+      report!(actions, attachment);
+    });
+  };
+  const attach = async (attachment: PreparedAuthoritySource, extra: { pageLabels?: Array<string | null> } = {}) => {
+    const [pdf] = await options.keep([attachment]);
+    return { actions: [attachSourceAction(sofar, sofar.authorities[attachment.authorityId], pdf!.binding,
+      pdf!.filename ?? attachment.filename, attachment.sourceSha256, attachment.language, { ...attachment, ...extra })], attachment };
+  };
+  const prepared = await options.resolve(current, report && ((made) => step(async () =>
+    "actions" in made ? { actions: made.actions } : attach(made.attachment))));
+  await steps;
   options.signal?.throwIfAborted();
   const kept = await options.keep(prepared.attachments);
   const keptBy = new Map(prepared.attachments.map((attachment, index) => [attachment, kept[index]!]));
   const pages = await preparedSourcePages(prepared.draft, prepared.attachments, options.progress,
     (attachment) => keptBy.get(attachment)!.reference ?? { documentId: `standalone-authority:${attachment.sourceSha256}`,
-      versionId: attachment.sourceSha256 });
+      versionId: attachment.sourceSha256 },
+    report && ((attachment, pageLabels) => step(async () => {
+      const { actions } = await attach(attachment, { pageLabels, ...attachment.pageCount ? {} : { pageCount: pageLabels.length } });
+      return { actions };
+    })));
+  await steps;
   let draft = prepared.draft;
   for (const attachment of prepared.attachments) {
     const pdf = keptBy.get(attachment)!;

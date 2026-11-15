@@ -331,10 +331,11 @@ function Row({ authority, tab, citationLine, italicName, busy, needsPdf, require
       {recognition && ocr ? <SourceOcrInline status={recognition} ocr={ocr} className="w-full max-w-sm" />
         : subline && <p className="line-clamp-2 text-[0.8125rem] leading-5 text-gray-500" title={subline}>{subline}</p>}
     </div>
-    {/* Excerpt or Whole has its own column, so it sits in one place on every row whatever actions follow it. */}
+    {/* Excerpt or Whole has its own column, so it sits in one place on every row whatever actions follow it; the actions
+        start right after it, not at the far edge. */}
     {choosing && <div className="hidden @min-[30rem]/sources:col-start-4 @min-[30rem]/sources:row-start-1 @min-[30rem]/sources:flex">
       {copy?.choosable && choice}</div>}
-    <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-5 @min-[30rem]/sources:-ml-2">
+    <div className="col-span-3 row-start-1 flex items-center justify-end gap-1 @min-[30rem]/sources:col-span-1 @min-[30rem]/sources:col-start-5 @min-[30rem]/sources:-ml-2 @min-[30rem]/sources:justify-start">
       {choosing && <span className="contents @min-[30rem]/sources:hidden">{copy?.choosable ? choice : <span className="w-10" />}</span>}
       {!needsPdf && authority.sourceUrl && sourceLink}
       {needsPdf && (publisherUrl

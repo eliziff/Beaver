@@ -2,7 +2,7 @@
  *  attached, its quotations checked and the verifier's workbook and Word copy written. The book of authorities' own
  *  operations are authoritiesOperations.ts's, which an app that builds no book (the ALR Quote Verifier) never loads. */
 import { decodePdfProfileSelection } from "./documentStore";
-import { pdfTextLayer, preparePdf } from "./sourceDocument";
+import { pdfPages, pdfTextLayer, preparePdf } from "./sourceDocument";
 import { pdfQuotePages } from "./pdfQuotes";
 import { wordToPdfAvailable } from "./convert";
 import { reject } from "./applicationError";
@@ -82,7 +82,9 @@ export function inRuns<T extends Record<string, (...args: any[]) => Promise<unkn
   return Object.fromEntries(Object.entries(operations).map(([name, operation]) =>
     [name, (...args: unknown[]) => withSqliteRun(() => operation(...args))])) as T;
 }
-export type OperationContext = { signal: AbortSignal; progress?: (message: string) => void; quoteProgress?: (value: unknown) => void };
+export type OperationContext = { signal: AbortSignal; progress?: (message: string) => void; quoteProgress?: (value: unknown) => void;
+  /** Gathering's steps as it makes them, for a host that applies each as it comes. */
+  sourceProgress?: (value: unknown) => void };
 /** An app's AI run mode for the verifier, from the request it was sent (an app that connects models supplies one). */
 export type VerifierModel = (request: unknown, progress: (message: string) => void) =>
   { model: AlrModel; stats: unknown } | null;
@@ -143,11 +145,12 @@ export function createAuthoritiesSourceOperations({ services = authoritySourceSe
       return fileResult({ writes: written.writes, written: written.written }, [{ role: "docx",
         filename: state.import.kind === "document" ? state.import.filename : file.filename, mimeType: DOCX, bytes: written.bytes }]);
     },
-    // The PDF's pages as the engine reads them without recognition: how many, and which (from 1) need recognizing.
+    // The PDF's pages as the engine finds them without recognition: how many, and which (from 1) need recognizing. Its
+    // extraction alone answers that; its structure is read when the book needs it.
     "source-pages": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const { bytes, reference } = authoritySource(input);
-      const summary = await preparePdf({ ...reference, bytes, ocrProvider: null, layout: false, signal: context.signal });
-      return value({ pageCount: summary.pageCount, pagesNeedingOcr: summary.pagesNeedingOcr.map(page => page + 1) });
+      const pages = await pdfPages({ ...reference, bytes, signal: context.signal });
+      return value({ pageCount: pages.pageCount, pagesNeedingOcr: pages.pagesNeedingOcr.map(page => page + 1) });
     },
     // Where each quotation stands in the PDF as the engine reads it without recognition: its page and rectangles.
     "source-quotes": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {

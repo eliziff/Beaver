@@ -37,7 +37,8 @@ opt-level = 3
 [profile.dev.package.hayro]
 opt-level = 3
 
-# Built for speed: what ships (the addon, the page's engine) is optimized across crates, as one unit.
+# What ships is optimized across crates, as one unit: the parse measured about 10% faster so (915 structure gold documents,
+# 2026-11-15); the ALR suite and a cold page import, dominated by other work, showed no change. Quick rebuilds: `iterate`.
 [profile.release]
 debug = 0
 strip = true

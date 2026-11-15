@@ -144,12 +144,15 @@ def pair_dot(q, k, i, j):
 class PairHead(nn.Module):
     """The paper's relation head over regions with a pair term: f_ij = q(F_i).k(F_j) + MLP(r_ij), r_ij (`PAIR`) given
     for the pairs listed (`pairs`, the regions within a page of each other); elsewhere the pair scores on its features
-    alone."""
+    alone. The pair term is read for a pair within `ORDER_WINDOW` regions of each other in reading order, or whose note's
+    number is a mark the other sets; a pair beyond takes `far` in its place, so its cost grows with the regions, not with
+    how densely they stand."""
 
     def __init__(self, d):
         super().__init__()
         self.q, self.k = nn.Linear(d, d), nn.Linear(d, d)
         self.r = nn.Sequential(nn.Linear(PAIR, 64), nn.ReLU(), nn.Linear(64, 1))
+        self.far = nn.Parameter(torch.zeros(()))
 
     def forward(self, x, pairs):
         """Each listed pair's score (P,), its two regions' query and key read off at the pair (no region-by-region
@@ -160,9 +163,11 @@ class PairHead(nn.Module):
 
     def parts(self, x, pairs):
         """The same scores' parts as the engine computes them, a pair at a time with no matrix: the regions' scaled
-        queries and keys, and each pair's term."""
-        _, _, r = pairs
-        return self.q(x) / x.shape[-1] ** 0.5, self.k(x), self.r(r).squeeze(-1)
+        queries and keys, and each pair's term (`far` beyond the window, the engine passing only the pairs within)."""
+        i, j, r = pairs
+        near = ((j.long() - i.long()).abs() <= ORDER_WINDOW[0]) | (r[:, -1] > 0.5)
+        term = self.r(r).squeeze(-1)
+        return self.q(x) / x.shape[-1] ** 0.5, self.k(x), torch.where(near, term, self.far.to(term.dtype))
 
 
 def row_loss(logits, i, target, w):
@@ -872,7 +877,10 @@ def model_of(saved, text):
     context's columns aside)."""
     state = saved["model"]
     model = DocParser(state["detect.look.0.weight"].shape[1] - CONTEXT, text, saved["width"], saved.get("row_width", 0))
-    model.load_state_dict(state)
+    # (A checkpoint fitted before Order's pair heads had their far bias reads as one whose window holds every pair.)
+    missing, unexpected = model.load_state_dict(state, strict=False)
+    if unexpected or any(not key.endswith(".far") for key in missing):
+        raise SystemExit(f"the checkpoint does not fit the model: missing {missing}, unexpected {unexpected}")
     return model
 
 
@@ -902,6 +910,7 @@ def page_mask(p):
 # candidate, scored by its query and key alone beyond the window (with the head's `far` bias): no link is out of reach,
 # and the spatial network's cost is fixed a line, not its page's length.
 LINE_WINDOW = [32]
+ORDER_WINDOW = [16]  # the regions either side, in reading order, an Order pair reads its pair term within (`PairHead`)
 
 
 def flat_pairs(p):
@@ -1399,7 +1408,7 @@ def main():
     # The packs and their manifest (`structure-gold training`): the stages fitted, the heads, the statistics, the epochs.
     parser.add_argument("packs")
     parser.add_argument("out")
-    parser.add_argument("--width", type=int, default=256)
+    parser.add_argument("--width", type=int, default=None)  # --init's own where not given, else 256
     # A fitted checkpoint to start from (its weights where their shapes match, its feature statistics), at a tenth of the
     # learning rate and a short warm-up: a gold or label change refits in a few epochs, not ten from nothing.
     parser.add_argument("--init")
@@ -1476,6 +1485,8 @@ def main():
     train, dev = (load_packs(args.packs, manifest[key]) for key in ("train_packs", "dev_packs"))
     print("train kinds: " + ", ".join(f"{k} {sum(p.k for p in train if p.kind == k)}" for k in ("gold", "silver", "giant", "window")), flush=True)
     row_width = manifest["row_width"]
+    # A fit from a checkpoint is of the checkpoint's width (its tensors would not fit another's).
+    args.width = args.width or (start["width"] if start else 256)
     model = DocParser(manifest["width"], manifest["text"], args.width, row_width).to(DEVICE)
     if start:
         own = model.state_dict()
@@ -1893,6 +1904,14 @@ def export(argv):
     folder, which docparse.json names; detect.onnx a page at a time;
     order.onnx a document; headings.onnx and bodies.onnx a tree's nodes), docparse.json (the sizes, the regions and
     the text model's folder; the features' scales are the parser's own, `doc::scale`)."""
+    # `--order-window`: the Order window the export names (`ORDER_WINDOW`), as wide as every pair for a checkpoint fitted
+    # before it had one.
+    # `--line-window` likewise, for a checkpoint fitted before the line heads had one.
+    for flag, window in (("--order-window", ORDER_WINDOW), ("--line-window", LINE_WINDOW)):
+        if flag in argv:
+            at = argv.index(flag)
+            window[0] = int(argv[at + 1])
+            argv = argv[:at] + argv[at + 2:]
     checkpoint, text_model, out = argv
     globals().update(EAGER)
     FLEX.clear()
@@ -1964,7 +1983,8 @@ def export(argv):
     trees = {name: {"table": construct.table().tolist(), "scale": construct.cont_scale.tolist(), "offsets": list(OFFSETS)}
              for name, construct in (("headings", model.headings), ("bodies", model.bodies))}
     json.dump({"width": int(width - CONTEXT), "text_dim": int(text_dim), "d": int(d), "row_width": int(model.templates.row_width), "classes": CLASSES, "regions": REGIONS,
-               "text": os.path.abspath(text_model), "trees": trees, "line_window": LINE_WINDOW[0],
+               "text": os.path.abspath(text_model), "trees": trees, "line_window": LINE_WINDOW[0], "order_window": ORDER_WINDOW[0],
+               "order_far": {head: float(getattr(model.order, head).far) for head in ("goes_on", "note_of", "successor")},
                "line_far": [float(model.detect.successor.far), float(model.detect.predecessor.far)], "epoch": saved.get("epoch")},
               open(os.path.join(out, "docparse.json"), "w", encoding="utf-8"))
     print(f"exported epoch {saved.get('epoch')} to {out}", flush=True)

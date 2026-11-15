@@ -828,6 +828,9 @@ operations! { progress;
     /// What the host knows of how far works run, for every later extraction: a works pack (shared/work-extents-data.mjs).
     now "registerExtents" (pack: String) -> () { cite::register_extents(&pack) }
     /// The identity key of the one full citation a text holds, and every citation's key.
+    /// One of the citation engine's warm-up steps, by its place, and how many there are (legal_citations::warm_step): a
+    /// host warming while it waits for its first document runs them one at a time and stops when the document arrives.
+    now "citationWarmStep" (step: usize) -> usize { cite::warm_step(step) }
     now "citationKeyForText" (text: String) -> cite::api::KeyForTextResponse {
         cite::api::key_for_text(&cite::api::TextRequest { text, ..Default::default() }).map_err(|error| error.to_string())?
     }

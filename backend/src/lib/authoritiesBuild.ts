@@ -399,8 +399,7 @@ async function documentArtifact(draft: AuthoritiesDraft, groups: Group[], filena
         suffix: ` ${suffix}`,
         ...(finalLinks && draft.settings.linkTabs && { tabUrl: filingLinkUrl("tab", occurrence.id) }),
       }),
-      ...(finalLinks && draft.settings.linkPinpoints && occurrence.pinpointSpan &&
-        authority.source.kind === "attached" && authority.source.sources.some(({ origin }) => origin === "manual") && {
+      ...(finalLinks && draft.settings.linkPinpoints && occurrence.pinpointSpan && authority.source.kind === "attached" && {
         pinpointLink: { start: occurrence.pinpointSpan.start, end: occurrence.pinpointSpan.end,
           url: filingLinkUrl("pinpoint", occurrence.id) },
       }),
@@ -942,7 +941,7 @@ export async function buildAuthorities(input: AuthoritiesBuildInput): Promise<Au
         : item.role === "final-pdf" ? ["Combined the brief and complete Book of Authorities",
           "Preserved book index links and bookmarks",
           ...(input.draft.settings.linkTabs ? ["Linked citations to book tabs"] : []),
-          ...(input.draft.settings.linkPinpoints ? ["Linked verified manual PDF pinpoints"] : [])]
+          ...(input.draft.settings.linkPinpoints ? ["Linked verified PDF pinpoints"] : [])]
         : item.role === "table" ? ["Rendered grouped Table of Authorities"]
         : item.role.startsWith("book")
           ? ["Combined attached PDFs", "Added index links and PDF bookmarks"]

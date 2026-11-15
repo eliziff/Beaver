@@ -171,6 +171,19 @@ export async function preparePdf(input: PdfPrepareInput) {
   return { ...structureNative().pdfDocumentSummary(document!), profile, document: document! };
 }
 
+/** A PDF's page count and the pages (from 0) its recognition would read, without reading its structure: the count from
+ *  opening it, the pages from its extraction, which is kept in the parse cache for a later reading to reuse. */
+export async function pdfPages(input: { documentId: string; versionId: string; sourceSha256: string; bytes: Buffer;
+  signal?: AbortSignal }) {
+  input.signal?.throwIfAborted();
+  const native = structureNative();
+  const { ocr: _ocr, ...plain } = pdfRequest(profileFor(null, false));
+  const request = { ...plain, id: `${input.documentId}:${input.versionId}`, expectedSourceSha256: input.sourceSha256 };
+  const [opening, pagesNeedingOcr] = await Promise.all([native.pdfOpening(input.bytes),
+    native.pdfPagesNeedingOcr(input.bytes, request)]);
+  return { pageCount: opening.pageCount, pagesNeedingOcr };
+}
+
 /** The recognized text of a PDF's pages (at most 16), each page from the reading that recognized it: the reading its
  *  profile names, or the one that recognized it alone. */
 export async function pdfTextLayer(

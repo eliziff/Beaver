@@ -164,6 +164,8 @@ export function structureEngineAddon(transport, { toBuffer = (bytes) => bytes, r
     return reopen((await abandonable(pending, signal)).cacheKey);
   }
   async function invokeAsync(name, positional) {
+    // A host with parse workers extracts there, its extraction kept where the parse after it reads it back.
+    if (name === "pdfPagesNeedingOcr" && parser?.pagesNeedingOcr) return parser.pagesNeedingOcr(positional[0], positional[1]);
     if (OPERATIONS[name].mode !== "progress") return invokeOff(name, positional);
     const [bytes, request, signal, progress] = positional;
     signal?.throwIfAborted();

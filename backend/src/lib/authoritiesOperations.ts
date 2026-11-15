@@ -15,7 +15,8 @@ import { decodeAuthoritiesUserAction } from "./authoritiesActionContract";
 import { createAuthoritiesSourceOperations, draft, fileResult, givenSource, inRuns, json, keptByPage, requiredSource,
   sourceBytes, standaloneSource, value, type OperationContext, type OperationsOptions } from "./authoritiesSourceOperations";
 import { text } from "./authoritiesActionContract";
-import type { AuthoritiesDraft } from "./authoritiesDomain";
+import type { AuthoritiesAction, AuthoritiesDraft } from "./authoritiesDomain";
+import { updateAuthoritiesDraft } from "./authoritiesActions";
 import type { AuthoritiesOperationInput, AuthoritiesRuntimeResult } from "mike/shared/runtime/authoritiesRuntime.mjs";
 
 const MAX_BUILD_INPUT_BYTES = 512 * 1024 * 1024;
@@ -41,12 +42,24 @@ export function createAuthoritiesOperations(options: OperationsOptions = {}) {
     const current = draft(input?.draft);
     const onlyAuthorityId = input?.authorityId === undefined
       ? undefined : text(input.authorityId, 200);
+    // A page that applies each step as it comes is given them as they are made (`sourceProgress`): its rows fill as the
+    // sources arrive, and what has arrived is saved.
+    const sourceProgress = context.sourceProgress;
     const gathered = await gatherAuthoritySources(current, { progress, signal: context.signal,
-      resolve: (state) => resolveAuthoritiesSources(state, { ...services, render: (source) => structureNative().renderSourcePdf(source) }, context.signal,
-        onlyAuthorityId, progress, input?.keptOnly === true, citedCases),
+      report: sourceProgress && ((actions, attachment) => sourceProgress({ actions, attachment })),
+      resolve: (state, report) => resolveAuthoritiesSources(state, { ...services, render: (source) => structureNative().renderSourcePdf(source) }, context.signal,
+        onlyAuthorityId, progress, input?.keptOnly === true, citedCases, report),
       keep: async (attachments) => attachments.map(({ filename, bytes, sourceSha256 }) =>
         keptByPage(filename, bytes, sourceSha256, `stored:${sourceSha256}`)) });
     return draftResult(gathered.draft, gathered.attachments);
+    },
+    // The steps gathering made (its `sourceProgress`), applied to the draft as it is now, which stays at its step as
+    // gathering's own draft does.
+    "apply-actions": async (input: AuthoritiesOperationInput): Promise<AuthoritiesRuntimeResult> => {
+      const current = draft(input?.draft), actions = json(input?.actions, "actions");
+      if (!Array.isArray(actions) || actions.length > 1_000) reject(400, "Invalid actions");
+      const applied = (actions as AuthoritiesAction[]).reduce(updateAuthoritiesDraft, current);
+      return value(applied.stage === current.stage ? applied : { ...applied, stage: current.stage });
     },
     "source-read": async (input: AuthoritiesOperationInput, context: OperationContext): Promise<AuthoritiesRuntimeResult> => {
       const progress = context.progress;

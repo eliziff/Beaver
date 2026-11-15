@@ -52,10 +52,12 @@ export function updateAuthoritiesDraft(draft: AuthoritiesDraft, action: Authorit
 }
 
 /** Many actions on one working copy, validated once; a rejection is a 400 as for one action. */
+/** `applied`: each action applied so far, in order; a host that applies them to its own copy of the draft as they come
+ *  (taken with `taken`) ends with what `result` gives. */
 export function editAuthoritiesDraft(draft: AuthoritiesDraft) {
-  const editor = asRequestError(() => authoritiesDraftEditor(draft));
-  return { draft: editor.draft, apply: (action: AuthoritiesAction) => asRequestError(() => editor.apply(action)),
-    result: () => asRequestError(() => editor.result()) };
+  const editor = asRequestError(() => authoritiesDraftEditor(draft)), applied: AuthoritiesAction[] = [];
+  return { draft: editor.draft, apply: (action: AuthoritiesAction) => { asRequestError(() => editor.apply(action)); applied.push(action); },
+    result: () => asRequestError(() => editor.result()), taken: () => applied.splice(0) };
 }
 
 export function applyAuthoritiesInitialSettings(
@@ -76,18 +78,24 @@ export function applyAuthoritiesInitialSettings(
   return changed;
 }
 
+type AttachOptions = { origin?: "manual" | "original" | "reconstructed"; sourceUrl?: string | null; pageCount?: number;
+  pageLabels?: Array<string | null> };
 export function attachAuthorityPdf(draft: AuthoritiesDraft, authority: AuthorityIdentity,
+  binding: WorkProductInput, filename: string, sourceSha256: string, language: AuthoritySourceLanguage, options: AttachOptions = {}) {
+  return updateAuthoritiesDraft(draft, attachSourceAction(draft, authority, binding, filename, sourceSha256, language, options));
+}
+
+/** The action that attaches a PDF to an authority, as its language's source (replacing it where there is one). */
+export function attachSourceAction(draft: AuthoritiesDraft, authority: AuthorityIdentity,
   binding: WorkProductInput, filename: string,
   sourceSha256: string, language: AuthoritySourceLanguage, { origin = "manual",
     sourceUrl = authority.source.kind === "pending-canlii" ? authority.source.pdfUrl
       : attachedAuthoritySources(authority.source).find(source => source.language === language)?.sourceUrl
-        ?? authority.sourceIdentity?.externalUrl ?? null, pageCount, pageLabels }: {
-    origin?: "manual" | "original" | "reconstructed"; sourceUrl?: string | null; pageCount?: number;
-    pageLabels?: Array<string | null> } = {}) {
-  return updateAuthoritiesDraft(draft, { type: "attach-source", authorityId: authority.id, bindingRole:
+        ?? authority.sourceIdentity?.externalUrl ?? null, pageCount, pageLabels }: AttachOptions = {}): AuthoritiesAction {
+  return { type: "attach-source", authorityId: authority.id, bindingRole:
     attachedAuthoritySources(authority.source).find(source => source.language === language)?.bindingRole
       ?? unusedRole(draft, `authority:${sha256(authority.key).slice(0, 24)}:${language}`),
-    binding, filename, sourceSha256, sourceUrl, language, origin, pageCount, pageLabels });
+    binding, filename, sourceSha256, sourceUrl, language, origin, pageCount, pageLabels };
 }
 
 /** A merged-away authority keeps its role inside the survivor, so the same key can recur. */

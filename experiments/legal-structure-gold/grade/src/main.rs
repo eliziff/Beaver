@@ -340,6 +340,13 @@ fn current(dump: &Path, source: &Source) -> Option<legalpdf::Entry> {
 /// Whether an entry holds this build's parse of the source: its read key, and the parse itself.
 fn is_current(entry: &legalpdf::Entry, source: &Source) -> bool {
     read_key(source).is_some_and(|key| entry.record["read_key"] == key.as_str()) && entry.bytes("parse").is_some()
+        && (!keeps_inputs() || entry.has_part("inputs"))
+}
+
+/// Whether a grade keeps DOC's inputs with its parses: where DOC reads the kept parse (a model named) or its fit does (a
+/// dump named).
+fn keeps_inputs() -> bool {
+    std::env::var_os("LEGALPDF_DOC").is_some() || std::env::var_os("LEGALPDF_DOC_DUMP").is_some()
 }
 
 /// The gold's side an entry keeps for this gold (`gold_stamp`), where it keeps one.
@@ -380,7 +387,7 @@ fn parse(source: &Source) -> Result<(DocumentStructure, std::sync::Arc<Vec<legal
     let structure_at = Instant::now();
     // The parse kept under this build's key, which the next grade reads it back by (`is_current`).
     let (folder, key) = (dump_folder(), read_key(source));
-    let keep = folder.as_deref().zip(key.as_deref()).map(|(folder, key)| legalpdf::Keep { folder, key });
+    let keep = folder.as_deref().zip(key.as_deref()).map(|(folder, key)| legalpdf::Keep { folder, key, inputs: keeps_inputs() });
     let document = legalpdf::gold_structure_document(extracted, &source.sha256, keep)
         .map_err(|e| format!("{}: {e}", source.sha256))?;
     if std::env::var_os("STRUCTURE_GOLD_TIMING").is_some() {

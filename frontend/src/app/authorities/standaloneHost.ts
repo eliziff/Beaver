@@ -14,7 +14,7 @@ import {
 } from "@/app/lib/standaloneWorkProducts";
 import { BeaverApiError } from "@/app/lib/api/client";
 import { authoritiesOperation, type AuthoritiesRequest } from "./runtimeClient";
-import type { AuthoritiesOperation } from "mike/shared/runtime/authoritiesRuntime.mjs";
+import type { AuthoritiesOperation, AuthoritiesSourceStep } from "mike/shared/runtime/authoritiesRuntime.mjs";
 import type { WorkProduct, WorkProductInput } from "@/app/lib/workProducts";
 import type { AuthoritiesAction, AuthoritiesBuildReceipt, AuthoritiesDraft } from "./types";
 import type { AuthoritiesFile, AuthoritiesHost, AuthoritiesSourceIssue } from "./host";
@@ -75,8 +75,8 @@ async function currentProduct(id: string, revision: number) {
 }
 
 async function runtimeResponse(operation: AuthoritiesOperation, input: AuthoritiesRequest,
-  signal?: AbortSignal, progress?: (message: string) => void) {
-  return authoritiesOperation(operation, input, { signal, progress });
+  signal?: AbortSignal, progress?: (message: string) => void, sourceProgress?: (step: AuthoritiesSourceStep) => void) {
+  return authoritiesOperation(operation, input, { signal, progress, sourceProgress });
 }
 // A read holds an upload slot for as long as it reads (a scan's pages can take a while), so reads
 // go one at a time, in tab order, and the workspace's own requests always find a slot free.
@@ -285,6 +285,10 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
       { draft: product.state, action });
     return save(id, revision, state);
   },
+  async applyGathered(id, revision, actions) {
+    const product = await currentProduct(id, revision);
+    return save(id, revision, await runtimeDraft("apply-actions", { draft: product.state, actions }));
+  },
   async review(id, signal) {
     const product = await standaloneWorkProducts.get<AuthoritiesDraft>(id);
     return runtimeResponse("discrepancies", { draft: product.state }, signal)
@@ -336,9 +340,33 @@ export const standaloneAuthoritiesHost: AuthoritiesHost = {
     const state = structuredClone(product.state); state.bindings[role] = resolved.input;
     return save(id, revision, await refreshImported(state, resolved.file));
   },
-  async prepareSources(selected, signal, authorityId, progress) {
+  async prepareSources(selected, signal, authorityId, progress, apply) {
     signal?.throwIfAborted();
     const product = await currentProduct(selected.id, selected.revision);
+    if (apply) {
+      // Each step applied as it comes, in order, its PDF kept first: a source is saved and shown as soon as it is
+      // here, and nothing is saved at the end that was not applied as it came.
+      const bindings = new Map<string, WorkProductInput>();
+      let applied: Promise<AuthoritiesProduct | undefined> = Promise.resolve(undefined);
+      const sourceProgress = (step: AuthoritiesSourceStep) => {
+        applied = applied.then(async () => {
+          const pdf = step.attachment;
+          if (pdf && !bindings.has(pdf.sourceSha256)) {
+            const binding = await retainStandaloneFile(new File([pdf.bytes.slice().buffer as ArrayBuffer], pdf.filename,
+              { type: "application/pdf", lastModified: 0 }));
+            if (binding.lastSeen.sha256 !== pdf.sourceSha256) throw new Error(`The downloaded bytes do not match ${pdf.filename}.`);
+            bindings.set(pdf.sourceSha256, binding);
+          }
+          return apply(step.actions.map((action) => {
+            const attached = action as { type?: string; sourceSha256?: string };
+            const binding = attached.type === "attach-source" && attached.sourceSha256 ? bindings.get(attached.sourceSha256) : undefined;
+            return binding ? { ...attached, binding } : action;
+          }));
+        });
+      };
+      await runtimeResponse("sources", { draft: product.state, authorityId }, signal, progress, sourceProgress);
+      return (await applied) ?? product;
+    }
     const prepared = await runtimeDraft("sources",
       { draft: product.state, authorityId }, signal, progress);
     signal?.throwIfAborted();

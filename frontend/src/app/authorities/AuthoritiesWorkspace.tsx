@@ -1044,6 +1044,10 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
     if (role) openSource(role, (finding.found ?? finding.cited).text);
   }
 
+  /** Each of gathering's steps saved as it comes, where the host streams them (`applyGathered`): a source found is in
+   *  the draft, and on screen, at once. Each waits its turn behind the user's own changes. */
+  const savedAsGathered = (id: string) => host.applyGathered && ((actions: unknown[]) =>
+    queuedSave(id, (current) => host.applyGathered!(current.id, current.revision, actions)).then((saved) => { adopt(saved); return saved; }));
   /** The PDFs a draft cites are gathered as soon as its citations are known, not on request. */
   async function gatherSources(attempts: number): Promise<void> {
     const current = draftRef.current;
@@ -1054,7 +1058,8 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       // Gathered beside the queue of the user's changes, never in it, and on past Citations: nothing the user does or
       // opens waits on a download. A change that lands meanwhile makes this gathering's save too late; it is made
       // again on the newer draft, reading what it already fetched, once the changes queued meanwhile have saved.
-      const gather = (latest: AuthoritiesProduct) => host.prepareSources(latest, undefined, undefined, noteSources);
+      const gather = (latest: AuthoritiesProduct) => host.prepareSources(latest, undefined, undefined, noteSources,
+        savedAsGathered(latest.id) || undefined);
       let next: AuthoritiesProduct | undefined;
       for (let attempt = 1; !next; attempt += 1) {
         const latest = draftRef.current;
@@ -1093,16 +1098,20 @@ export function AuthoritiesWorkspace({ host, headerActions, onDraftChange, initi
       await gatherQueue.current;
       const id = draftRef.current?.id;
       if (!id) throw new Error("Open a draft first.");
-      // Each write waits its turn behind every other save, and is made again on a newer draft
-      // should one land meanwhile (sources still arriving, a gathering retried).
-      const prepared = await queuedSave(id, (current) =>
-        gathered.current.id === current.id && gathered.current.sources === sourcesInputs(current) ? Promise.resolve(current)
-          // A legal-source service that is down or limiting requests leaves the sources to add by
-          // hand: the step still opens, and says why nothing was found.
-          : host.prepareSources(current, request.signal, undefined, noteSources).catch((caught) => {
-            if ((caught as { status?: number })?.status !== 503) throw caught;
-            unavailable = errorText(caught); return current;
-          }));
+      // A legal-source service that is down or limiting requests leaves the sources to add by
+      // hand: the step still opens, and says why nothing was found.
+      const unanswered = (current: AuthoritiesProduct) => (caught: unknown) => {
+        if ((caught as { status?: number })?.status !== 503) throw caught;
+        unavailable = errorText(caught); return current;
+      };
+      const fresh = (current: AuthoritiesProduct) => gathered.current.id === current.id && gathered.current.sources === sourcesInputs(current);
+      const streamed = savedAsGathered(id), now = draftRef.current!;
+      // A host that streams gathers beside the queue, each step saved in its turn; otherwise each write waits its turn
+      // behind every other save, and is made again on a newer draft should one land meanwhile.
+      const prepared = streamed ? fresh(now) ? now : await host.prepareSources(now, request.signal, undefined, noteSources, streamed)
+          .catch(unanswered(now))
+        : await queuedSave(id, (current) => fresh(current) ? Promise.resolve(current)
+          : host.prepareSources(current, request.signal, undefined, noteSources).catch(unanswered(current)));
       request.signal.throwIfAborted();
       if (prepared !== draftRef.current) adopt(prepared);
       return queuedSave(id, (current) => host.act(current.id, current.revision, { type: "set-stage", stage: "sources" }));

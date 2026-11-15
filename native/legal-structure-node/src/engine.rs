@@ -100,11 +100,14 @@ pub struct NativeDocument {
     /// The CanLII page of the document's source, where its reading names one (an A2AJ document's, read with its
     /// metadata): where a passage of it is routed.
     pub(crate) canlii: Option<String>,
+    /// The PDF's page maps read so far, by the reports' first pages they are anchored on (`pdf_page_map`): a viewer
+    /// asks for the map, the printed pages and the passages, each reading the same map.
+    page_maps: std::sync::Mutex<Vec<(Vec<u32>, Vec<legalpdf::PdfPageBinding>)>>,
 }
 
 impl NativeDocument {
     pub(crate) fn new(product: NativeProduct) -> Self {
-        Self { product, query: DocumentQuery::new(), quotes: Default::default(), canlii: None }
+        Self { product, query: DocumentQuery::new(), quotes: Default::default(), canlii: None, page_maps: Default::default() }
     }
 
     /// A structure the engine read, as its document.
@@ -306,8 +309,15 @@ mod pdf {
     /// The document's page map (`PdfDocument::page_map`), anchored on the first pages of the reports `citations` cite.
     pub fn pdf_page_map(document: &NativeDocument, citations: &[String]) -> CoreResult<Vec<PdfPageBinding>> {
         let starts = super::reporter_start_pages(citations);
+        let pdf = pdf(document)?;
+        let mut maps = document.page_maps.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((_, map)) = maps.iter().find(|(anchored, _)| *anchored == starts) {
+            return Ok(map.clone());
+        }
         let is_citation = |text: &str, page: &str| super::reporter_pages(text).iter().any(|cited| cited == page);
-        Ok(legalpdf::page_map(pdf(document)?, &starts, &is_citation))
+        let map = legalpdf::page_map(pdf, &starts, &is_citation);
+        maps.push((starts, map.clone()));
+        Ok(map)
     }
 
     /// The PDF pages (from 1) each printed page label names by the document's page map, anchored on the reports

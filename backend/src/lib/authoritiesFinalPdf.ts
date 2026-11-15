@@ -73,11 +73,12 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput, 
     const authority = draft.authorities[occurrence.authorityId ?? ""];
     const placement = destinations.get(authority?.id ?? "");
     if (!authority || !placement || authority.source.kind !== "attached") return { to: null, missing: "source-missing" };
-    const manual = authority.source.sources.filter(({ origin }) => origin === "manual");
-    if (manual.length && manual.every(({ bindingRole }) => !sources[bindingRole]?.bytes))
-      return { to: null, missing: "source-missing" };
+    // Any PDF the authority has (attached by hand, its publisher's, or rendered from its text): a paragraph is found by
+    // the number the page prints for it, which the engine witnessed (hasPrintedParagraphLocator).
+    const attached = authority.source.sources;
+    if (attached.every(({ bindingRole }) => !sources[bindingRole]?.bytes)) return { to: null, missing: "source-missing" };
     let ambiguous = false;
-    for (const source of manual) {
+    for (const source of attached) {
       const { geometry, offset: start = 0 } = read.get(source.bindingRole) ?? {};
       if (!sources[source.bindingRole]?.bytes || !geometry) continue;
       const matching = geometry.targets.filter((target) => occurrence.pinpoints.some(({ kind, text }) =>
@@ -103,7 +104,7 @@ export async function assembleFinalAuthoritiesPdf(input: AuthoritiesBuildInput, 
         : placed ? { to: [...placed.tab, null] as FinalLink["to"] } : { to: null, missing: "source-missing" as Reason };
       // The citation is linked too, where the brief's text places it.
       const cite = !!authority && !authority.excluded && (kind === "tab" || !!occurrence.pinpointSpan &&
-        attachedAuthoritySources(authority.source).some(({ origin }) => origin === "manual"));
+        attachedAuthoritySources(authority.source).length > 0);
       const tab = tabs.get(authority?.id ?? "");
       // A brief saved from the Word output carries its tab reference; link that when present.
       const quoteTexts = kind === "tab" ? [`[${tab}]`, tab && tabReference(draft.settings, tab),
