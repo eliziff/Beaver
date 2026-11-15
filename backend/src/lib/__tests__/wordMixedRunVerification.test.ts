@@ -5,8 +5,7 @@ import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { resolveSofficeBinary } from "../convert";
 import { runWordPython, wordPython } from "../wordPython";
-import { type XNode, createParser, createBuilder, elChildren, elName, findBody, makeEl, setChildren } from "../docx/core";
-import { docxBytes, docxXml } from "./support/docxFixtures";
+import { type XNode, createBuilder, createParser, docxBytes, docxXml, elChildren, elName, findBody, makeEl, setChildren } from "./support/docxFixtures";
 
 const available = () => {
   if (process.env.WORD_PYTHON_CONTAINER_IMAGE) return true;

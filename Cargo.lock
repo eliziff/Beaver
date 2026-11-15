@@ -1531,6 +1531,7 @@ dependencies = [
  "image",
  "legal-pdf-core",
  "legal-pdf-pages",
+ "mimalloc",
  "ort",
  "serde",
  "serde_json",

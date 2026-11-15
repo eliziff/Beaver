@@ -2,8 +2,7 @@ import { ImageRun, Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { runWordPython } from "../wordPython";
-import { type XNode, createParser, createBuilder, elChildren, elName, findBody, makeEl, setChildren } from "../docx/core";
-import { docxBytes, docxXml } from "./support/docxFixtures";
+import { type XNode, createBuilder, createParser, docxBytes, docxXml, elChildren, elName, findBody, makeEl, setChildren } from "./support/docxFixtures";
 
 const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4f+A0AAVMAotDMHBLAAAAAElFTkSuQmCC", "base64");
 async function sourceBytes(twoImages: boolean) {
